@@ -1,0 +1,14 @@
+lint.select = ["B", "E", "F", "I", "UP", "W", "C4", "SIM", "ARG", "PIE", "T20", "Q", "N"]
+lint.ignore = ["B905", "B008", "F811", "E501"]
+lint.fixable = ["B", "F", "I", "UP"]
+lint.unfixable = []
+# tests: N802 - Allow Korean characters in test function names
+# notebooks: T20 - Allow print(), ARG - Allow unused arguments, N - Relax naming conventions, E501 - Allow long lines
+lint.per-file-ignores = { "tests/**" = ["N802"], "notebooks/**" = ["T20", "ARG", "N", "E501"] }
+extend-include = ["*.ipynb"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

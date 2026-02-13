@@ -1,0 +1,6 @@
+[run]
+source = src
+
+[report]
+fail_under = 70
+omit = src/main.py
