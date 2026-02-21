@@ -1,69 +1,89 @@
 import { Farm, Module, Register } from '../types';
-import { mockDb } from './mockDb';
 
-// Simulate network delay
-const delay = (ms: number = 300) => new Promise(resolve => setTimeout(resolve, ms));
+const API_BASE_URL = '/admin';
+
+// Helper function to handle fetch responses
+const fetchJson = async (url: string, options?: RequestInit) => {
+    const response = await fetch(`${API_BASE_URL}${url}`, {
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options?.headers || {})
+        },
+        ...options
+    });
+
+    if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
+};
 
 export const farmsApi = {
-    getAll: async () => {
-        await delay();
-        return mockDb.getFarms();
+    getAll: (): Promise<Farm[]> => {
+        return fetchJson('/farms');
     },
-    getById: async (id: string) => {
-        await delay();
-        return mockDb.getFarm(id);
+    getById: (id: string): Promise<Farm> => {
+        return fetchJson(`/farms/${id}`);
     },
-    create: async (data: Omit<Farm, 'id' | 'created_at'>) => {
-        await delay();
-        return mockDb.createFarm(data);
+    create: (data: Omit<Farm, 'id' | 'created_at'>): Promise<Farm> => {
+        return fetchJson('/farms', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
     },
-    update: async (id: string, data: Partial<Farm>) => {
-        await delay();
-        return mockDb.updateFarm(id, data);
+    update: (id: string, data: Partial<Farm>): Promise<Farm> => {
+        return fetchJson(`/farms/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
     },
-    delete: async (id: string) => {
-        await delay();
-        mockDb.deleteFarm(id);
-        return true;
+    delete: async (id: string): Promise<boolean> => {
+        const result = await fetchJson(`/farms/${id}`, { method: 'DELETE' });
+        return result.success ?? true;
     }
 };
 
 export const modulesApi = {
-    getByFarm: async (farmId: string) => {
-        await delay();
-        return mockDb.getModules(farmId);
+    getByFarm: (farmId: string): Promise<Module[]> => {
+        return fetchJson(`/farms/${farmId}/modules`);
     },
-    create: async (data: Omit<Module, 'id' | 'created_at'>) => {
-        await delay();
-        return mockDb.createModule(data);
+    create: (data: Omit<Module, 'id' | 'created_at'>): Promise<Module> => {
+        return fetchJson('/modules', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
     },
-    update: async (id: string, data: Partial<Module>) => {
-        await delay();
-        return mockDb.updateModule(id, data);
+    update: (id: string, data: Partial<Module>): Promise<Module> => {
+        return fetchJson(`/modules/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
     },
-    delete: async (id: string) => {
-        await delay();
-        mockDb.deleteModule(id);
-        return true;
+    delete: async (id: string): Promise<boolean> => {
+        const result = await fetchJson(`/modules/${id}`, { method: 'DELETE' });
+        return result.success ?? true;
     }
 };
 
 export const registersApi = {
-    getByModule: async (moduleId: string) => {
-        await delay();
-        return mockDb.getRegisters(moduleId);
+    getByModule: (moduleId: string): Promise<Register[]> => {
+        return fetchJson(`/modules/${moduleId}/registers`);
     },
-    create: async (data: Omit<Register, 'id' | 'created_at'>) => {
-        await delay();
-        return mockDb.createRegister(data);
+    create: (data: Omit<Register, 'id' | 'created_at'>): Promise<Register> => {
+        return fetchJson('/registers', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
     },
-    update: async (id: string, data: Partial<Register>) => {
-        await delay();
-        return mockDb.updateRegister(id, data);
+    update: (id: string, data: Partial<Register>): Promise<Register> => {
+        return fetchJson(`/registers/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
     },
-    delete: async (id: string) => {
-        await delay();
-        mockDb.deleteRegister(id);
-        return true;
+    delete: async (id: string): Promise<boolean> => {
+        const result = await fetchJson(`/registers/${id}`, { method: 'DELETE' });
+        return result.success ?? true;
     }
 };

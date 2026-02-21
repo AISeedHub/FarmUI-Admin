@@ -360,3 +360,17 @@
     gap: 1rem;
     margin-top: 2rem;
 }
+
+.node.deactivated {
+    border-color: #ff4d4d !important;
+    opacity: 0.8;
+}
+
+.node.deactivated:hover {
+    border-color: #ff4d4d !important;
+    box-shadow: 0 4px 12px rgba(255, 77, 77, 0.4) !important;
+}
+
+.deactivated-btn {
+    color: #ff4d4d !important;
+}

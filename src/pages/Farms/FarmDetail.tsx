@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power } from 'lucide-react';
 import { Farm, Module, Register } from '../../types';
 import { farmsApi, modulesApi, registersApi } from '../../api/services';
 import './FarmDetail.css';
@@ -114,28 +114,33 @@ export default function FarmDetail() {
     // REGISTER CRUD
     const saveRegister = async () => {
         if (!registerModal.moduleId) return;
+
+        const processedData = {
+            ...registerModal.data,
+            address: registerModal.data.address !== undefined && String(registerModal.data.address) !== '' ? Number(registerModal.data.address) : 0,
+            bit_start: registerModal.data.bit_start !== undefined && String(registerModal.data.bit_start) !== '' ? Number(registerModal.data.bit_start) : 0,
+            bit_end: registerModal.data.bit_end !== undefined && String(registerModal.data.bit_end) !== '' ? Number(registerModal.data.bit_end) : 15,
+            scale_factor: registerModal.data.scale_factor !== undefined && String(registerModal.data.scale_factor) !== '' ? Number(registerModal.data.scale_factor) : 1,
+            min_value: registerModal.data.min_value !== undefined && String(registerModal.data.min_value) !== '' ? Number(registerModal.data.min_value) : 0,
+            max_value: registerModal.data.max_value !== undefined && String(registerModal.data.max_value) !== '' ? Number(registerModal.data.max_value) : 100,
+        };
+
         if (registerModal.type === 'new') {
             const data: Omit<Register, 'id' | 'created_at'> = {
-                ...registerModal.data,
+                ...processedData,
                 module_id: registerModal.moduleId,
-                address: registerModal.data.address || 0,
-                bit_start: registerModal.data.bit_start || 0,
-                bit_end: registerModal.data.bit_end || 15,
-                unit: registerModal.data.unit || '',
-                writable: registerModal.data.writable ?? true,
-                data_type: registerModal.data.data_type || 'int16',
-                role: registerModal.data.role || 'config',
-                scale_factor: registerModal.data.scale_factor || 1,
-                is_signed: registerModal.data.is_signed ?? true,
-                min_value: registerModal.data.min_value || 0,
-                max_value: registerModal.data.max_value || 100,
-                is_active: registerModal.data.is_active ?? true
+                unit: processedData.unit || '',
+                writable: processedData.writable ?? false,
+                data_type: processedData.data_type || 'UNSIGNED_FLOAT',
+                role: processedData.role || 'SYSTEM_INFO',
+                is_signed: processedData.is_signed ?? false,
+                is_active: processedData.is_active ?? true
             } as Omit<Register, 'id' | 'created_at'>;
             await registersApi.create(data);
         } else {
-            await registersApi.update(registerModal.data.id!, registerModal.data);
+            await registersApi.update(processedData.id!, processedData as Register);
         }
-        setRegisterModal({ ...registerModal, isOpen: false });
+        setRegisterModal({ ...registerModal, isOpen: false, data: {} });
         loadData();
     };
     const deleteRegister = async (regId: string) => {
@@ -143,6 +148,11 @@ export default function FarmDetail() {
             await registersApi.delete(regId);
             loadData();
         }
+    };
+
+    const toggleRegisterActive = async (reg: Register) => {
+        await registersApi.update(reg.id, { ...reg, is_active: !reg.is_active });
+        loadData();
     };
 
     if (loading) return <div className="loading">Loading Blueprint...</div>;
@@ -222,12 +232,13 @@ export default function FarmDetail() {
                                     {registers[mod.id]?.map(reg => (
                                         <div key={reg.id} className="register-wrapper">
                                             <div className="connection-line-register"></div>
-                                            <div className="node register-node compact panel" onDoubleClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: reg, moduleId: mod.id })}>
+                                            <div className={`node register-node compact panel ${!reg.is_active ? 'deactivated' : ''}`} onDoubleClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: reg, moduleId: mod.id })}>
                                                 <div className="node-head">
                                                     <h5>{reg.name} <span className="reg-addr">0x{reg.address.toString(16).toUpperCase()}</span></h5>
                                                     <div className="node-actions hidden-actions">
-                                                        <button onClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: reg, moduleId: mod.id })}><Edit2 size={12} /></button>
-                                                        <button className="del" onClick={() => deleteRegister(reg.id)}><Trash2 size={12} /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); toggleRegisterActive(reg); }} className={!reg.is_active ? 'deactivated-btn' : ''} title={reg.is_active ? "Activate" : "Deactivate"}><Power size={12} /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: reg, moduleId: mod.id }); }}><Edit2 size={12} /></button>
+                                                        <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
                                                     </div>
                                                 </div>
                                                 <p className="node-desc">{reg.description || 'No description'}</p>
@@ -278,30 +289,84 @@ export default function FarmDetail() {
                             </div>
                             <div className="form-group">
                                 <label>Address (Base 10)</label>
-                                <input type="number" value={registerModal.data.address || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, address: parseInt(e.target.value) } })} />
+                                <input type="number" value={registerModal.data.address ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, address: e.target.value as any } })} />
                             </div>
                             <div className="form-group full-width">
                                 <label>Description</label>
                                 <input value={registerModal.data.description || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, description: e.target.value } })} />
                             </div>
                             <div className="form-group">
-                                <label>Data Type</label>
-                                <select value={registerModal.data.data_type || 'int16'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, data_type: e.target.value as any } })}>
-                                    <option value="int16">INT16</option>
-                                    <option value="uint16">UINT16</option>
-                                    <option value="int32">INT32</option>
-                                    <option value="float32">FLOAT32</option>
-                                    <option value="boolean">BOOLEAN</option>
+                                <label>Bit Start</label>
+                                <input type="number" value={registerModal.data.bit_start ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, bit_start: e.target.value as any } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Bit End</label>
+                                <input type="number" value={registerModal.data.bit_end ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, bit_end: e.target.value as any } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Unit</label>
+                                <select value={registerModal.data.unit || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, unit: e.target.value } })}>
+                                    <option value="">-- No Unit --</option>
+                                    <option value="°C">°C (Celsius)</option>
+                                    <option value="°F">°F (Fahrenheit)</option>
+                                    <option value="%">% (Percentage)</option>
+                                    <option value="ppm">ppm (Parts Per Million)</option>
+                                    <option value="pH">pH</option>
+                                    <option value="Lux">Lux</option>
+                                    <option value="m/s">m/s (Meters per second)</option>
+                                    <option value="mm/h">mm/h (Millimeters per hour)</option>
+                                    <option value="W/m²">W/m² (Watts per square meter)</option>
+                                    <option value="kPa">kPa (Kilopascals)</option>
+                                    <option value="hPa">hPa (Hectopascals)</option>
+                                    <option value="m³">m³ (Cubic meters)</option>
+                                    <option value="L">L (Liters)</option>
+                                    <option value="kg">kg (Kilograms)</option>
+                                    <option value="g">g (Grams)</option>
+                                    <option value="A">A (Amperes)</option>
+                                    <option value="V">V (Volts)</option>
+                                    <option value="W">W (Watts)</option>
+                                    <option value="kWh">kWh (Kilowatt-hours)</option>
+                                    <option value="Hz">Hz (Hertz)</option>
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Role</label>
-                                <select value={registerModal.data.role || 'config'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, role: e.target.value as any } })}>
-                                    <option value="sensor">SENSOR</option>
-                                    <option value="control">CONTROL</option>
-                                    <option value="config">CONFIG</option>
-                                    <option value="status">STATUS</option>
+                                <label>Scale Factor</label>
+                                <input type="number" step="any" value={registerModal.data.scale_factor ?? '1'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, scale_factor: e.target.value as any } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Min Value</label>
+                                <input type="number" step="any" value={registerModal.data.min_value ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, min_value: e.target.value as any } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Max Value</label>
+                                <input type="number" step="any" value={registerModal.data.max_value ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, max_value: e.target.value as any } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>Data Type</label>
+                                <select value={registerModal.data.data_type || 'UNSIGNED_FLOAT'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, data_type: e.target.value as any } })}>
+                                    <option value="UNSIGNED_FLOAT">UNSIGNED_FLOAT</option>
+                                    <option value="SIGNED_FLOAT">SIGNED_FLOAT</option>
+                                    <option value="UNSIGNED_INT">UNSIGNED_INT</option>
+                                    <option value="SIGNED_INT">SIGNED_INT</option>
+                                    <option value="BOOL">BOOLEAN</option>
                                 </select>
+                            </div>
+                            <div className="form-group checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1.8rem', marginRight: '8rem' }}>
+                                <input type="checkbox" id="signed-checkbox" checked={registerModal.data.is_signed ?? false} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, is_signed: e.target.checked } })} />
+                                <label htmlFor="signed-checkbox" style={{ margin: 0, marginLeft: '1rem' }}>Is_Signed</label>
+                            </div>
+                            <div className="form-group">
+                                <label>Role</label>
+                                <select value={registerModal.data.role || 'SYSTEM_INFO'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, role: e.target.value as any } })}>
+                                    <option value="SYSTEM_INFO">SYSTEM_INFO</option>
+                                    <option value="INTERNAL_CONFIG">INTERNAL_CONFIG</option>
+                                    <option value="ENVIRONMENT_INFO">ENVIRONMENT_INFO</option>
+                                    <option value="CONTROL_ACTUATOR">CONTROL_ACTUATOR</option>
+                                </select>
+                            </div>
+                            <div className="form-group checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1.8rem', marginRight: '8rem', marginLeft: '-0.5rem' }}>
+                                <input type="checkbox" id="writable-checkbox" checked={registerModal.data.writable ?? false} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, writable: e.target.checked } })} />
+                                <label htmlFor="writable-checkbox" style={{ margin: 0, marginLeft: '1rem' }}>Writable</label>
                             </div>
                         </div>
                         <div className="modal-actions">

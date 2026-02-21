@@ -19,8 +19,8 @@ export interface Module {
 }
 
 // Ensure the types match the ERD provided.
-export type RegisterDataType = 'int16' | 'uint16' | 'int32' | 'uint32' | 'float32' | 'boolean';
-export type RegisterRole = 'sensor' | 'control' | 'config' | 'status';
+export type RegisterDataType = 'UNSIGNED_FLOAT' | 'SIGNED_FLOAT' | 'SIGNED_INT' | 'UNSIGNED_INT' | 'BOOL';
+export type RegisterRole = 'SYSTEM_INFO' | 'INTERNAL_CONFIG' | 'ENVIRONMENT_INFO' | 'CONTROL_ACTUATOR';
 
 export interface Register {
     id: string; // uuid

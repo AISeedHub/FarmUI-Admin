@@ -46,30 +46,34 @@ Open `http://localhost:5173` (or the port specified by Vite) in your browser.
 - **Username:** `admin`
 - **Password:** `admin`
 
-## Development Guide
+## Backend API Integration Status
 
-### Mock Database
-The application operates entirely offline right now using a simulated backend located in `src/api/mockDb.ts`. 
+FarmUI-Admin communicates with the SmartFarm FastAPI backend. All endpoints are prefixed with `/admin`.
 
-- **Data Persistence**: Any changes (Modules created, Farm names changed, etc.) are saved to your browser's `localStorage`.
-- **Resetting Data**: To restore the factory default mock data, clear your browser's Local Storage for the site, or remove the `farms`, `modules`, and `registers` keys specifically.
+### Implemented APIs (Mapped to Frontend Services)
 
-### Preparing for Real Backend Integration
-The `src/api/services.ts` file acts as the bridge. Currently, it triggers `delay()` functions and reads from `mockDb.ts`. 
-To connect this frontend to a real API:
-1. Open `src/api/services.ts`.
-2. Remove the `delay()` logic and the `import { mockDb }` statement.
-3. Replace the function bodies with standard `fetch()` or `axios()` calls directed perfectly matching the provided Endpoints.
-   *Example:*
-   ```ts
-   export const farmsApi = {
-     getAll: async () => {
-       const res = await fetch('/api/farms');
-       return res.json();
-     },
-     // ...
-   }
-   ```
+**Farms**
+- `GET /admin/farms` : Lấy danh sách farms (mapped to `farmsApi.getAll()`)
+- `GET /admin/farms/{farm_id}` : Lấy thông tin chi tiết 1 farm (mapped to `farmsApi.getById()`)
+- `POST /admin/farms` : Tạo farm mới (mapped to `farmsApi.create()`)
+- `PUT /admin/farms/{farm_id}` : Cập nhật farm (mapped to `farmsApi.update()`)
+- `DELETE /admin/farms/{farm_id}` : Xóa farm và cascade các related modules (mapped to `farmsApi.delete()`)
+
+**Modules**
+- `GET /admin/farms/{farm_id}/modules` : Lấy danh sách modules thuộc 1 farm (mapped to `modulesApi.getByFarm()`)
+- `POST /admin/modules` : Tạo module mới (mapped to `modulesApi.create()`)
+- `PUT /admin/modules/{module_id}` : Cập nhật module (mapped to `modulesApi.update()`)
+- `DELETE /admin/modules/{module_id}` : Xóa module và cascade các related registers (mapped to `modulesApi.delete()`)
+
+**Registers**
+- `GET /admin/modules/{module_id}/registers` : Lấy danh sách registers thuộc 1 module (mapped to `registersApi.getByModule()`)
+- `POST /admin/registers` : Tạo register mới (mapped to `registersApi.create()`)
+- `PUT /admin/registers/{register_id}` : Cập nhật register (mapped to `registersApi.update()`)
+- `DELETE /admin/registers/{register_id}` : Xóa register (mapped to `registersApi.delete()`)
+
+### APIs Pending Implementation
+
+- `POST /admin/farms/{farm_id}/config` : Upload YAML config cho farm. (Endpoint này đã có trên Backend nhưng Frontend hiện tại chưa có UI hoặc Service function để upload file YAML).
 
 ## Folder Structure
 ```
