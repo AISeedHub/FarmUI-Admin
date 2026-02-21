@@ -1,0 +1,150 @@
+:root {
+  /* Blueprint Light Theme Colors */
+  --bg-color: #f4f7f6;
+  --bg-grid: rgba(0, 0, 0, 0.04);
+  --primary: #0077b6;
+  --primary-glow: rgba(0, 119, 182, 0.2);
+  --secondary: #00b4d8;
+  --accent: #2a9d8f;
+  /* Modern green */
+  --accent-glow: rgba(42, 157, 143, 0.2);
+  --text-main: #1d2d44;
+  --text-muted: #5c677d;
+  --border: rgba(0, 119, 182, 0.2);
+  --border-active: rgba(0, 119, 182, 0.5);
+  --panel-bg: rgba(255, 255, 255, 0.95);
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-mono);
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  background-image:
+    linear-gradient(var(--bg-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 30px 30px;
+  background-position: center center;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Blueprint Panels */
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  padding: 1.5rem;
+  border-radius: 4px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.panel:hover {
+  border-color: var(--border-active);
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+/* Headings */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-sans);
+  color: var(--primary);
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+/* Forms */
+input,
+select,
+textarea {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 0.75rem 1rem;
+  font-family: var(--font-mono);
+  border-radius: 2px;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 8px var(--primary-glow);
+}
+
+/* Buttons */
+button {
+  background: white;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  padding: 0.5rem 1.5rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 4px 12px var(--primary-glow);
+}
+
+button.primary {
+  background: var(--primary);
+  color: white;
+}
+
+button.primary:hover {
+  background: white;
+  color: var(--primary);
+}
+
+button.accent {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button.accent:hover {
+  background: var(--accent);
+  color: white;
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 119, 182, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}

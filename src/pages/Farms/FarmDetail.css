@@ -1,0 +1,362 @@
+.farm-detail-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    background: var(--panel-bg);
+    z-index: 10;
+}
+
+.back-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0;
+}
+
+.back-btn:hover {
+    color: var(--primary);
+    box-shadow: none;
+    background: transparent;
+}
+
+.farm-title-info {
+    text-align: center;
+}
+
+.farm-title-info h2 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    justify-content: center;
+}
+
+.farm-title-info .subtitle {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 0.25rem;
+}
+
+.blueprint-canvas.new-horizontal-layout {
+    flex: 1;
+    overflow: auto;
+    /* Scroll horizontally and vertically here */
+    position: relative;
+    width: 100%;
+}
+
+.canvas-inner {
+    display: flex;
+    flex-direction: row;
+    /* Layout left-to-right */
+    align-items: flex-start;
+    /* Align columns at the top */
+    min-width: max-content;
+    /* Guarantee we don't collapse nodes causing left-clipping */
+    padding: 2rem;
+    margin: 0;
+    gap: 4rem;
+    /* Gap between Core column and Modules column */
+}
+
+/* --- COLUMN 1: SMARTFARM CORE --- */
+.core-column {
+    display: flex;
+    align-items: flex-start;
+    /* Align to the top instead of centered */
+    justify-content: flex-start;
+    position: sticky;
+    /* Make it stick to the left when scrolling right */
+    left: 2rem;
+    /* Matches container padding */
+    z-index: 20;
+    margin-top: 0;
+}
+
+.node {
+    background: var(--panel-bg);
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    padding: 1rem;
+    width: 280px;
+    position: relative;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    /* Prevent ANY node from shrinking */
+}
+
+.farm-node {
+    border-color: var(--primary);
+    box-shadow: 0 4px 15px var(--primary-glow);
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    background: #ffffff;
+    margin-top: 0;
+}
+
+/* New Dynamic SVG Layer */
+.connections-svg {
+    position: sticky;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    overflow: visible;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* --- COLUMN 2: MODULES & REGISTERS --- */
+.modules-column {
+    display: flex;
+    flex-direction: column;
+    /* Stack modules vertically */
+    gap: 3rem;
+    /* Gap between Module rows */
+    position: relative;
+    padding: 0;
+    /* Align perfectly */
+    justify-content: flex-start;
+    /* Align modules from the top down */
+}
+
+/* Vertical trunk line removed in favor of dynamic SVG curves */
+.modules-column::before {
+    display: none;
+}
+
+/* Each Module Row Configuration */
+.module-row {
+    display: flex;
+    flex-direction: row;
+    /* Lay out Module then Registers */
+    align-items: stretch;
+    /* Stretch so the trunk segment fills the row height */
+    position: relative;
+}
+
+.module-node {
+    border-color: var(--secondary);
+    background: #ffffff;
+    position: sticky;
+    /* Make module stick if user scrolls deep into registers */
+    left: calc(2rem + 280px + 4rem + 2px + 4rem);
+    /* Exact offset from connection line */
+    z-index: 15;
+    align-self: flex-start;
+    margin-top: 0;
+}
+
+.module-node:hover {
+    box-shadow: 0 4px 15px rgba(0, 180, 216, 0.2);
+    transform: translateY(-2px);
+}
+
+/* Line branching from Module straight out to Registers Group */
+.module-node.has-children::after {
+    content: '';
+    position: absolute;
+    top: 4rem;
+    right: -3rem;
+    /* Spanning the 3rem gap rightwards to the Registers */
+    width: 3rem;
+    height: 2px;
+    background: var(--border-active);
+}
+
+/* Registers Row Container */
+.registers-row {
+    display: flex;
+    flex-direction: row;
+    /* Stretch horizontally left-to-right */
+    align-items: flex-start;
+    gap: 2rem;
+    /* Gap between registers */
+    position: relative;
+    padding-left: 3rem;
+    /* padding equals the width of the branching line */
+}
+
+/* A background horizontal line sliding through all the registers */
+.registers-row::before {
+    content: '';
+    position: absolute;
+    top: 4rem;
+    left: 3rem;
+    right: 0;
+    /* Goes completely through row to the very last register */
+    height: 2px;
+    background: var(--border-active);
+    z-index: 0;
+}
+
+.registers-row:empty::before {
+    display: none;
+}
+
+/* Individual Register Wrapped */
+.register-wrapper {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    margin-top: 0;
+}
+
+.register-node.compact {
+    width: 240px;
+    padding: 0.75rem;
+    z-index: 2;
+    /* Put above the background line */
+    background: #ffffff;
+    margin-top: 0;
+}
+
+.register-node:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.register-node:hover .hidden-actions {
+    opacity: 1;
+}
+
+/* Header inside nodes */
+.node-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.node-head h4,
+.node-head h5 {
+    margin: 0;
+    color: var(--text-main);
+    display: flex;
+    flex-direction: row;
+    /* Switch to row layout to enforce Address taking space on right */
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    /* Stretch to fill remainder */
+    padding-right: 0.5rem;
+}
+
+.reg-addr {
+    font-size: 0.7rem;
+    color: var(--accent);
+    font-family: var(--font-mono);
+}
+
+.node-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.hidden-actions {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.node-actions button {
+    background: transparent;
+    border: none;
+    padding: 0.25rem;
+    color: var(--text-muted);
+}
+
+.node-actions button:hover {
+    color: var(--primary);
+    box-shadow: none;
+    background: transparent;
+}
+
+.node-actions button.del:hover {
+    color: #ff4d4d;
+}
+
+.node-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+}
+
+.add-reg-btn {
+    width: 100%;
+    font-size: 0.8rem;
+    padding: 0.4rem;
+}
+
+.register-node.compact .node-head h5 {
+    font-size: 0.85rem;
+}
+
+.register-node.compact .node-desc {
+    font-size: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.register-node.compact .reg-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    border-top: 1px dashed var(--border);
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+
+/* MODALS */
+.modal-large {
+    max-width: 700px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.form-grid .full-width {
+    grid-column: 1 / -1;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 500px;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+}

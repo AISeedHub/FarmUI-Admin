@@ -1,0 +1,138 @@
+.layout-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.top-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 2rem;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    background: var(--panel-bg);
+    z-index: 100;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+
+
+.nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.brand-logo {
+    color: var(--primary);
+}
+
+.nav-brand h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--primary);
+    letter-spacing: 1px;
+}
+
+.nav-brand .subtitle {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.nav-links {
+    display: flex;
+    gap: 1.5rem;
+    flex: 1;
+    justify-content: center;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    font-family: var(--font-sans);
+}
+
+.nav-item:hover {
+    color: var(--primary);
+    background: var(--primary-glow);
+}
+
+.nav-item.active {
+    color: var(--primary);
+    background: var(--primary-glow);
+    position: relative;
+}
+
+.nav-item.active::after {
+    content: '';
+    position: absolute;
+    bottom: -0.75rem;
+    /* extends to the border bottom visually */
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: var(--primary);
+    border-radius: 2px 2px 0 0;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 4px;
+}
+
+.nav-btn:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: white;
+}
+
+.nav-btn.logout-btn:hover {
+    color: #ff4d4d;
+    border-color: #ff4d4d;
+}
+
+.main-content {
+    flex: 1;
+    padding: 2rem;
+    /* Add uniform padding all around to replace static navbar */
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    /* Let it stretch horizontally forever */
+    overflow: auto;
+    /* Handle scrolling here directly */
+    position: relative;
+}
