@@ -327,6 +327,10 @@ export default function FarmDetail() {
                                     <option value="W">W (Watts)</option>
                                     <option value="kWh">kWh (Kilowatt-hours)</option>
                                     <option value="Hz">Hz (Hertz)</option>
+                                    <option value="µmol/m²/s">µmol/m²/s (Micro moles per square meter per second)</option>
+                                    <option value="minutes">Minutes</option>
+                                    <option value="hours">Hours</option>
+                                    <option value="days">Days</option>
                                 </select>
                             </div>
                             <div className="form-group">
