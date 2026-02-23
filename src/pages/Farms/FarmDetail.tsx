@@ -174,24 +174,45 @@ export default function FarmDetail() {
                 <div className="canvas-inner">
                     {/* Dynamic SVG Connections Overlay */}
                     <svg ref={svgRef} className="connections-svg">
-                        <defs>
-                            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                                <polygon points="0 0, 8 3, 0 6" fill="var(--primary)" />
-                            </marker>
-                        </defs>
+
                         {connections.map(conn => {
-                            const dx = conn.endX - conn.startX;
-                            // Cubic Bezier control points for a smooth S-curve
-                            const cp1X = conn.startX + dx * 0.45;
+                            // Flat section length before module
+                            const flatLen = 130;
+                            const curveEndX = conn.endX - flatLen;
+
+                            // Cubic Bezier control points for a smooth S-curve into horizontal
+                            const cp1X = conn.startX + (curveEndX - conn.startX) * 0.5;
                             const cp1Y = conn.startY;
-                            const cp2X = conn.endX - dx * 0.45;
+                            const cp2X = curveEndX - (curveEndX - conn.startX) * 0.5;
                             const cp2Y = conn.endY;
-                            const pathD = `M ${conn.startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
+
+                            // Path consists of Curve + straight Line
+                            const pathD = `M ${conn.startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${curveEndX},${conn.endY} L ${conn.endX},${conn.endY}`;
+
+                            const midX = conn.endX - 75; // Centers pill on the flat segment before module
+                            const midY = conn.endY;
+
+                            const regCount = registers[conn.id]?.length || 0;
+                            const color = 'var(--primary)'; // User requested keeping all connections 1 color
 
                             return (
                                 <g key={conn.id}>
-                                    {/* Thin crisp foreground layer with directional arrow */}
-                                    <path d={pathD} fill="none" stroke="var(--primary)" strokeWidth="1.5" markerEnd="url(#arrowhead)" />
+                                    {/* Connection Line */}
+                                    <path d={pathD} fill="none" stroke={color} strokeWidth="2" />
+
+                                    {/* Start Dot */}
+                                    <circle cx={conn.startX} cy={conn.startY} r="5" fill="var(--panel-bg)" stroke={color} strokeWidth="2" />
+                                    <circle cx={conn.startX} cy={conn.startY} r="2.5" fill={color} />
+
+                                    {/* End Dot */}
+                                    <circle cx={conn.endX} cy={conn.endY} r="5" fill="var(--panel-bg)" stroke={color} strokeWidth="2" />
+                                    <circle cx={conn.endX} cy={conn.endY} r="2.5" fill={color} />
+
+                                    {/* Register Count Pill */}
+                                    <rect x={midX - 45} y={midY - 12} width="90" height="24" rx="12" fill="var(--panel-bg)" stroke="#444" strokeWidth="1" />
+                                    <text x={midX} y={midY + 1} fill="var(--text-muted)" fontSize="11" fontFamily="sans-serif" textAnchor="middle" dominantBaseline="middle">
+                                        {regCount} {regCount === 1 ? 'Register' : 'Registers'}
+                                    </text>
                                 </g>
                             );
                         })}

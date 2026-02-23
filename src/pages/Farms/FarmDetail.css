@@ -59,22 +59,22 @@
     display: flex;
     flex-direction: row;
     /* Layout left-to-right */
-    align-items: flex-start;
-    /* Align columns at the top */
+    align-items: center;
+    /* Align columns at the center */
     min-width: max-content;
     /* Guarantee we don't collapse nodes causing left-clipping */
     padding: 2rem;
     margin: 0;
-    gap: 4rem;
+    gap: 12rem;
     /* Gap between Core column and Modules column */
 }
 
 /* --- COLUMN 1: SMARTFARM CORE --- */
 .core-column {
     display: flex;
-    align-items: flex-start;
-    /* Align to the top instead of centered */
-    justify-content: flex-start;
+    align-items: center;
+    /* Align to the center */
+    justify-content: center;
     position: sticky;
     /* Make it stick to the left when scrolling right */
     left: 2rem;
@@ -152,7 +152,7 @@
     background: #ffffff;
     position: sticky;
     /* Make module stick if user scrolls deep into registers */
-    left: calc(2rem + 280px + 4rem + 2px + 4rem);
+    left: calc(2rem + 280px + 12rem);
     /* Exact offset from connection line */
     z-index: 15;
     align-self: flex-start;
