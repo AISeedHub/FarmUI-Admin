@@ -1,15 +1,20 @@
 import { Farm, Module, Register } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/admin';
-
-// Helper function to handle fetch responses
+const AUTH_BASE_URL = API_BASE_URL.replace(/\/admin$/, '') + '/auth';// Helper function to handle fetch responses
 const fetchJson = async (url: string, options?: RequestInit) => {
+    const token = localStorage.getItem('access_token');
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...((options?.headers as Record<string, string>) || {})
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}${url}`, {
-        headers: {
-            'Content-Type': 'application/json',
-            ...(options?.headers || {})
-        },
-        ...options
+        ...options,
+        headers
     });
 
     if (!response.ok) {
@@ -90,3 +95,22 @@ export const registersApi = {
         return result.success ?? true;
     }
 };
+
+export const authApi = {
+    login: async (credentials: { email: string; password: string }): Promise<{ access_token: string; token_type: string }> => {
+        const response = await fetch(`${AUTH_BASE_URL}/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(credentials),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Login Error: ${response.status} ${response.statusText}`);
+        }
+
+        return response.json();
+    }
+};
+
