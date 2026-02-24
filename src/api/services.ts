@@ -1,6 +1,6 @@
 import { Farm, Module, Register } from '../types';
 
-const API_BASE_URL = '/admin';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/admin';
 
 // Helper function to handle fetch responses
 const fetchJson = async (url: string, options?: RequestInit) => {
