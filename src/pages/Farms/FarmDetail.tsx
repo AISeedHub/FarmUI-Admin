@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, Download } from 'lucide-react';
+import YAML from 'yaml';
 import { Farm, Module, Register } from '../../types';
 import { farmsApi, modulesApi, registersApi } from '../../api/services';
 import './FarmDetail.css';
@@ -14,6 +15,7 @@ export default function FarmDetail() {
     const [modules, setModules] = useState<Module[]>([]);
     const [registers, setRegisters] = useState<Record<string, Register[]>>({});
     const [loading, setLoading] = useState(true);
+    const [exporting, setExporting] = useState(false);
 
     // Modal states
     const [moduleModal, setModuleModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Module> }>({ isOpen: false, type: 'new', data: {} });
@@ -150,6 +152,29 @@ export default function FarmDetail() {
         }
     };
 
+    const handleExport = async () => {
+        if (!id || !farm) return;
+        setExporting(true);
+        try {
+            const data = await farmsApi.exportConfig(id);
+            const yamlStr = YAML.stringify(data);
+            const blob = new Blob([yamlStr], { type: 'text/yaml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `farm_config_${id}.yaml`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Failed to export config', error);
+            alert('Failed to export configuration.');
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const toggleRegisterActive = async (reg: Register) => {
         await registersApi.update(reg.id, { ...reg, is_active: !reg.is_active });
         loadData();
@@ -168,6 +193,14 @@ export default function FarmDetail() {
                     <h2>{farm.name} <span className="farm-code">[{farm.farm_code}]</span></h2>
                     <p className="subtitle">Location: {farm.location} | Status: {farm.is_active ? 'Active' : 'Inactive'}</p>
                 </div>
+                <button
+                    className="export-btn flex-center"
+                    onClick={handleExport}
+                    disabled={exporting}
+                >
+                    <Download size={16} />
+                    {exporting ? 'Exporting...' : 'Export Config'}
+                </button>
             </div>
 
             <div className="blueprint-canvas new-horizontal-layout">

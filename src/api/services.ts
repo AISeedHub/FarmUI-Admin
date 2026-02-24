@@ -41,6 +41,9 @@ export const farmsApi = {
     delete: async (id: string): Promise<boolean> => {
         const result = await fetchJson(`/farms/${id}`, { method: 'DELETE' });
         return result.success ?? true;
+    },
+    exportConfig: (id: string): Promise<any> => {
+        return fetchJson(`/farms/${id}/export`);
     }
 };
 
