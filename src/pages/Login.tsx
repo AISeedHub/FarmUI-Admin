@@ -23,7 +23,7 @@ export default function Login({ onLogin }: LoginProps) {
 
         try {
             const response = await authApi.login({
-                email: username,
+                username,
                 password
             });
 
@@ -58,7 +58,7 @@ export default function Login({ onLogin }: LoginProps) {
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder="email@example.com"
+                            placeholder="username"
                         />
                     </div>
                     <div className="form-group">

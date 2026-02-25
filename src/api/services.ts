@@ -97,7 +97,7 @@ export const registersApi = {
 };
 
 export const authApi = {
-    login: async (credentials: { email: string; password: string }): Promise<{ access_token: string; token_type: string }> => {
+    login: async (credentials: { username: string; password: string }): Promise<{ access_token: string; token_type: string }> => {
         const response = await fetch(`${AUTH_BASE_URL}/login`, {
             method: 'POST',
             headers: {
