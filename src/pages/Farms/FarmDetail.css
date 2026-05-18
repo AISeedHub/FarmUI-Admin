@@ -138,114 +138,185 @@
     pointer-events: none;
 }
 
-/* --- COLUMN 2: MODULES & REGISTERS --- */
-.modules-column {
+/* --- COLUMNS 2, 3, 4: PROGRESSIVE INTERACTIVE BLUEPRINT LAYOUT --- */
+.zones-column,
+.devices-column,
+.registers-column {
     display: flex;
     flex-direction: column;
-    /* Stack modules vertically */
-    gap: 3rem;
-    /* Gap between Module rows */
+    gap: 1.5rem;
     position: relative;
     padding: 0;
-    /* Align perfectly */
     justify-content: flex-start;
-    /* Align modules from the top down */
 }
 
-/* Vertical trunk line removed in favor of dynamic SVG curves */
-.modules-column::before {
-    display: none;
-}
-
-/* Each Module Row Configuration */
-.module-row {
-    display: flex;
-    flex-direction: row;
-    /* Lay out Module then Registers */
-    align-items: stretch;
-    /* Stretch so the trunk segment fills the row height */
-    position: relative;
-}
-
-.module-node {
-    border-color: var(--secondary);
+/* Set dynamic sticky scroll positions for nodes in each column */
+.zone-node {
+    width: 280px;
+    border-color: var(--border);
     background: #ffffff;
     position: sticky;
-    /* Make module stick if user scrolls deep into registers */
     left: calc(2rem + 280px + 12rem);
-    /* Exact offset from connection line */
     z-index: 15;
     align-self: flex-start;
     margin-top: 0;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.module-node:hover {
-    box-shadow: 0 4px 15px rgba(0, 180, 216, 0.2);
+.zone-node:hover {
+    border-color: var(--primary);
+    box-shadow: 0 4px 15px rgba(0, 119, 182, 0.15);
     transform: translateY(-2px);
 }
 
-/* Line branching from Module straight out to Registers Group */
-.module-node.has-children::after {
-    content: '';
-    position: absolute;
-    top: 4rem;
-    right: -3rem;
-    /* Spanning the 3rem gap rightwards to the Registers */
-    width: 3rem;
-    height: 2px;
-    background: var(--border-active);
+.zone-node.selected {
+    border-color: var(--primary);
+    box-shadow: 0 0 20px var(--primary-glow);
+    background: #ffffff;
 }
 
-/* Registers Row Container */
-.registers-row {
-    display: flex;
-    flex-direction: row;
-    /* Stretch horizontally left-to-right */
-    align-items: flex-start;
-    gap: 2rem;
-    /* Gap between registers */
-    position: relative;
-    padding-left: 3rem;
-    /* padding equals the width of the branching line */
+.unassigned-node {
+    border-color: var(--text-muted);
+    background: rgba(240, 244, 248, 0.95);
 }
 
-/* A background horizontal line sliding through all the registers */
-.registers-row::before {
-    content: '';
-    position: absolute;
-    top: 4rem;
-    left: 3rem;
-    right: 0;
-    /* Goes completely through row to the very last register */
-    height: 2px;
-    background: var(--border-active);
-    z-index: 0;
+.unassigned-node:hover {
+    box-shadow: 0 4px 15px rgba(92, 103, 125, 0.2);
 }
 
-.registers-row:empty::before {
-    display: none;
+.unassigned-node.selected {
+    border-color: var(--text-muted);
+    box-shadow: 0 0 20px rgba(92, 103, 125, 0.3);
 }
 
-/* Individual Register Wrapped */
-.register-wrapper {
-    position: relative;
-    display: flex;
-    align-items: flex-start;
+.module-node {
+    width: 280px;
+    border-color: var(--border);
+    background: #ffffff;
+    position: sticky;
+    left: calc(2rem + 280px + 12rem + 280px + 12rem);
+    z-index: 15;
+    align-self: flex-start;
     margin-top: 0;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.module-node:hover {
+    border-color: var(--secondary);
+    box-shadow: 0 4px 15px rgba(0, 180, 216, 0.15);
+    transform: translateY(-2px);
+}
+
+.module-node.selected {
+    border-color: var(--secondary);
+    box-shadow: 0 0 20px rgba(0, 180, 216, 0.35);
+    background: #ffffff;
 }
 
 .register-node.compact {
-    width: 240px;
+    width: 280px;
+    border-color: var(--accent);
+    position: sticky;
+    left: calc(2rem + 280px + 12rem + 280px + 12rem + 280px + 12rem);
+    z-index: 15;
+    align-self: flex-start;
+    margin-top: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.register-node.compact:hover {
+    box-shadow: 0 4px 15px rgba(46, 196, 182, 0.2);
+    transform: translateY(-2px);
+}
+
+/* Metadata displays inside Nodes */
+.zone-meta,
+.device-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    border-top: 1px dashed var(--border);
+    padding-top: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* Columns Headers & Titles */
+.column-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    margin: 0;
+    border-left: 2px solid var(--border-active);
+    padding-left: 0.5rem;
+    height: 18px;
+    line-height: 18px;
+}
+
+.column-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 28px;
+    margin-bottom: 0.5rem;
+}
+
+.add-btn-small {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
+    color: var(--text);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    transition: all 0.2s ease;
+}
+
+.add-btn-small:hover {
+    border-color: var(--border-active);
+    color: var(--primary);
+    box-shadow: 0 2px 8px var(--primary-glow);
+}
+
+/* Empty Column Blueprint Placeholder Card */
+.empty-column-placeholder {
+    width: 280px;
+    padding: 2.5rem 1.5rem;
+    border: 2px dashed var(--border);
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    font-style: italic;
+    min-height: 120px;
+    align-self: flex-start;
+}
+
+
+.register-node.compact {
+    width: 280px;
     padding: 0.75rem;
-    z-index: 2;
-    /* Put above the background line */
+    z-index: 15;
     background: #ffffff;
     margin-top: 0;
 }
 
 .register-node:hover {
     border-color: var(--accent);
-    box-shadow: 0 4px 12px var(--accent-glow);
+    box-shadow: 0 4px 15px rgba(46, 196, 182, 0.25);
 }
 
 .register-node:hover .hidden-actions {

@@ -1,4 +1,4 @@
-import { Farm, Device, Register } from '../types';
+import { Farm, Zone, Device, Register } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/admin';
 const AUTH_BASE_URL = API_BASE_URL.replace(/\/admin$/, '') + '/auth';
@@ -51,6 +51,28 @@ export const farmsApi = {
     },
     exportConfig: (id: string): Promise<any> => {
         return fetchJson(`/farms/${id}/export`);
+    }
+};
+
+export const zonesApi = {
+    getByFarm: (farmId: string): Promise<Zone[]> => {
+        return fetchJson(`/farms/${farmId}/zones`);
+    },
+    create: (data: Omit<Zone, 'id' | 'created_at'>): Promise<Zone> => {
+        return fetchJson('/zones', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+    update: (id: string, data: Partial<Zone>): Promise<Zone> => {
+        return fetchJson(`/zones/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+    delete: async (id: string): Promise<boolean> => {
+        const result = await fetchJson(`/zones/${id}`, { method: 'DELETE' });
+        return result.success ?? true;
     }
 };
 

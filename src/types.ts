@@ -10,6 +10,20 @@ export interface Farm {
     updated_at?: string;
 }
 
+export interface Zone {
+    id: string; // uuid
+    farm_id: string; // uuid
+    code: string;
+    name: string;
+    display_names?: Record<string, string> | null;
+    description: string;
+    default_slave_id: number;
+    display_order: number;
+    is_active: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export type DeviceKind = 'sensor' | 'actuator' | 'system';
 export type DeviceType = 'switch' | 'open_close' | 'sensor_group' | 'control_mode';
 
