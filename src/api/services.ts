@@ -1,7 +1,9 @@
-import { Farm, Module, Register } from '../types';
+import { Farm, Device, Register } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/admin';
-const AUTH_BASE_URL = API_BASE_URL.replace(/\/admin$/, '') + '/auth';// Helper function to handle fetch responses
+const AUTH_BASE_URL = API_BASE_URL.replace(/\/admin$/, '') + '/auth';
+
+// Helper function to handle fetch responses
 const fetchJson = async (url: string, options?: RequestInit) => {
     const token = localStorage.getItem('access_token');
     const headers: Record<string, string> = {
@@ -52,31 +54,31 @@ export const farmsApi = {
     }
 };
 
-export const modulesApi = {
-    getByFarm: (farmId: string): Promise<Module[]> => {
-        return fetchJson(`/farms/${farmId}/modules`);
+export const devicesApi = {
+    getByFarm: (farmId: string): Promise<Device[]> => {
+        return fetchJson(`/farms/${farmId}/devices`);
     },
-    create: (data: Omit<Module, 'id' | 'created_at'>): Promise<Module> => {
-        return fetchJson('/modules', {
+    create: (data: Omit<Device, 'id' | 'created_at'>): Promise<Device> => {
+        return fetchJson('/devices', {
             method: 'POST',
             body: JSON.stringify(data),
         });
     },
-    update: (id: string, data: Partial<Module>): Promise<Module> => {
-        return fetchJson(`/modules/${id}`, {
+    update: (id: string, data: Partial<Device>): Promise<Device> => {
+        return fetchJson(`/devices/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
         });
     },
     delete: async (id: string): Promise<boolean> => {
-        const result = await fetchJson(`/modules/${id}`, { method: 'DELETE' });
+        const result = await fetchJson(`/devices/${id}`, { method: 'DELETE' });
         return result.success ?? true;
     }
 };
 
 export const registersApi = {
-    getByModule: (moduleId: string): Promise<Register[]> => {
-        return fetchJson(`/modules/${moduleId}/registers`);
+    getByDevice: (deviceId: string): Promise<Register[]> => {
+        return fetchJson(`/devices/${deviceId}/registers`);
     },
     create: (data: Omit<Register, 'id' | 'created_at'>): Promise<Register> => {
         return fetchJson('/registers', {
@@ -113,4 +115,5 @@ export const authApi = {
         return response.json();
     }
 };
+
 

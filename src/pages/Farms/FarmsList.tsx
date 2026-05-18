@@ -27,7 +27,7 @@ export default function FarmsList() {
 
     const handleCreate = () => {
         setIsEditing('new');
-        setFormData({ farm_code: '', name: '', location: '', is_active: true });
+        setFormData({ code: '', name: '', location: '', timezone: 'Asia/Seoul', default_language: 'en', is_active: true });
     };
 
     const handleEdit = (e: React.MouseEvent, farm: Farm) => {
@@ -86,7 +86,7 @@ export default function FarmsList() {
                         >
                             <div className="farm-card-header">
                                 <h3>{farm.name}</h3>
-                                <span className="farm-code">{farm.farm_code}</span>
+                                <span className="farm-code">{farm.code}</span>
                             </div>
 
                             <div className="farm-card-body">
@@ -124,8 +124,8 @@ export default function FarmsList() {
                         <div className="form-group">
                             <label>Farm Code</label>
                             <input
-                                value={formData.farm_code || ''}
-                                onChange={e => setFormData({ ...formData, farm_code: e.target.value })}
+                                value={formData.code || ''}
+                                onChange={e => setFormData({ ...formData, code: e.target.value })}
                             />
                         </div>
                         <div className="form-group">

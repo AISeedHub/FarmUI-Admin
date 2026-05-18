@@ -1,24 +1,32 @@
-import { Farm, Module, Register } from '../types';
+import { Farm, Device, Register } from '../types';
 
 // Mock Data Initializer
 const initializeData = () => {
     const defaultFarms: Farm[] = [
         {
             id: "f1",
-            farm_code: "FARM-A",
+            code: "FARM-A",
             name: "Alpha Greenhouse",
             location: "Sector 7G",
+            timezone: "Asia/Seoul",
+            default_language: "en",
             is_active: true,
             created_at: new Date().toISOString()
         }
     ];
 
-    const defaultModules: Module[] = [
+    const defaultDevices: Device[] = [
         {
-            id: "m1",
+            id: "d1",
             farm_id: "f1",
+            zone_id: null,
+            code: "CLIMATE_CTRL",
             name: "Climate Control Unit",
             description: "Controls temperature and humidity",
+            device_kind: "actuator",
+            device_type: "switch",
+            slave_id: 1,
+            display_order: 0,
             is_active: true,
             created_at: new Date().toISOString()
         }
@@ -27,16 +35,16 @@ const initializeData = () => {
     const defaultRegisters: Register[] = [
         {
             id: "r1",
-            module_id: "m1",
-            name: "Temp Setpoint",
+            device_id: "d1",
+            code: "TEMP_SETPOINT",
             description: "Target temperature in Celsius",
             address: 40001,
             bit_start: 0,
             bit_end: 15,
             unit: "C",
             writable: true,
-            data_type: "UNSIGNED_FLOAT",
-            role: "INTERNAL_CONFIG",
+            data_type: "FLOAT",
+            role: "set_point",
             scale_factor: 1.0,
             is_signed: true,
             min_value: 0,
@@ -47,7 +55,7 @@ const initializeData = () => {
     ];
 
     localStorage.setItem('farms', JSON.stringify(defaultFarms));
-    localStorage.setItem('modules', JSON.stringify(defaultModules));
+    localStorage.setItem('devices', JSON.stringify(defaultDevices));
     localStorage.setItem('registers', JSON.stringify(defaultRegisters));
 };
 
@@ -79,29 +87,29 @@ export const mockDb = {
         localStorage.setItem('farms', JSON.stringify(farms));
     },
 
-    getAllModules: (): Module[] => JSON.parse(localStorage.getItem('modules') || '[]'),
-    getModules: (farmId: string): Module[] => mockDb.getAllModules().filter(m => m.farm_id === farmId),
-    createModule: (module: Omit<Module, 'id' | 'created_at'>): Module => {
-        const newModule = { ...module, id: generateUUID(), created_at: new Date().toISOString() };
-        const modules = [...mockDb.getAllModules(), newModule];
-        localStorage.setItem('modules', JSON.stringify(modules));
-        return newModule;
+    getAllDevices: (): Device[] => JSON.parse(localStorage.getItem('devices') || '[]'),
+    getDevices: (farmId: string): Device[] => mockDb.getAllDevices().filter(d => d.farm_id === farmId),
+    createDevice: (device: Omit<Device, 'id' | 'created_at'>): Device => {
+        const newDevice = { ...device, id: generateUUID(), created_at: new Date().toISOString() };
+        const devices = [...mockDb.getAllDevices(), newDevice];
+        localStorage.setItem('devices', JSON.stringify(devices));
+        return newDevice;
     },
-    updateModule: (id: string, updates: Partial<Module>): Module | undefined => {
-        const modules = mockDb.getAllModules();
-        const idx = modules.findIndex(m => m.id === id);
+    updateDevice: (id: string, updates: Partial<Device>): Device | undefined => {
+        const devices = mockDb.getAllDevices();
+        const idx = devices.findIndex(d => d.id === id);
         if (idx === -1) return undefined;
-        modules[idx] = { ...modules[idx], ...updates, updated_at: new Date().toISOString() };
-        localStorage.setItem('modules', JSON.stringify(modules));
-        return modules[idx];
+        devices[idx] = { ...devices[idx], ...updates, updated_at: new Date().toISOString() };
+        localStorage.setItem('devices', JSON.stringify(devices));
+        return devices[idx];
     },
-    deleteModule: (id: string) => {
-        const modules = mockDb.getAllModules().filter(m => m.id !== id);
-        localStorage.setItem('modules', JSON.stringify(modules));
+    deleteDevice: (id: string) => {
+        const devices = mockDb.getAllDevices().filter(d => d.id !== id);
+        localStorage.setItem('devices', JSON.stringify(devices));
     },
 
     getAllRegisters: (): Register[] => JSON.parse(localStorage.getItem('registers') || '[]'),
-    getRegisters: (moduleId: string): Register[] => mockDb.getAllRegisters().filter(r => r.module_id === moduleId),
+    getRegisters: (deviceId: string): Register[] => mockDb.getAllRegisters().filter(r => r.device_id === deviceId),
     createRegister: (register: Omit<Register, 'id' | 'created_at'>): Register => {
         const newRegister = { ...register, id: generateUUID(), created_at: new Date().toISOString() };
         const registers = [...mockDb.getAllRegisters(), newRegister];

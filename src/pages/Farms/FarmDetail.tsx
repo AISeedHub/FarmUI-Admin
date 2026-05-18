@@ -2,8 +2,8 @@ import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, Download } from 'lucide-react';
 import YAML from 'yaml';
-import { Farm, Module, Register } from '../../types';
-import { farmsApi, modulesApi, registersApi } from '../../api/services';
+import { Farm, Device, Register } from '../../types';
+import { farmsApi, devicesApi, registersApi } from '../../api/services';
 import './FarmDetail.css';
 
 export default function FarmDetail() {
@@ -12,36 +12,36 @@ export default function FarmDetail() {
 
 
     const [farm, setFarm] = useState<Farm | null>(null);
-    const [modules, setModules] = useState<Module[]>([]);
+    const [devices, setDevices] = useState<Device[]>([]);
     const [registers, setRegisters] = useState<Record<string, Register[]>>({});
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
 
     // Modal states
-    const [moduleModal, setModuleModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Module> }>({ isOpen: false, type: 'new', data: {} });
-    const [registerModal, setRegisterModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Register>, moduleId?: string }>({ isOpen: false, type: 'new', data: {} });
+    const [deviceModal, setDeviceModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Device> }>({ isOpen: false, type: 'new', data: {} });
+    const [registerModal, setRegisterModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Register>, deviceId?: string }>({ isOpen: false, type: 'new', data: {} });
 
     // SVG Connections State & Refs
     const svgRef = useRef<SVGSVGElement>(null);
     const coreRef = useRef<HTMLDivElement>(null);
-    const moduleRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+    const deviceRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
     const [connections, setConnections] = useState<{ id: string, startX: number, startY: number, endX: number, endY: number }[]>([]);
 
     const updateConnections = () => {
-        if (!svgRef.current || !coreRef.current || modules.length === 0) return;
+        if (!svgRef.current || !coreRef.current || devices.length === 0) return;
         const svgRect = svgRef.current.getBoundingClientRect();
         const coreRect = coreRef.current.getBoundingClientRect();
 
         const startX = coreRect.right - svgRect.left;
         const startY = coreRect.top - svgRect.top + 64; // 4rem (64px) from top of node
 
-        const newConns = modules.map(mod => {
-            const el = moduleRefs.current[mod.id];
+        const newConns = devices.map(dev => {
+            const el = deviceRefs.current[dev.id];
             if (!el) return null;
             const rect = el.getBoundingClientRect();
             const endX = rect.left - svgRect.left;
             const endY = rect.top - svgRect.top + 64; // 4rem from top of node
-            return { id: mod.id, startX, startY, endX, endY };
+            return { id: dev.id, startX, startY, endX, endY };
         }).filter(Boolean) as any[];
 
         setConnections(newConns);
@@ -66,7 +66,7 @@ export default function FarmDetail() {
                 canvas.removeEventListener('scroll', updateConnections);
             }
         };
-    }, [modules, registers, farm]);
+    }, [devices, registers, farm]);
 
     useEffect(() => {
         if (id) loadData();
@@ -83,39 +83,39 @@ export default function FarmDetail() {
         }
         setFarm(f);
 
-        const mods = await modulesApi.getByFarm(id);
-        setModules(mods);
+        const devs = await devicesApi.getByFarm(id);
+        setDevices(devs);
 
         const regsMap: Record<string, Register[]> = {};
-        for (const m of mods) {
-            const regs = await registersApi.getByModule(m.id);
-            regsMap[m.id] = regs;
+        for (const d of devs) {
+            const regs = await registersApi.getByDevice(d.id);
+            regsMap[d.id] = regs;
         }
         setRegisters(regsMap);
         setLoading(false);
     };
 
-    // MODULE CRUD
-    const saveModule = async () => {
+    // DEVICE CRUD
+    const saveDevice = async () => {
         if (!id) return;
-        if (moduleModal.type === 'new') {
-            await modulesApi.create({ ...moduleModal.data, farm_id: id } as Omit<Module, 'id' | 'created_at'>);
+        if (deviceModal.type === 'new') {
+            await devicesApi.create({ ...deviceModal.data, farm_id: id } as Omit<Device, 'id' | 'created_at'>);
         } else {
-            await modulesApi.update(moduleModal.data.id!, moduleModal.data);
+            await devicesApi.update(deviceModal.data.id!, deviceModal.data);
         }
-        setModuleModal({ ...moduleModal, isOpen: false });
+        setDeviceModal({ ...deviceModal, isOpen: false });
         loadData();
     };
-    const deleteModule = async (moduleId: string) => {
-        if (window.confirm('Delete mapping module and all its registers?')) {
-            await modulesApi.delete(moduleId);
+    const deleteDevice = async (deviceId: string) => {
+        if (window.confirm('Delete device and all its registers?')) {
+            await devicesApi.delete(deviceId);
             loadData();
         }
     };
 
     // REGISTER CRUD
     const saveRegister = async () => {
-        if (!registerModal.moduleId) return;
+        if (!registerModal.deviceId) return;
 
         const processedData = {
             ...registerModal.data,
@@ -130,11 +130,12 @@ export default function FarmDetail() {
         if (registerModal.type === 'new') {
             const data: Omit<Register, 'id' | 'created_at'> = {
                 ...processedData,
-                module_id: registerModal.moduleId,
+                device_id: registerModal.deviceId,
+                code: processedData.code || '',
                 unit: processedData.unit || '',
                 writable: processedData.writable ?? false,
-                data_type: processedData.data_type || 'UNSIGNED_FLOAT',
-                role: processedData.role || 'SYSTEM_INFO',
+                data_type: processedData.data_type || 'FLOAT',
+                role: processedData.role || 'value',
                 is_signed: processedData.is_signed ?? false,
                 is_active: processedData.is_active ?? true
             } as Omit<Register, 'id' | 'created_at'>;
@@ -190,7 +191,7 @@ export default function FarmDetail() {
                     <ArrowLeft size={20} /> Back
                 </button>
                 <div className="farm-title-info">
-                    <h2>{farm.name} <span className="farm-code">[{farm.farm_code}]</span></h2>
+                    <h2>{farm.name} <span className="farm-code">[{farm.code}]</span></h2>
                     <p className="subtitle">Location: {farm.location} | Status: {farm.is_active ? 'Active' : 'Inactive'}</p>
                 </div>
                 <button
@@ -209,7 +210,7 @@ export default function FarmDetail() {
                     <svg ref={svgRef} className="connections-svg">
 
                         {connections.map(conn => {
-                            // Flat section length before module
+                            // Flat section length before device
                             const flatLen = 130;
                             const curveEndX = conn.endX - flatLen;
 
@@ -222,7 +223,7 @@ export default function FarmDetail() {
                             // Path consists of Curve + straight Line
                             const pathD = `M ${conn.startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${curveEndX},${conn.endY} L ${conn.endX},${conn.endY}`;
 
-                            const midX = conn.endX - 75; // Centers pill on the flat segment before module
+                            const midX = conn.endX - 75; // Centers pill on the flat segment before device
                             const midY = conn.endY;
 
                             const regCount = registers[conn.id]?.length || 0;
@@ -257,41 +258,41 @@ export default function FarmDetail() {
                             <Activity size={32} />
                             <h3>SMARTFARM CORE</h3>
                             <p>{farm.name}</p>
-                            <button className="add-reg-btn flex-center accent" onClick={() => setModuleModal({ isOpen: true, type: 'new', data: { is_active: true } })}>
-                                <Plus size={14} /> Add Module
+                            <button className="add-reg-btn flex-center accent" onClick={() => setDeviceModal({ isOpen: true, type: 'new', data: { is_active: true, device_kind: 'sensor', device_type: 'sensor_group', slave_id: 1 } })}>
+                                <Plus size={14} /> Add Device
                             </button>
                         </div>
                     </div>
 
-                    {/* Modules Column */}
+                    {/* Devices Column */}
                     <div className="modules-column">
-                        {modules.map((mod) => (
-                            <div key={mod.id} className="module-row">
-                                <div ref={el => moduleRefs.current[mod.id] = el} className={`node module-node panel ${registers[mod.id]?.length > 0 ? 'has-children' : ''}`}>
+                        {devices.map((dev) => (
+                            <div key={dev.id} className="module-row">
+                                <div ref={el => deviceRefs.current[dev.id] = el} className={`node module-node panel ${registers[dev.id]?.length > 0 ? 'has-children' : ''}`}>
                                     <div className="node-head">
-                                        <h4>{mod.name}</h4>
+                                        <h4>{dev.name || dev.code}</h4>
                                         <div className="node-actions">
-                                            <button onClick={() => setModuleModal({ isOpen: true, type: 'edit', data: mod })}><Edit2 size={12} /></button>
-                                            <button className="del" onClick={() => deleteModule(mod.id)}><Trash2 size={12} /></button>
+                                            <button onClick={() => setDeviceModal({ isOpen: true, type: 'edit', data: dev })}><Edit2 size={12} /></button>
+                                            <button className="del" onClick={() => deleteDevice(dev.id)}><Trash2 size={12} /></button>
                                         </div>
                                     </div>
-                                    <p className="node-desc">{mod.description}</p>
+                                    <p className="node-desc">{dev.description}</p>
 
-                                    <button className="add-reg-btn flex-center accent" onClick={() => setRegisterModal({ isOpen: true, type: 'new', data: { is_active: true }, moduleId: mod.id })}>
+                                    <button className="add-reg-btn flex-center accent" onClick={() => setRegisterModal({ isOpen: true, type: 'new', data: { is_active: true }, deviceId: dev.id })}>
                                         <Plus size={14} /> Add Register
                                     </button>
                                 </div>
 
                                 <div className="registers-row">
-                                    {registers[mod.id]?.map(reg => (
+                                    {registers[dev.id]?.map(reg => (
                                         <div key={reg.id} className="register-wrapper">
                                             <div className="connection-line-register"></div>
-                                            <div className={`node register-node compact panel ${!reg.is_active ? 'deactivated' : ''}`} onDoubleClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: reg, moduleId: mod.id })}>
+                                            <div className={`node register-node compact panel ${!reg.is_active ? 'deactivated' : ''}`} onDoubleClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: reg, deviceId: dev.id })}>
                                                 <div className="node-head">
-                                                    <h5>{reg.name} <span className="reg-addr">0x{reg.address.toString(16).toUpperCase()}</span></h5>
+                                                    <h5>{reg.code} <span className="reg-addr">0x{reg.address.toString(16).toUpperCase()}</span></h5>
                                                     <div className="node-actions hidden-actions">
                                                         <button onClick={(e) => { e.stopPropagation(); toggleRegisterActive(reg); }} className={!reg.is_active ? 'deactivated-btn' : ''} title={reg.is_active ? "Activate" : "Deactivate"}><Power size={12} /></button>
-                                                        <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: reg, moduleId: mod.id }); }}><Edit2 size={12} /></button>
+                                                        <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: reg, deviceId: dev.id }); }}><Edit2 size={12} /></button>
                                                         <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
                                                     </div>
                                                 </div>
@@ -310,22 +311,47 @@ export default function FarmDetail() {
                 </div>
             </div>
 
-            {/* Module Modal */}
-            {moduleModal.isOpen && (
+            {/* Device Modal */}
+            {deviceModal.isOpen && (
                 <div className="modal-overlay">
                     <div className="modal-content panel">
-                        <h3>{moduleModal.type === 'new' ? 'New Module' : 'Edit Module'}</h3>
+                        <h3>{deviceModal.type === 'new' ? 'New Device' : 'Edit Device'}</h3>
                         <div className="form-group">
-                            <label>Module Name</label>
-                            <input value={moduleModal.data.name || ''} onChange={e => setModuleModal({ ...moduleModal, data: { ...moduleModal.data, name: e.target.value } })} />
+                            <label>Device Code</label>
+                            <input value={deviceModal.data.code || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, code: e.target.value } })} />
+                        </div>
+                        <div className="form-group">
+                            <label>Device Name</label>
+                            <input value={deviceModal.data.name || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, name: e.target.value } })} />
                         </div>
                         <div className="form-group">
                             <label>Description</label>
-                            <input value={moduleModal.data.description || ''} onChange={e => setModuleModal({ ...moduleModal, data: { ...moduleModal.data, description: e.target.value } })} />
+                            <input value={deviceModal.data.description || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, description: e.target.value } })} />
+                        </div>
+                        <div className="form-group">
+                            <label>Device Kind</label>
+                            <select value={deviceModal.data.device_kind || 'sensor'} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, device_kind: e.target.value as any } })}>
+                                <option value="sensor">Sensor</option>
+                                <option value="actuator">Actuator</option>
+                                <option value="system">System</option>
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label>Device Type</label>
+                            <select value={deviceModal.data.device_type || 'sensor_group'} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, device_type: e.target.value as any } })}>
+                                <option value="switch">Switch</option>
+                                <option value="open_close">Open/Close</option>
+                                <option value="sensor_group">Sensor Group</option>
+                                <option value="control_mode">Control Mode</option>
+                            </select>
+                        </div>
+                        <div className="form-group">
+                            <label>Slave ID</label>
+                            <input type="number" value={deviceModal.data.slave_id ?? 1} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, slave_id: Number(e.target.value) } })} />
                         </div>
                         <div className="modal-actions">
-                            <button onClick={() => setModuleModal({ ...moduleModal, isOpen: false })}>Cancel</button>
-                            <button className="primary" onClick={saveModule}>Save</button>
+                            <button onClick={() => setDeviceModal({ ...deviceModal, isOpen: false })}>Cancel</button>
+                            <button className="primary" onClick={saveDevice}>Save</button>
                         </div>
                     </div>
                 </div>
@@ -338,8 +364,8 @@ export default function FarmDetail() {
                         <h3>{registerModal.type === 'new' ? 'New Register' : 'Edit Register'}</h3>
                         <div className="form-grid">
                             <div className="form-group">
-                                <label>Name</label>
-                                <input value={registerModal.data.name || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, name: e.target.value } })} />
+                                <label>Code</label>
+                                <input value={registerModal.data.code || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, code: e.target.value } })} />
                             </div>
                             <div className="form-group">
                                 <label>Address (Base 10)</label>
@@ -401,12 +427,11 @@ export default function FarmDetail() {
                             </div>
                             <div className="form-group">
                                 <label>Data Type</label>
-                                <select value={registerModal.data.data_type || 'UNSIGNED_FLOAT'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, data_type: e.target.value as any } })}>
-                                    <option value="UNSIGNED_FLOAT">UNSIGNED_FLOAT</option>
-                                    <option value="SIGNED_FLOAT">SIGNED_FLOAT</option>
+                                <select value={registerModal.data.data_type || 'FLOAT'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, data_type: e.target.value as any } })}>
+                                    <option value="FLOAT">FLOAT</option>
                                     <option value="UNSIGNED_INT">UNSIGNED_INT</option>
-                                    <option value="SIGNED_INT">SIGNED_INT</option>
-                                    <option value="BOOL">BOOLEAN</option>
+                                    <option value="INT">INT</option>
+                                    <option value="BOOL">BOOL</option>
                                 </select>
                             </div>
                             <div className="form-group checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1.8rem', marginRight: '8rem' }}>
@@ -415,11 +440,12 @@ export default function FarmDetail() {
                             </div>
                             <div className="form-group">
                                 <label>Role</label>
-                                <select value={registerModal.data.role || 'SYSTEM_INFO'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, role: e.target.value as any } })}>
-                                    <option value="SYSTEM_INFO">SYSTEM_INFO</option>
-                                    <option value="INTERNAL_CONFIG">INTERNAL_CONFIG</option>
-                                    <option value="ENVIRONMENT_INFO">ENVIRONMENT_INFO</option>
-                                    <option value="CONTROL_ACTUATOR">CONTROL_ACTUATOR</option>
+                                <select value={registerModal.data.role || 'value'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, role: e.target.value as any } })}>
+                                    <option value="value">value</option>
+                                    <option value="status">status</option>
+                                    <option value="command">command</option>
+                                    <option value="set_point">set_point</option>
+                                    <option value="open_degree">open_degree</option>
                                 </select>
                             </div>
                             <div className="form-group checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1.8rem', marginRight: '8rem', marginLeft: '-0.5rem' }}>
