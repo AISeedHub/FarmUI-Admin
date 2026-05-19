@@ -17,7 +17,7 @@ export interface Zone {
     name: string;
     display_names?: Record<string, string> | null;
     description: string;
-    default_slave_id: number;
+    default_unit_id: number;
     display_order: number;
     is_active: boolean;
     created_at?: string;
@@ -37,7 +37,7 @@ export interface Device {
     description: string;
     device_kind: DeviceKind;
     device_type: DeviceType;
-    slave_id: number;
+    unit_id: number;
     display_order: number;
     is_active: boolean;
     created_at?: string;
