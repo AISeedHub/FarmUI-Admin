@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { authApi } from '../api/services';
+import LanguageSelector from '../components/LanguageSelector';
 import './Login.css';
 
 interface LoginProps {
@@ -9,7 +10,7 @@ interface LoginProps {
 }
 
 export default function Login({ onLogin }: LoginProps) {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
     const navigate = useNavigate();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -37,18 +38,24 @@ export default function Login({ onLogin }: LoginProps) {
         }
     };
 
-    const toggleLang = () => {
-        i18n.changeLanguage(i18n.language === 'en' ? 'ko' : 'en');
+    const [isScanning, setIsScanning] = useState(false);
+
+    const handleLanguageChange = () => {
+        setIsScanning(true);
+        setTimeout(() => {
+            setIsScanning(false);
+        }, 1000);
     };
 
     return (
-        <div className="login-container">
+        <div className={`login-container ${isScanning ? 'scanning-active' : ''}`}>
+            {isScanning && <div className="cyber-scanner-beam" />}
+            {isScanning && <div className="cyber-scanner-grid" />}
+
             <div className="login-panel panel">
                 <div className="login-header">
                     <h2>{t('farms.title')}</h2>
-                    <button className="lang-toggle" onClick={toggleLang}>
-                        {i18n.language === 'en' ? '한' : 'EN'}
-                    </button>
+                    <LanguageSelector onLanguageChange={handleLanguageChange} />
                 </div>
 
                 <form onSubmit={handleLogin}>

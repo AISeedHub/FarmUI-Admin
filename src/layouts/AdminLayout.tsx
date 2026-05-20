@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LogOut, LayoutGrid, Cpu } from 'lucide-react';
+import LanguageSelector from '../components/LanguageSelector';
 import './AdminLayout.css';
 
 interface AdminLayoutProps {
@@ -8,14 +10,22 @@ interface AdminLayoutProps {
 }
 
 export default function AdminLayout({ onLogout }: AdminLayoutProps) {
-    const { t, i18n } = useTranslation();
+    const { t } = useTranslation();
+    const [isScanning, setIsScanning] = useState(false);
 
-    const toggleLang = () => {
-        i18n.changeLanguage(i18n.language === 'en' ? 'ko' : 'en');
+    const handleLanguageChange = () => {
+        setIsScanning(true);
+        setTimeout(() => {
+            setIsScanning(false);
+        }, 1000);
     };
 
     return (
-        <div className="layout-container">
+        <div className={`layout-container ${isScanning ? 'scanning-active' : ''}`}>
+            {/* Holographic Cyber Scanner Overlay */}
+            {isScanning && <div className="cyber-scanner-beam" />}
+            {isScanning && <div className="cyber-scanner-grid" />}
+            
             {/* Top Header Navigation */}
             <header className="top-nav panel">
                 <div className="nav-brand">
@@ -31,9 +41,7 @@ export default function AdminLayout({ onLogout }: AdminLayoutProps) {
                 </nav>
 
                 <div className="nav-actions">
-                    <button className="nav-btn" onClick={toggleLang}>
-                        {i18n.language === 'en' ? 'KO' : 'EN'}
-                    </button>
+                    <LanguageSelector onLanguageChange={handleLanguageChange} />
                     <button className="nav-btn logout-btn" onClick={onLogout}>
                         <LogOut size={16} />
                         <span>{t('nav.logout')}</span>

@@ -148,3 +148,122 @@ button.accent:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
 }
+
+/* ==========================================================================
+   Cyber Scanner Overlay & Holographic Translation Transitions (Global)
+   ========================================================================== */
+
+/* Sweep Line */
+.cyber-scanner-beam {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 4px;
+  background: linear-gradient(90deg, 
+      transparent, 
+      rgba(0, 242, 254, 0.2) 20%, 
+      #00f2fe 50%, 
+      rgba(0, 242, 254, 0.2) 80%, 
+      transparent
+  );
+  box-shadow: 
+      0 0 10px #00f2fe,
+      0 0 25px rgba(0, 242, 254, 0.8),
+      0 0 50px rgba(0, 242, 254, 0.4);
+  z-index: 10000;
+  pointer-events: none;
+  animation: scannerSweep 1.0s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+/* Moving grid background during scan */
+.cyber-scanner-grid {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: 
+      linear-gradient(rgba(0, 242, 254, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 242, 254, 0.05) 1px, transparent 1px);
+  background-size: 30px 30px;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  animation: gridFade 1.0s ease-out forwards;
+}
+
+/* Glitch/Flicker effect on all UI text when scanning */
+.scanning-active h1,
+.scanning-active h2,
+.scanning-active h3,
+.scanning-active h4,
+.scanning-active h5,
+.scanning-active span,
+.scanning-active p,
+.scanning-active label,
+.scanning-active button,
+.scanning-active input,
+.scanning-active select,
+.scanning-active a {
+  animation: holographicRecalibrate 0.8s ease-in-out;
+}
+
+@keyframes scannerSweep {
+  0% {
+      top: 0%;
+      opacity: 0;
+  }
+  10% {
+      opacity: 1;
+  }
+  90% {
+      opacity: 1;
+  }
+  100% {
+      top: 100%;
+      opacity: 0;
+  }
+}
+
+@keyframes gridFade {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes holographicRecalibrate {
+  0% {
+      text-shadow: none;
+      filter: none;
+  }
+  15% {
+      text-shadow: 2px -1px 0 rgba(255, 0, 80, 0.5), -2px 1px 0 rgba(0, 242, 254, 0.5);
+      filter: blur(1px) brightness(1.2);
+      opacity: 0.8;
+  }
+  30% {
+      text-shadow: -1px 2px 0 rgba(255, 0, 80, 0.5), 1px -2px 0 rgba(0, 242, 254, 0.5);
+      opacity: 0.9;
+  }
+  45% {
+      text-shadow: 1px -1px 0 rgba(255, 0, 80, 0.5), -1px 1px 0 rgba(0, 242, 254, 0.5);
+      filter: blur(0.5px) brightness(1.5);
+  }
+  60% {
+      text-shadow: none;
+      filter: none;
+      opacity: 0.75;
+  }
+  75% {
+      text-shadow: 0 0 8px rgba(0, 242, 254, 0.8);
+      filter: brightness(1.3);
+      opacity: 1;
+  }
+  100% {
+      text-shadow: none;
+      filter: none;
+      opacity: 1;
+  }
+}

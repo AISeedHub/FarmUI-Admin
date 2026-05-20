@@ -38,7 +38,7 @@ export default function FarmsList() {
 
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
-        if (window.confirm('Delete this farm?')) {
+        if (window.confirm(t('farms.confirmDelete'))) {
             await farmsApi.delete(id);
             loadFarms();
         }
@@ -75,7 +75,7 @@ export default function FarmsList() {
             </div>
 
             {loading ? (
-                <div className="loading">Loading...</div>
+                <div className="loading">{t('common.loading')}</div>
             ) : (
                 <div className="farms-grid">
                     {farms.map(farm => (
@@ -90,12 +90,12 @@ export default function FarmsList() {
                             </div>
 
                             <div className="farm-card-body">
-                                <p><strong>Location:</strong> {farm.location}</p>
+                                <p><strong>{t('farms.location')}:</strong> {farm.location}</p>
                                 <div className="status-badge">
                                     {farm.is_active ? (
-                                        <><Power size={14} className="active-icon" /> Active</>
+                                        <><Power size={14} className="active-icon" /> {t('farms.active')}</>
                                     ) : (
-                                        <><PowerOff size={14} className="inactive-icon" /> Inactive</>
+                                        <><PowerOff size={14} className="inactive-icon" /> {t('farms.inactive')}</>
                                     )}
                                 </div>
                             </div>
@@ -120,23 +120,23 @@ export default function FarmsList() {
             {isEditing && (
                 <div className="modal-overlay">
                     <div className="modal-content panel">
-                        <h3>{isEditing === 'new' ? 'New Farm' : 'Edit Farm'}</h3>
+                        <h3>{isEditing === 'new' ? t('farms.newFarm') : t('farms.editFarm')}</h3>
                         <div className="form-group">
-                            <label>Farm Code</label>
+                            <label>{t('farms.farmCode')}</label>
                             <input
                                 value={formData.code || ''}
                                 onChange={e => setFormData({ ...formData, code: e.target.value })}
                             />
                         </div>
                         <div className="form-group">
-                            <label>Name</label>
+                            <label>{t('farms.name')}</label>
                             <input
                                 value={formData.name || ''}
                                 onChange={e => setFormData({ ...formData, name: e.target.value })}
                             />
                         </div>
                         <div className="form-group">
-                            <label>Location</label>
+                            <label>{t('farms.location')}</label>
                             <input
                                 value={formData.location || ''}
                                 onChange={e => setFormData({ ...formData, location: e.target.value })}

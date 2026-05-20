@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, Download } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register } from '../../types';
@@ -9,6 +10,7 @@ import './FarmDetail.css';
 export default function FarmDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { t, i18n } = useTranslation();
 
     const [farm, setFarm] = useState<Farm | null>(null);
     const [zones, setZones] = useState<Zone[]>([]);
@@ -212,7 +214,7 @@ export default function FarmDetail() {
             try {
                 processedData.display_names = processedData.displayNamesStr ? JSON.parse(processedData.displayNamesStr) : null;
             } catch (e) {
-                alert('Invalid JSON in Display Names');
+                alert(t('detail.invalidJson'));
                 return;
             }
             delete processedData.displayNamesStr;
@@ -228,7 +230,7 @@ export default function FarmDetail() {
     };
 
     const deleteZone = async (zoneId: string) => {
-        if (window.confirm('Delete zone and all its devices and registers?')) {
+        if (window.confirm(t('detail.confirmDeleteZone'))) {
             await zonesApi.delete(zoneId);
             loadData();
         }
@@ -247,7 +249,7 @@ export default function FarmDetail() {
             try {
                 processedData.display_names = processedData.displayNamesStr ? JSON.parse(processedData.displayNamesStr) : null;
             } catch (e) {
-                alert('Invalid JSON in Display Names');
+                alert(t('detail.invalidJson'));
                 return;
             }
             delete processedData.displayNamesStr;
@@ -262,7 +264,7 @@ export default function FarmDetail() {
     };
 
     const deleteDevice = async (deviceId: string) => {
-        if (window.confirm('Delete device and all its registers?')) {
+        if (window.confirm(t('detail.confirmDeleteDevice'))) {
             await devicesApi.delete(deviceId);
             loadData();
         }
@@ -286,7 +288,7 @@ export default function FarmDetail() {
             try {
                 processedData.display_names = processedData.displayNamesStr ? JSON.parse(processedData.displayNamesStr) : null;
             } catch (e) {
-                alert('Invalid JSON in Display Names');
+                alert(t('detail.invalidJson'));
                 return;
             }
             delete processedData.displayNamesStr;
@@ -313,7 +315,7 @@ export default function FarmDetail() {
     };
 
     const deleteRegister = async (regId: string) => {
-        if (window.confirm('Delete register?')) {
+        if (window.confirm(t('detail.confirmDeleteRegister'))) {
             await registersApi.delete(regId);
             loadData();
         }
@@ -347,7 +349,7 @@ export default function FarmDetail() {
         loadData();
     };
 
-    if (loading) return <div className="loading">Loading Blueprint...</div>;
+    if (loading) return <div className="loading">{t('detail.loadingBlueprint')}</div>;
     if (!farm) return null;
 
     const currentZoneDevices = selectedZoneId
@@ -362,11 +364,11 @@ export default function FarmDetail() {
         <div className="farm-detail-container">
             <div className="detail-header panel">
                 <button className="back-btn" onClick={() => navigate('/')}>
-                    <ArrowLeft size={20} /> Back
+                    <ArrowLeft size={20} /> {t('btn.back')}
                 </button>
                 <div className="farm-title-info">
                     <h2>{farm.name} <span className="farm-code">[{farm.code}]</span></h2>
-                    <p className="subtitle">Location: {farm.location} | Status: {farm.is_active ? 'Active' : 'Inactive'}</p>
+                    <p className="subtitle">{t('farms.location')}: {farm.location} | {t('farms.status')}: {farm.is_active ? t('farms.active') : t('farms.inactive')}</p>
                 </div>
                 <button
                     className="export-btn flex-center"
@@ -374,7 +376,7 @@ export default function FarmDetail() {
                     disabled={exporting}
                 >
                     <Download size={16} />
-                    {exporting ? 'Exporting...' : 'Export Config'}
+                    {exporting ? t('btn.exporting') : t('btn.export')}
                 </button>
             </div>
 
@@ -410,7 +412,7 @@ export default function FarmDetail() {
                                         <g>
                                             <rect x={midX - 45} y={midY - 12} width="90" height="24" rx="12" fill="var(--panel-bg)" stroke="var(--primary)" strokeWidth="1" />
                                             <text x={midX} y={midY + 1} fill="var(--primary)" fontSize="10" fontFamily="sans-serif" textAnchor="middle" dominantBaseline="middle" fontWeight="bold">
-                                                {deviceCount} {deviceCount === 1 ? 'Device' : 'Devices'}
+                                                {deviceCount} {deviceCount === 1 ? t('detail.device') : t('detail.devices_plural')}
                                             </text>
                                         </g>
                                     )}
@@ -443,7 +445,7 @@ export default function FarmDetail() {
                                         <g>
                                             <rect x={midX - 45} y={midY - 12} width="90" height="24" rx="12" fill="var(--panel-bg)" stroke="var(--secondary)" strokeWidth="1" />
                                             <text x={midX} y={midY + 1} fill="var(--secondary)" fontSize="10" fontFamily="sans-serif" textAnchor="middle" dominantBaseline="middle" fontWeight="bold">
-                                                {regCount} {regCount === 1 ? 'Register' : 'Registers'}
+                                                {regCount} {regCount === 1 ? t('detail.register') : t('detail.registers_plural')}
                                             </text>
                                         </g>
                                     )}
@@ -475,7 +477,7 @@ export default function FarmDetail() {
                     <div className="core-column">
                         <div ref={coreRef} className="node farm-node active-glow">
                             <Activity size={32} />
-                            <h3>SMARTFARM CORE</h3>
+                            <h3>{t('detail.core')}</h3>
                             <p>{farm.name}</p>
                         </div>
                     </div>
@@ -483,9 +485,9 @@ export default function FarmDetail() {
                     {/* Column 2: Zones */}
                     <div className="zones-column">
                         <div className="column-header-row">
-                            <h3 className="column-title">Zones</h3>
+                            <h3 className="column-title">{t('detail.zones')}</h3>
                             <button className="add-btn-small" onClick={() => setZoneModal({ isOpen: true, type: 'new', data: { is_active: true, display_order: zones.length + 1, default_unit_id: 1, displayNamesStr: '{\n  "en": "",\n  "ko": "",\n  "vi": ""\n}' } })}>
-                                <Plus size={12} /> Add Zone
+                                <Plus size={12} /> {t('btn.addZone')}
                             </button>
                         </div>
                         {zones.map((zone) => (
@@ -496,16 +498,16 @@ export default function FarmDetail() {
                                 onClick={() => handleZoneClick(zone.id)}
                             >
                                 <div className="node-head">
-                                    <h4>{zone.display_names?.en || zone.display_names?.ko || zone.display_names?.vi || zone.name || zone.code}</h4>
+                                    <h4>{zone.display_names?.[i18n.language] || zone.display_names?.en || zone.display_names?.ko || zone.display_names?.vi || zone.name || zone.code}</h4>
                                     <div className="node-actions">
                                         <button onClick={(e) => { e.stopPropagation(); setZoneModal({ isOpen: true, type: 'edit', data: { ...zone, displayNamesStr: JSON.stringify(zone.display_names || {}, null, 2) } }); }}><Edit2 size={12} /></button>
                                         <button className="del" onClick={(e) => { e.stopPropagation(); deleteZone(zone.id); }}><Trash2 size={12} /></button>
                                     </div>
                                 </div>
-                                <p className="node-desc">{zone.description || 'No description'}</p>
+                                <p className="node-desc">{zone.description || t('detail.noDescription')}</p>
                                 <div className="zone-meta">
-                                    <span>Unit ID: {zone.default_unit_id}</span>
-                                    <span>Order: {zone.display_order}</span>
+                                    <span>{t('detail.unitId')}: {zone.default_unit_id}</span>
+                                    <span>{t('detail.order')}: {zone.display_order}</span>
                                 </div>
                             </div>
                         ))}
@@ -518,7 +520,7 @@ export default function FarmDetail() {
                                 onClick={() => handleZoneClick('unassigned')}
                             >
                                 <div className="node-head">
-                                    <h4>Unassigned <span className="zone-code">[SYSTEM]</span></h4>
+                                    <h4>{t('detail.unassigned')} <span className="zone-code">[SYSTEM]</span></h4>
                                 </div>
                                 <p className="node-desc">Devices not assigned to any specific zone.</p>
                             </div>
@@ -528,18 +530,18 @@ export default function FarmDetail() {
                     {/* Column 3: Devices */}
                     <div className="devices-column">
                         <div className="column-header-row">
-                            <h3 className="column-title">Devices</h3>
+                            <h3 className="column-title">{t('detail.devices')}</h3>
                             {selectedZoneId && selectedZoneId !== 'unassigned' && (
-                                <button className="add-btn-small" onClick={() => setDeviceModal({ isOpen: true, type: 'new', data: { is_active: true, device_kind: 'sensor', device_type: 'sensor', unit_id: zones.find(z => z.id === selectedZoneId)?.default_unit_id || 1, zone_id: selectedZoneId, displayNamesStr: '{\n  "en": "",\n  "ko": "",\n  "vi": ""\n}' } })}>
-                                    <Plus size={12} /> Add Device
+                                <button className="add-btn-small" onClick={() => setDeviceModal({ isOpen: true, type: 'new', data: { is_active: true, device_kind: 'sensor', device_type: 'sensor_group', unit_id: zones.find(z => z.id === selectedZoneId)?.default_unit_id || 1, zone_id: selectedZoneId, displayNamesStr: '{\n  "en": "",\n  "ko": "",\n  "vi": ""\n}' } })}>
+                                    <Plus size={12} /> {t('btn.addDevice')}
                                 </button>
                             )}
                         </div>
 
                         {!selectedZoneId ? (
-                            <div className="empty-column-placeholder">Select a Zone to view Devices</div>
+                            <div className="empty-column-placeholder">{t('detail.selectZone')}</div>
                         ) : currentZoneDevices.length === 0 ? (
-                            <div className="empty-column-placeholder">No devices in this zone</div>
+                            <div className="empty-column-placeholder">{t('detail.noDevices')}</div>
                         ) : (
                             currentZoneDevices.map((dev) => (
                                 <div
@@ -549,16 +551,16 @@ export default function FarmDetail() {
                                     onClick={() => handleDeviceClick(dev.id)}
                                 >
                                     <div className="node-head">
-                                        <h4>{dev.display_names?.en || dev.display_names?.ko || dev.display_names?.vi || dev.name || dev.code}</h4>
+                                        <h4>{dev.display_names?.[i18n.language] || dev.display_names?.en || dev.display_names?.ko || dev.display_names?.vi || dev.name || dev.code}</h4>
                                         <div className="node-actions">
                                             <button onClick={(e) => { e.stopPropagation(); setDeviceModal({ isOpen: true, type: 'edit', data: { ...dev, displayNamesStr: JSON.stringify(dev.display_names || {}, null, 2) } }); }}><Edit2 size={12} /></button>
                                             <button className="del" onClick={(e) => { e.stopPropagation(); deleteDevice(dev.id); }}><Trash2 size={12} /></button>
                                         </div>
                                     </div>
-                                    <p className="node-desc">{dev.description || 'No description'}</p>
+                                    <p className="node-desc">{dev.description || t('detail.noDescription')}</p>
                                     <div className="device-meta">
-                                        <span>Unit ID: {dev.unit_id}</span>
-                                        <span>Kind: {dev.device_kind}</span>
+                                        <span>{t('detail.unitId')}: {dev.unit_id}</span>
+                                        <span>{t('detail.kind')}: {dev.device_kind}</span>
                                     </div>
                                 </div>
                             ))
@@ -568,18 +570,18 @@ export default function FarmDetail() {
                     {/* Column 4: Register Configs */}
                     <div className="registers-column">
                         <div className="column-header-row">
-                            <h3 className="column-title">Register Configs</h3>
+                            <h3 className="column-title">{t('detail.registers')}</h3>
                             {selectedDeviceId && (
                                 <button className="add-btn-small" onClick={() => setRegisterModal({ isOpen: true, type: 'new', data: { is_active: true, displayNamesStr: '{\n  "en": "",\n  "ko": "",\n  "vi": ""\n}' }, deviceId: selectedDeviceId })}>
-                                    <Plus size={12} /> Add Register
+                                    <Plus size={12} /> {t('btn.addRegister')}
                                 </button>
                             )}
                         </div>
 
                         {!selectedDeviceId ? (
-                            <div className="empty-column-placeholder">Select a Device to view Registers</div>
+                            <div className="empty-column-placeholder">{t('detail.selectDevice')}</div>
                         ) : currentDeviceRegisters.length === 0 ? (
-                            <div className="empty-column-placeholder">No registers configured for this device</div>
+                            <div className="empty-column-placeholder">{t('detail.noRegisters')}</div>
                         ) : (
                             currentDeviceRegisters.map((reg) => (
                                 <div
@@ -596,9 +598,9 @@ export default function FarmDetail() {
                                             <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
                                         </div>
                                     </div>
-                                    <p className="node-desc">{reg.description || 'No description'}</p>
+                                    <p className="node-desc">{reg.display_names?.[i18n.language] || reg.display_names?.en || reg.display_names?.ko || reg.display_names?.vi || reg.description || t('detail.noDescription')}</p>
                                     <div className="reg-meta">
-                                        <span>Role: {reg.role}</span>
+                                        <span>{t('detail.role')}: {reg.role}</span>
                                         <span>[{reg.data_type}]</span>
                                     </div>
                                 </div>
@@ -612,37 +614,37 @@ export default function FarmDetail() {
             {zoneModal.isOpen && (
                 <div className="modal-overlay">
                     <div className="modal-content panel">
-                        <h3>{zoneModal.type === 'new' ? 'New Zone' : 'Edit Zone'}</h3>
+                        <h3>{zoneModal.type === 'new' ? t('detail.newZone') : t('detail.editZone')}</h3>
                         <div className="form-group">
-                            <label>Zone Name (Internal)</label>
+                            <label>{t('detail.zoneNameInternal')}</label>
                             <input value={zoneModal.data.name || ''} onChange={e => {
                                 const val = e.target.value;
                                 setZoneModal({ ...zoneModal, data: { ...zoneModal.data, name: val, code: val.toLowerCase().replace(/\s+/g, '_') } });
                             }} />
                         </div>
                         <div className="form-group">
-                            <label>Zone Code</label>
+                            <label>{t('detail.zoneCode')}</label>
                             <input value={zoneModal.data.code || ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, code: e.target.value } })} />
                         </div>
                         <div className="form-group full-width">
-                            <label>Display Names (JSON)</label>
+                            <label>{t('detail.displayNamesJson')}</label>
                             <textarea rows={4} value={zoneModal.data.displayNamesStr ?? ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, displayNamesStr: e.target.value } })} />
                         </div>
                         <div className="form-group">
-                            <label>Description</label>
+                            <label>{t('detail.description')}</label>
                             <input value={zoneModal.data.description || ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, description: e.target.value } })} />
                         </div>
                         <div className="form-group">
-                            <label>Default Unit ID</label>
+                            <label>{t('detail.defaultUnitId')}</label>
                             <input type="number" value={zoneModal.data.default_unit_id ?? 1} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, default_unit_id: Number(e.target.value) } })} />
                         </div>
                         <div className="form-group">
-                            <label>Display Order</label>
+                            <label>{t('detail.displayOrder')}</label>
                             <input type="number" value={zoneModal.data.display_order ?? 1} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, display_order: Number(e.target.value) } })} />
                         </div>
                         <div className="modal-actions">
-                            <button onClick={() => setZoneModal({ ...zoneModal, isOpen: false })}>Cancel</button>
-                            <button className="primary" onClick={saveZone}>Save</button>
+                            <button onClick={() => setZoneModal({ ...zoneModal, isOpen: false })}>{t('btn.cancel')}</button>
+                            <button className="primary" onClick={saveZone}>{t('btn.save')}</button>
                         </div>
                     </div>
                 </div>
@@ -652,37 +654,37 @@ export default function FarmDetail() {
             {deviceModal.isOpen && (
                 <div className="modal-overlay">
                     <div className="modal-content panel">
-                        <h3>{deviceModal.type === 'new' ? 'New Device' : 'Edit Device'}</h3>
+                        <h3>{deviceModal.type === 'new' ? t('detail.newDevice') : t('detail.editDevice')}</h3>
                         <div className="form-group">
-                            <label>Device Name (Internal)</label>
+                            <label>{t('detail.deviceNameInternal')}</label>
                             <input value={deviceModal.data.name || ''} onChange={e => {
                                 const val = e.target.value;
                                 setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, name: val, code: val.toLowerCase().replace(/\s+/g, '_') } });
                             }} />
                         </div>
                         <div className="form-group">
-                            <label>Device Code</label>
+                            <label>{t('detail.deviceCode')}</label>
                             <input value={deviceModal.data.code || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, code: e.target.value } })} />
                         </div>
                         <div className="form-group full-width">
-                            <label>Display Names (JSON)</label>
+                            <label>{t('detail.displayNamesJson')}</label>
                             <textarea rows={4} value={deviceModal.data.displayNamesStr ?? ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, displayNamesStr: e.target.value } })} />
                         </div>
                         <div className="form-group">
-                            <label>Description</label>
+                            <label>{t('detail.description')}</label>
                             <input value={deviceModal.data.description || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, description: e.target.value } })} />
                         </div>
                         <div className="form-group">
-                            <label>Zone</label>
+                            <label>{t('detail.zone')}</label>
                             <select value={deviceModal.data.zone_id || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, zone_id: e.target.value || null } })}>
-                                <option value="">-- No Zone (Unassigned) --</option>
+                                <option value="">-- {t('detail.unassigned')} --</option>
                                 {zones.map(zone => (
                                     <option key={zone.id} value={zone.id}>{zone.name} ({zone.code})</option>
                                 ))}
                             </select>
                         </div>
                         <div className="form-group">
-                            <label>Device Kind</label>
+                            <label>{t('detail.deviceKind')}</label>
                             <select value={deviceModal.data.device_kind || 'sensor'} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, device_kind: e.target.value as any } })}>
                                 <option value="sensor">Sensor</option>
                                 <option value="actuator">Actuator</option>
@@ -690,7 +692,7 @@ export default function FarmDetail() {
                             </select>
                         </div>
                         <div className="form-group">
-                            <label>Device Type</label>
+                            <label>{t('detail.deviceType')}</label>
                             <select value={deviceModal.data.device_type || 'sensor'} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, device_type: e.target.value as any } })}>
                                 <option value="switch">Switch</option>
                                 <option value="open_close">Open/Close</option>
@@ -699,12 +701,12 @@ export default function FarmDetail() {
                             </select>
                         </div>
                         <div className="form-group">
-                            <label>Unit ID</label>
+                            <label>{t('detail.unitId')}</label>
                             <input type="number" value={deviceModal.data.unit_id ?? 1} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, unit_id: Number(e.target.value) } })} />
                         </div>
                         <div className="modal-actions">
-                            <button onClick={() => setDeviceModal({ ...deviceModal, isOpen: false })}>Cancel</button>
-                            <button className="primary" onClick={saveDevice}>Save</button>
+                            <button onClick={() => setDeviceModal({ ...deviceModal, isOpen: false })}>{t('btn.cancel')}</button>
+                            <button className="primary" onClick={saveDevice}>{t('btn.save')}</button>
                         </div>
                     </div>
                 </div>
@@ -714,34 +716,34 @@ export default function FarmDetail() {
             {registerModal.isOpen && (
                 <div className="modal-overlay">
                     <div className="modal-content panel modal-large">
-                        <h3>{registerModal.type === 'new' ? 'New Register' : 'Edit Register'}</h3>
+                        <h3>{registerModal.type === 'new' ? t('detail.newRegister') : t('detail.editRegister')}</h3>
                         <div className="form-grid">
                             <div className="form-group">
-                                <label>Code</label>
+                                <label>{t('detail.code')}</label>
                                 <input value={registerModal.data.code || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, code: e.target.value } })} />
                             </div>
                             <div className="form-group">
-                                <label>Address (Base 10)</label>
+                                <label>{t('detail.addressBase10')}</label>
                                 <input type="number" value={registerModal.data.address ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, address: e.target.value as any } })} />
                             </div>
                             <div className="form-group full-width">
-                                <label>Display Names (JSON)</label>
+                                <label>{t('detail.displayNamesJson')}</label>
                                 <textarea rows={4} value={registerModal.data.displayNamesStr ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, displayNamesStr: e.target.value } })} />
                             </div>
                             <div className="form-group full-width">
-                                <label>Description</label>
+                                <label>{t('detail.description')}</label>
                                 <input value={registerModal.data.description || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, description: e.target.value } })} />
                             </div>
                             <div className="form-group">
-                                <label>Bit Start</label>
+                                <label>{t('detail.bitStart')}</label>
                                 <input type="number" value={registerModal.data.bit_start ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, bit_start: e.target.value as any } })} />
                             </div>
                             <div className="form-group">
-                                <label>Bit End</label>
+                                <label>{t('detail.bitEnd')}</label>
                                 <input type="number" value={registerModal.data.bit_end ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, bit_end: e.target.value as any } })} />
                             </div>
                             <div className="form-group">
-                                <label>Unit</label>
+                                <label>{t('detail.unit')}</label>
                                 <select value={registerModal.data.unit || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, unit: e.target.value } })}>
                                     <option value="">-- No Unit --</option>
                                     <option value="°C">°C (Celsius)</option>
@@ -771,19 +773,19 @@ export default function FarmDetail() {
                                 </select>
                             </div>
                             <div className="form-group">
-                                <label>Scale Factor</label>
+                                <label>{t('detail.scaleFactor')}</label>
                                 <input type="number" step="any" value={registerModal.data.scale_factor ?? '1'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, scale_factor: e.target.value as any } })} />
                             </div>
                             <div className="form-group">
-                                <label>Min Value</label>
+                                <label>{t('detail.minVal')}</label>
                                 <input type="number" step="any" value={registerModal.data.min_value ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, min_value: e.target.value as any } })} />
                             </div>
                             <div className="form-group">
-                                <label>Max Value</label>
+                                <label>{t('detail.maxVal')}</label>
                                 <input type="number" step="any" value={registerModal.data.max_value ?? ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, max_value: e.target.value as any } })} />
                             </div>
                             <div className="form-group">
-                                <label>Data Type</label>
+                                <label>{t('detail.dataType')}</label>
                                 <select value={registerModal.data.data_type || 'FLOAT'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, data_type: e.target.value as any } })}>
                                     <option value="FLOAT">FLOAT</option>
                                     <option value="UNSIGNED_INT">UNSIGNED_INT</option>
@@ -793,10 +795,10 @@ export default function FarmDetail() {
                             </div>
                             <div className="form-group checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1.8rem', marginRight: '8rem' }}>
                                 <input type="checkbox" id="signed-checkbox" checked={registerModal.data.is_signed ?? false} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, is_signed: e.target.checked } })} />
-                                <label htmlFor="signed-checkbox" style={{ margin: 0, marginLeft: '1rem' }}>Is_Signed</label>
+                                <label htmlFor="signed-checkbox" style={{ margin: 0, marginLeft: '1rem' }}>{t('detail.isSigned')}</label>
                             </div>
                             <div className="form-group">
-                                <label>Role</label>
+                                <label>{t('detail.role')}</label>
                                 <select value={registerModal.data.role || 'value'} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, role: e.target.value as any } })}>
                                     <option value="value">value</option>
                                     <option value="status">status</option>
@@ -807,12 +809,12 @@ export default function FarmDetail() {
                             </div>
                             <div className="form-group checkbox-group" style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1.8rem', marginRight: '8rem', marginLeft: '-0.5rem' }}>
                                 <input type="checkbox" id="writable-checkbox" checked={registerModal.data.writable ?? false} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, writable: e.target.checked } })} />
-                                <label htmlFor="writable-checkbox" style={{ margin: 0, marginLeft: '1rem' }}>Writable</label>
+                                <label htmlFor="writable-checkbox" style={{ margin: 0, marginLeft: '1rem' }}>{t('detail.writable')}</label>
                             </div>
                         </div>
                         <div className="modal-actions">
-                            <button onClick={() => setRegisterModal({ ...registerModal, isOpen: false })}>Cancel</button>
-                            <button className="primary" onClick={saveRegister}>Save</button>
+                            <button onClick={() => setRegisterModal({ ...registerModal, isOpen: false })}>{t('btn.cancel')}</button>
+                            <button className="primary" onClick={saveRegister}>{t('btn.save')}</button>
                         </div>
                     </div>
                 </div>

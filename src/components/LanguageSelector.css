@@ -1,0 +1,22 @@
+.lang-toggle-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 0.4rem 0.8rem;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-weight: bold;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+}
+
+.lang-toggle-btn:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+    background: var(--primary-glow);
+}

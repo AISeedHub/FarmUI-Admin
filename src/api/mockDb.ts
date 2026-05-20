@@ -25,7 +25,7 @@ const initializeData = () => {
             description: "Controls temperature and humidity",
             device_kind: "actuator",
             device_type: "switch",
-            slave_id: 1,
+            unit_id: 1,
             display_order: 0,
             is_active: true,
             created_at: new Date().toISOString()
