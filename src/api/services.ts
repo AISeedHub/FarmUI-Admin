@@ -1,4 +1,4 @@
-import { Farm, Zone, Device, Register } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/admin';
 const AUTH_BASE_URL = API_BASE_URL.replace(/\/admin$/, '') + '/auth';
@@ -51,6 +51,12 @@ export const farmsApi = {
     },
     exportConfig: (id: string): Promise<any> => {
         return fetchJson(`/farms/${id}/export`);
+    },
+    clone: (sourceFarmId: string, data: FarmCloneRequest): Promise<FarmCloneResponse> => {
+        return fetchJson(`/farms/${sourceFarmId}/clone`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
     }
 };
 
@@ -135,7 +141,22 @@ export const authApi = {
         }
 
         return response.json();
+    },
+    getUsers: async (): Promise<UserResponse[]> => {
+        const token = localStorage.getItem('access_token');
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        const response = await fetch(`${AUTH_BASE_URL}/users`, { headers });
+        if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        return response.json();
     }
 };
 
-
+export const farmUsersApi = {
+    create: (data: FarmUserCreate): Promise<FarmUserResponse> => {
+        return fetchJson('/farm-users', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+};

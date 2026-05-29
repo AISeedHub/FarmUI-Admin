@@ -68,3 +68,39 @@ export interface Register {
     created_at?: string;
     updated_at?: string;
 }
+
+export interface UserResponse {
+    id: string;
+    email: string;
+    username: string;
+    global_role: string;
+    preferred_language: string;
+    is_active: boolean;
+}
+
+export interface FarmUserCreate {
+    farm_id: string;
+    user_id: string;
+    role: 'admin' | 'operator' | 'viewer';
+}
+
+export interface FarmUserResponse {
+    id: string;
+    farm_id: string;
+    user_id: string;
+    role: string;
+    created_at: string;
+}
+
+export interface FarmCloneRequest {
+    target_farm_id: string;
+}
+
+export interface FarmCloneResponse {
+    source_farm_id: string;
+    target_farm_id: string;
+    zones: number;
+    devices: number;
+    registers: number;
+    automations: number;
+}

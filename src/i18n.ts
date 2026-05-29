@@ -84,7 +84,17 @@ const resources = {
             "detail.invalidJson": "Invalid JSON in Display Names",
             "detail.confirmDeleteZone": "Delete zone and all its devices and registers?",
             "detail.confirmDeleteDevice": "Delete device and all its registers?",
-            "detail.confirmDeleteRegister": "Delete register?"
+            "detail.confirmDeleteRegister": "Delete register?",
+            "farms.adminUser": "Admin User",
+            "farms.adminUserPlaceholder": "Select admin user...",
+            "farms.cloneSource": "Clone Config From",
+            "farms.cloneSourcePlaceholder": "None (empty farm)",
+            "farms.creating": "Creating...",
+            "farms.cloneSuccess": "Farm created successfully! Cloned {{zones}} zones, {{devices}} devices, {{registers}} registers, {{automations}} automations.",
+            "farms.createSuccess": "Farm created successfully!",
+            "farms.createFailed": "Failed to create farm: {{error}}",
+            "farms.assignAdminFailed": "Farm created, but failed to assign admin: {{error}}",
+            "farms.cloneFailed": "Farm created, but clone failed: {{error}}"
         }
     },
     ko: {
@@ -168,7 +178,17 @@ const resources = {
             "detail.invalidJson": "표시 이름 JSON 형식이 올바르지 않습니다",
             "detail.confirmDeleteZone": "구역과 해당 장치, 레지스터를 모두 삭제하시겠습니까?",
             "detail.confirmDeleteDevice": "장치와 해당 레지스터를 모두 삭제하시겠습니까?",
-            "detail.confirmDeleteRegister": "레지스터를 삭제하시겠습니까?"
+            "detail.confirmDeleteRegister": "레지스터를 삭제하시겠습니까?",
+            "farms.adminUser": "관리자 사용자",
+            "farms.adminUserPlaceholder": "관리자를 선택하세요...",
+            "farms.cloneSource": "설정 복제 원본",
+            "farms.cloneSourcePlaceholder": "없음 (빈 농장)",
+            "farms.creating": "생성 중...",
+            "farms.cloneSuccess": "농장이 성공적으로 생성되었습니다! {{zones}}개 구역, {{devices}}개 장치, {{registers}}개 레지스터, {{automations}}개 자동화가 복제되었습니다.",
+            "farms.createSuccess": "농장이 성공적으로 생성되었습니다!",
+            "farms.createFailed": "농장 생성 실패: {{error}}",
+            "farms.assignAdminFailed": "농장은 생성되었지만 관리자 할당 실패: {{error}}",
+            "farms.cloneFailed": "농장은 생성되었지만 복제 실패: {{error}}"
         }
     }
 };

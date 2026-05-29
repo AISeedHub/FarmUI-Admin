@@ -136,3 +136,25 @@
     gap: 1rem;
     margin-top: 2rem;
 }
+
+.modal-content select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    appearance: auto;
+}
+
+.modal-content select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.required {
+    color: #ff4d4d;
+    font-weight: bold;
+}
