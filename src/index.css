@@ -1,21 +1,36 @@
-:root {
-  /* Blueprint Light Theme Colors */
-  --bg-color: #f4f7f6;
-  --bg-grid: rgba(0, 0, 0, 0.04);
-  --primary: #0077b6;
-  --primary-glow: rgba(0, 119, 182, 0.2);
-  --secondary: #00b4d8;
-  --accent: #2a9d8f;
-  /* Modern green */
-  --accent-glow: rgba(42, 157, 143, 0.2);
-  --text-main: #1d2d44;
-  --text-muted: #5c677d;
-  --border: rgba(0, 119, 182, 0.2);
-  --border-active: rgba(0, 119, 182, 0.5);
-  --panel-bg: rgba(255, 255, 255, 0.95);
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
+:root {
+  /* Minimalist Warm Neutral Palette */
+  --bg-color: #FAF9F6; /* Alabaster - soft warm neutral */
+  --bg-grid: rgba(13, 92, 58, 0.02); /* very subtle grid pattern */
+  --panel-bg: #FFFFFF;
+  --primary: #059669; /* Emerald Green */
+  --primary-hover: #047857;
+  --primary-glow: rgba(5, 150, 105, 0.08);
+  
+  --secondary: #10B981; /* Medium Emerald */
+  --accent: #0D5C3A; /* Deep Forest Green */
+  --accent-glow: rgba(13, 92, 58, 0.12);
+  
+  --text-main: #0F172A; /* Slate 900 */
+  --text-muted: #64748B; /* Slate 500 */
+  --border: rgba(230, 228, 217, 0.6); /* Soft warm border */
+  --border-input: #cbd5e1; /* Crisp high-contrast input border */
+  --border-active: rgba(5, 150, 105, 0.25);
+  
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  
+  /* Semantic Statuses */
+  --color-success: #10B981;
+  --color-success-bg: rgba(16, 185, 129, 0.06);
+  --color-warning: #D97706;
+  --color-warning-bg: rgba(217, 119, 6, 0.06);
+  --color-danger: #EF4444;
+  --color-danger-bg: rgba(239, 68, 68, 0.06);
+  
+  --transition-smooth: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -25,32 +40,33 @@
 }
 
 body {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   background-color: var(--bg-color);
   color: var(--text-main);
   background-image:
     linear-gradient(var(--bg-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
-  background-size: 30px 30px;
+  background-size: 32px 32px;
   background-position: center center;
   min-height: 100vh;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Blueprint Panels */
+/* Sophisticated Panels with subtle elevation */
 .panel {
   background: var(--panel-bg);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-input);
+  border-radius: 12px;
   padding: 1.5rem;
-  border-radius: 4px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01), 0 10px 30px rgba(13, 92, 58, 0.02);
+  transition: var(--transition-smooth);
 }
 
 .panel:hover {
   border-color: var(--border-active);
-  box-shadow: 0 4px 12px var(--primary-glow);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.01), 0 20px 40px rgba(13, 92, 58, 0.05);
+  transform: translateY(-2px);
 }
 
 /* Headings */
@@ -61,10 +77,9 @@ h4,
 h5,
 h6 {
   font-family: var(--font-sans);
-  color: var(--primary);
-  margin-bottom: 1rem;
-  text-transform: uppercase;
-  letter-spacing: 2px;
+  color: var(--text-main);
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 /* Forms */
@@ -72,12 +87,13 @@ input,
 select,
 textarea {
   background: #ffffff;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-input);
   color: var(--text-main);
-  padding: 0.75rem 1rem;
-  font-family: var(--font-mono);
-  border-radius: 2px;
-  transition: all 0.3s ease;
+  padding: 0.625rem 0.875rem;
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  border-radius: 8px;
+  transition: var(--transition-smooth);
   width: 100%;
 }
 
@@ -86,40 +102,47 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 8px var(--primary-glow);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 /* Buttons */
 button {
   background: white;
-  border: 1px solid var(--primary);
-  color: var(--primary);
-  padding: 0.5rem 1.5rem;
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 1px;
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 0.5rem 1.25rem;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 0.875rem;
   cursor: pointer;
-  border-radius: 2px;
-  transition: all 0.3s ease;
+  border-radius: 8px;
+  transition: var(--transition-smooth);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 button:hover {
-  background: var(--primary);
-  color: white;
-  box-shadow: 0 4px 12px var(--primary-glow);
+  background: var(--bg-color);
+  border-color: var(--text-muted);
 }
 
 button.primary {
   background: var(--primary);
+  border-color: var(--primary);
   color: white;
 }
 
 button.primary:hover {
-  background: white;
-  color: var(--primary);
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  box-shadow: 0 4px 12px var(--primary-glow);
+  transform: translateY(-1px);
 }
 
 button.accent {
+  background: transparent;
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -128,21 +151,22 @@ button.accent:hover {
   background: var(--accent);
   color: white;
   box-shadow: 0 4px 12px var(--accent-glow);
+  transform: translateY(-1px);
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-color);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 119, 182, 0.3);
-  border-radius: 4px;
+  background: rgba(13, 92, 58, 0.1);
+  border-radius: 99px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -153,27 +177,24 @@ button.accent:hover {
    Cyber Scanner Overlay & Holographic Translation Transitions (Global)
    ========================================================================== */
 
-/* Sweep Line */
+/* Clean, narrow beam */
 .cyber-scanner-beam {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
-  height: 4px;
+  height: 2px;
   background: linear-gradient(90deg, 
       transparent, 
-      rgba(0, 242, 254, 0.2) 20%, 
-      #00f2fe 50%, 
-      rgba(0, 242, 254, 0.2) 80%, 
+      rgba(16, 185, 129, 0.1) 20%, 
+      var(--primary) 50%, 
+      rgba(16, 185, 129, 0.1) 80%, 
       transparent
   );
-  box-shadow: 
-      0 0 10px #00f2fe,
-      0 0 25px rgba(0, 242, 254, 0.8),
-      0 0 50px rgba(0, 242, 254, 0.4);
+  box-shadow: 0 0 8px var(--primary);
   z-index: 10000;
   pointer-events: none;
-  animation: scannerSweep 1.0s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+  animation: scannerSweep 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Moving grid background during scan */
@@ -184,16 +205,16 @@ button.accent:hover {
   width: 100vw;
   height: 100vh;
   background-image: 
-      linear-gradient(rgba(0, 242, 254, 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 242, 254, 0.05) 1px, transparent 1px);
-  background-size: 30px 30px;
+      linear-gradient(rgba(16, 185, 129, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16, 185, 129, 0.02) 1px, transparent 1px);
+  background-size: 32px 32px;
   z-index: 9999;
   pointer-events: none;
   opacity: 0;
-  animation: gridFade 1.0s ease-out forwards;
+  animation: gridFade 1.2s ease-out forwards;
 }
 
-/* Glitch/Flicker effect on all UI text when scanning */
+/* Subtle, elegant text illumination during scan */
 .scanning-active h1,
 .scanning-active h2,
 .scanning-active h3,
@@ -206,7 +227,7 @@ button.accent:hover {
 .scanning-active input,
 .scanning-active select,
 .scanning-active a {
-  animation: holographicRecalibrate 0.8s ease-in-out;
+  animation: holographicRecalibrate 1.0s ease-in-out;
 }
 
 @keyframes scannerSweep {
@@ -214,11 +235,11 @@ button.accent:hover {
       top: 0%;
       opacity: 0;
   }
-  10% {
-      opacity: 1;
+  15% {
+      opacity: 0.8;
   }
-  90% {
-      opacity: 1;
+  85% {
+      opacity: 0.8;
   }
   100% {
       top: 100%;
@@ -235,35 +256,19 @@ button.accent:hover {
 
 @keyframes holographicRecalibrate {
   0% {
-      text-shadow: none;
       filter: none;
-  }
-  15% {
-      text-shadow: 2px -1px 0 rgba(255, 0, 80, 0.5), -2px 1px 0 rgba(0, 242, 254, 0.5);
-      filter: blur(1px) brightness(1.2);
-      opacity: 0.8;
+      text-shadow: none;
   }
   30% {
-      text-shadow: -1px 2px 0 rgba(255, 0, 80, 0.5), 1px -2px 0 rgba(0, 242, 254, 0.5);
-      opacity: 0.9;
+      filter: brightness(1.1);
+      text-shadow: 0 0 4px rgba(16, 185, 129, 0.2);
   }
-  45% {
-      text-shadow: 1px -1px 0 rgba(255, 0, 80, 0.5), -1px 1px 0 rgba(0, 242, 254, 0.5);
-      filter: blur(0.5px) brightness(1.5);
-  }
-  60% {
-      text-shadow: none;
-      filter: none;
-      opacity: 0.75;
-  }
-  75% {
-      text-shadow: 0 0 8px rgba(0, 242, 254, 0.8);
-      filter: brightness(1.3);
-      opacity: 1;
+  70% {
+      filter: brightness(1.1);
+      text-shadow: 0 0 4px rgba(16, 185, 129, 0.2);
   }
   100% {
-      text-shadow: none;
       filter: none;
-      opacity: 1;
+      text-shadow: none;
   }
 }

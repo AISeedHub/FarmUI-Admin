@@ -1,0 +1,111 @@
+.analytics-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding-top: 10px;
+}
+
+.chart-placeholder {
+    padding: 20px;
+    position: relative;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.x-axis-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--text-muted);
+    font-family: var(--font-mono), monospace;
+}
+
+.analytics-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.split-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.donut-chart-mock {
+    display: flex;
+    padding: 24px;
+    gap: 40px;
+    align-items: center;
+}
+
+.donut-ring {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    border: 16px solid var(--bg-color);
+    border-top-color: #0ea5e9; /* User (sky) */
+    border-right-color: var(--primary); /* Auto (emerald) */
+    border-bottom-color: var(--primary);
+    border-left-color: var(--color-warning); /* API (amber) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: rotate(-45deg);
+}
+
+.donut-ring.delivery {
+    border-top-color: var(--primary);
+    border-right-color: var(--primary);
+    border-bottom-color: var(--primary);
+    border-left-color: var(--color-danger); /* Fail (red) */
+}
+
+.center-val {
+    transform: rotate(45deg);
+    text-align: center;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--text-main);
+}
+
+.center-val small {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-top: 4px;
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.legend .item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.legend .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.legend .dot.user { background: #0ea5e9; }
+.legend .dot.auto { background: var(--primary); }
+.legend .dot.api { background: var(--color-warning); }
+
+.legend .dot.ack { background: var(--primary); }
+.legend .dot.sent { background: var(--text-muted); }
+.legend .dot.pend { background: var(--color-warning); }
+.legend .dot.fail { background: var(--color-danger); }

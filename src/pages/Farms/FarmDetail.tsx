@@ -1,16 +1,20 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register } from '../../types';
 import { farmsApi, zonesApi, devicesApi, registersApi } from '../../api/services';
+import AutomationsTab from './components/AutomationsTab';
+import AnalyticsTab from './components/AnalyticsTab';
 import './FarmDetail.css';
 
 export default function FarmDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
+
+    const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'analytics'>('config');
 
     const [farm, setFarm] = useState<Farm | null>(null);
     const [zones, setZones] = useState<Zone[]>([]);
@@ -362,25 +366,98 @@ export default function FarmDetail() {
 
     return (
         <div className="farm-detail-container">
-            <div className="detail-header panel">
-                <button className="back-btn" onClick={() => navigate('/')}>
-                    <ArrowLeft size={20} /> {t('btn.back')}
-                </button>
-                <div className="farm-title-info">
-                    <h2>{farm.name} <span className="farm-code">[{farm.code}]</span></h2>
-                    <p className="subtitle">{t('farms.location')}: {farm.location} | {t('farms.status')}: {farm.is_active ? t('farms.active') : t('farms.inactive')}</p>
+            {/* Left Sidebar Panel */}
+            <div className="farm-detail-sidebar">
+                <div className="sidebar-header">
+                    <div className="sidebar-header-top">
+                        <button className="back-btn-simple" onClick={() => navigate('/')}>
+                            <ArrowLeft size={16} />
+                        </button>
+                        <div className="farm-title-info">
+                            <span className="breadcrumb">{t('nav.farms').toUpperCase()} / {farm.code}</span>
+                            <h2>
+                                <LayoutGrid size={18} style={{ marginRight: '4px' }} />
+                                {farm.name}
+                            </h2>
+                            <span className="status-badge healthy" style={{ marginTop: '4px' }}>
+                                <span className="dot"></span> {t('nav.statusHealthy')}
+                            </span>
+                        </div>
+                    </div>
                 </div>
-                <button
-                    className="export-btn flex-center"
-                    onClick={handleExport}
-                    disabled={exporting}
-                >
-                    <Download size={16} />
-                    {exporting ? t('btn.exporting') : t('btn.export')}
-                </button>
+
+                {/* Metrics list */}
+                <div className="sidebar-metrics">
+                    <div className="metric-row">
+                        <span className="label">{t('detail.region')}</span>
+                        <span className="value">{farm.location}</span>
+                    </div>
+                    <div className="metric-row">
+                        <span className="label">{t('detail.zones').toUpperCase()}</span>
+                        <span className="value">{zones.length}</span>
+                    </div>
+                    <div className="metric-row">
+                        <span className="label">{t('detail.devices').toUpperCase()}</span>
+                        <span className="value">{devices.length}</span>
+                    </div>
+                    <div className="metric-row">
+                        <span className="label">{t('detail.users')}</span>
+                        <span className="value">6</span>
+                    </div>
+                    <div className="metric-row">
+                        <span className="label">{t('detail.uptime')}</span>
+                        <span className="value">99.4%</span>
+                    </div>
+                    <div className="metric-row alert">
+                        <span className="label">{t('detail.alerts')}</span>
+                        <span className="value">1</span>
+                    </div>
+                </div>
+
+                {/* Vertical Navigation Tabs */}
+                <div className="sidebar-tabs">
+                    <button className={`sidebar-tab-btn ${activeTab === 'config' ? 'active' : ''}`} onClick={() => setActiveTab('config')}>
+                        <Settings2 size={16} /> {t('detail.tabConfig')}
+                    </button>
+                    <button className={`sidebar-tab-btn ${activeTab === 'automations' ? 'active' : ''}`} onClick={() => setActiveTab('automations')}>
+                        <Zap size={16} /> {t('detail.tabAutomations')}
+                    </button>
+                    <button className={`sidebar-tab-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
+                        <Activity size={16} /> {t('detail.tabAnalytics')}
+                    </button>
+                </div>
+
+                {/* Sidebar Actions stacked at bottom */}
+                <div className="sidebar-actions">
+                    <div className="agent-toggle">
+                        <span>{t('detail.agent')}</span>
+                        <span className="toggle on"><span className="knob"></span></span>
+                    </div>
+                    <button className="impersonate-btn">{t('detail.impersonate')}</button>
+                    <button className="open-dash-btn">{t('detail.openDashboard')}</button>
+                </div>
             </div>
 
-            <div className="blueprint-canvas new-horizontal-layout">
+            {/* Right Content Panel */}
+            <div className="farm-detail-content">
+                <div className="tab-content-container">
+
+            {activeTab === 'config' && (
+                <>
+                    <div className="config-tab-header">
+                        <div className="config-header-text">
+                            <h3>{t('detail.configTitle')}</h3>
+                            <p>{t('detail.configDesc')}</p>
+                        </div>
+                        <button
+                            className="export-btn flex-center"
+                            onClick={handleExport}
+                            disabled={exporting}
+                        >
+                            {exporting ? t('btn.exporting') : 'Export JSON'}
+                        </button>
+                    </div>
+                    <div className="blueprint-canvas new-horizontal-layout">
                 <div className="canvas-inner">
                     {/* Dynamic SVG Connections Overlay */}
                     <svg ref={svgRef} className="connections-svg">
@@ -393,25 +470,25 @@ export default function FarmDetail() {
                             const cp2Y = conn.endY;
                             const pathD = `M ${conn.startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
 
-                            const midX = conn.startX + (conn.endX - conn.startX) * 0.5;
-                            const midY = conn.startY + (conn.endY - conn.startY) * 0.5;
+                            const badgeX = conn.endX + 230 + 15;
+                            const badgeY = conn.endY;
 
                             const deviceCount = conn.id === 'unassigned'
                                 ? devices.filter(d => !d.zone_id).length
                                 : devices.filter(d => d.zone_id === conn.id).length;
 
-                            const color = isSelected ? 'var(--primary)' : 'rgba(0, 119, 182, 0.15)';
-                            const strokeWidth = isSelected ? '3' : '1.5';
+                            const color = isSelected ? '#0ea5e9' : 'rgba(14, 165, 233, 0.4)';
+                            const strokeWidth = isSelected ? '2' : '1';
 
                             return (
                                 <g key={`zone-conn-${conn.id}`}>
-                                    <path d={pathD} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray={isSelected ? undefined : '4,4'} />
-                                    <circle cx={conn.startX} cy={conn.startY} r={isSelected ? '5' : '3'} fill="var(--panel-bg)" stroke={color} strokeWidth="2" />
-                                    <circle cx={conn.endX} cy={conn.endY} r={isSelected ? '5' : '3'} fill="var(--panel-bg)" stroke={color} strokeWidth="2" />
+                                    <path d={pathD} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray={isSelected ? undefined : '3,3'} />
+                                    <circle cx={conn.startX} cy={conn.startY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
+                                    <circle cx={conn.endX} cy={conn.endY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
                                     {isSelected && (
-                                        <g>
-                                            <rect x={midX - 45} y={midY - 12} width="90" height="24" rx="12" fill="var(--panel-bg)" stroke="var(--primary)" strokeWidth="1" />
-                                            <text x={midX} y={midY + 1} fill="var(--primary)" fontSize="10" fontFamily="sans-serif" textAnchor="middle" dominantBaseline="middle" fontWeight="bold">
+                                        <g transform={`rotate(-90 ${badgeX} ${badgeY})`}>
+                                            <rect x={badgeX - 38} y={badgeY - 10} width="76" height="20" rx="10" fill="#ffffff" stroke="#0ea5e9" strokeWidth="1" />
+                                            <text x={badgeX} y={badgeY + 1} fill="#0284c7" fontSize="9" fontFamily="monospace" textAnchor="middle" dominantBaseline="middle" fontWeight="600">
                                                 {deviceCount} {deviceCount === 1 ? t('detail.device') : t('detail.devices_plural')}
                                             </text>
                                         </g>
@@ -423,28 +500,29 @@ export default function FarmDetail() {
                         {/* 2. Selected Zone to its Devices */}
                         {deviceConnections.map(conn => {
                             const isSelected = conn.id === selectedDeviceId;
-                            const cp1X = conn.startX + (conn.endX - conn.startX) * 0.5;
+                            const startX = conn.startX + 28; // Start from right of 5 Devices badge
+                            const cp1X = startX + (conn.endX - startX) * 0.5;
                             const cp1Y = conn.startY;
-                            const cp2X = conn.endX - (conn.endX - conn.startX) * 0.5;
+                            const cp2X = conn.endX - (conn.endX - startX) * 0.5;
                             const cp2Y = conn.endY;
-                            const pathD = `M ${conn.startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
+                            const pathD = `M ${startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
 
-                            const midX = conn.startX + (conn.endX - conn.startX) * 0.5;
-                            const midY = conn.startY + (conn.endY - conn.startY) * 0.5;
+                            const badgeX = conn.endX + 230 + 15;
+                            const badgeY = conn.endY;
 
                             const regCount = registers[conn.id]?.length || 0;
-                            const color = isSelected ? 'var(--secondary)' : 'rgba(0, 180, 216, 0.2)';
-                            const strokeWidth = isSelected ? '3' : '1.5';
+                            const color = isSelected ? '#0d9488' : 'rgba(13, 148, 136, 0.4)';
+                            const strokeWidth = isSelected ? '2' : '1';
 
                             return (
                                 <g key={`dev-conn-${conn.id}`}>
                                     <path d={pathD} fill="none" stroke={color} strokeWidth={strokeWidth} />
-                                    <circle cx={conn.startX} cy={conn.startY} r={isSelected ? '5' : '3'} fill="var(--panel-bg)" stroke={color} strokeWidth="2" />
-                                    <circle cx={conn.endX} cy={conn.endY} r={isSelected ? '5' : '3'} fill="var(--panel-bg)" stroke={color} strokeWidth="2" />
+                                    <circle cx={startX} cy={conn.startY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
+                                    <circle cx={conn.endX} cy={conn.endY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
                                     {isSelected && (
-                                        <g>
-                                            <rect x={midX - 45} y={midY - 12} width="90" height="24" rx="12" fill="var(--panel-bg)" stroke="var(--secondary)" strokeWidth="1" />
-                                            <text x={midX} y={midY + 1} fill="var(--secondary)" fontSize="10" fontFamily="sans-serif" textAnchor="middle" dominantBaseline="middle" fontWeight="bold">
+                                        <g transform={`rotate(-90 ${badgeX} ${badgeY})`}>
+                                            <rect x={badgeX - 42} y={badgeY - 10} width="84" height="20" rx="10" fill="#ffffff" stroke="#0d9488" strokeWidth="1" />
+                                            <text x={badgeX} y={badgeY + 1} fill="#0d9488" fontSize="9" fontFamily="monospace" textAnchor="middle" dominantBaseline="middle" fontWeight="600">
                                                 {regCount} {regCount === 1 ? t('detail.register') : t('detail.registers_plural')}
                                             </text>
                                         </g>
@@ -455,19 +533,20 @@ export default function FarmDetail() {
 
                         {/* 3. Selected Device to its Registers */}
                         {registerConnections.map(conn => {
-                            const cp1X = conn.startX + (conn.endX - conn.startX) * 0.5;
+                            const startX = conn.startX + 28; // Start from right of 2 Registers badge
+                            const cp1X = startX + (conn.endX - startX) * 0.5;
                             const cp1Y = conn.startY;
-                            const cp2X = conn.endX - (conn.endX - conn.startX) * 0.5;
+                            const cp2X = conn.endX - (conn.endX - startX) * 0.5;
                             const cp2Y = conn.endY;
-                            const pathD = `M ${conn.startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
+                            const pathD = `M ${startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
 
-                            const color = 'var(--accent)';
+                            const color = '#10b981';
 
                             return (
                                 <g key={`reg-conn-${conn.id}`}>
-                                    <path d={pathD} fill="none" stroke={color} strokeWidth="2" />
-                                    <circle cx={conn.startX} cy={conn.startY} r="4" fill="var(--panel-bg)" stroke={color} strokeWidth="2" />
-                                    <circle cx={conn.endX} cy={conn.endY} r="4" fill="var(--panel-bg)" stroke={color} strokeWidth="2" />
+                                    <path d={pathD} fill="none" stroke={color} strokeWidth="1.5" />
+                                    <circle cx={startX} cy={conn.startY} r="3" fill="#ffffff" stroke={color} strokeWidth="1.5" />
+                                    <circle cx={conn.endX} cy={conn.endY} r="3" fill="#ffffff" stroke={color} strokeWidth="1.5" />
                                 </g>
                             );
                         })}
@@ -598,15 +677,22 @@ export default function FarmDetail() {
                                             <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
                                         </div>
                                     </div>
-                                    <p className="node-desc">{reg.display_names?.[i18n.language] || reg.display_names?.en || reg.display_names?.ko || reg.display_names?.vi || reg.description || t('detail.noDescription')}</p>
+                                    <p className="node-desc">{reg.display_names?.[i18n.language] || reg.display_names?.en || reg.display_names?.ko || reg.display_names?.vi || reg.code}</p>
                                     <div className="reg-meta">
-                                        <span>{t('detail.role')}: {reg.role}</span>
+                                        <span>{reg.description || reg.role}</span>
                                         <span>[{reg.data_type}]</span>
                                     </div>
                                 </div>
                             ))
                         )}
                     </div>
+                </div>
+            </div>
+        </>
+    )}
+
+                    {activeTab === 'automations' && <AutomationsTab />}
+                    {activeTab === 'analytics' && <AnalyticsTab />}
                 </div>
             </div>
 
