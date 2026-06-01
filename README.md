@@ -48,32 +48,41 @@ Open `http://localhost:5173` (or the port specified by Vite) in your browser.
 
 ## Backend API Integration Status
 
-FarmUI-Admin communicates with the SmartFarm FastAPI backend. All endpoints are prefixed with `/admin`.
+FarmUI-Admin communicates with the SmartFarm FastAPI backend. Sau đợt refactor 3-tier, các endpoint nằm ở **root** theo resource (không còn tiền tố `/admin`). Auth-action giữ dưới `/auth`.
 
 ### Implemented APIs (Mapped to Frontend Services)
 
 **Farms**
-- `GET /admin/farms` : Lấy danh sách farms (mapped to `farmsApi.getAll()`)
-- `GET /admin/farms/{farm_id}` : Lấy thông tin chi tiết 1 farm (mapped to `farmsApi.getById()`)
-- `POST /admin/farms` : Tạo farm mới (mapped to `farmsApi.create()`)
-- `PUT /admin/farms/{farm_id}` : Cập nhật farm (mapped to `farmsApi.update()`)
-- `DELETE /admin/farms/{farm_id}` : Xóa farm và cascade các related modules (mapped to `farmsApi.delete()`)
+- `GET /farms` : Lấy danh sách farms (mapped to `farmsApi.getAll()`)
+- `GET /farms/{farm_id}` : Lấy thông tin chi tiết 1 farm (mapped to `farmsApi.getById()`)
+- `POST /farms` : Tạo farm mới (mapped to `farmsApi.create()`)
+- `PUT /farms/{farm_id}` : Cập nhật farm (mapped to `farmsApi.update()`)
+- `DELETE /farms/{farm_id}` : Xóa farm và cascade các related entities (mapped to `farmsApi.delete()`)
+- `GET /farms/{farm_id}/export` : Export config (mapped to `farmsApi.exportConfig()`)
+- `POST /farms/{farm_id}/clone` : Clone farm (mapped to `farmsApi.clone()`)
 
-**Modules**
-- `GET /admin/farms/{farm_id}/modules` : Lấy danh sách modules thuộc 1 farm (mapped to `modulesApi.getByFarm()`)
-- `POST /admin/modules` : Tạo module mới (mapped to `modulesApi.create()`)
-- `PUT /admin/modules/{module_id}` : Cập nhật module (mapped to `modulesApi.update()`)
-- `DELETE /admin/modules/{module_id}` : Xóa module và cascade các related registers (mapped to `modulesApi.delete()`)
+**Zones**
+- `GET /farms/{farm_id}/zones` : Lấy danh sách zones thuộc 1 farm (mapped to `zonesApi.getByFarm()`)
+- `POST /zones` : Tạo zone mới (mapped to `zonesApi.create()`)
+- `PUT /zones/{zone_id}` : Cập nhật zone (mapped to `zonesApi.update()`)
+- `DELETE /zones/{zone_id}` : Xóa zone và cascade (mapped to `zonesApi.delete()`)
+
+**Devices**
+- `GET /farms/{farm_id}/devices` : Lấy danh sách devices thuộc 1 farm (mapped to `devicesApi.getByFarm()`)
+- `POST /devices` : Tạo device mới (mapped to `devicesApi.create()`)
+- `PUT /devices/{device_id}` : Cập nhật device (mapped to `devicesApi.update()`)
+- `DELETE /devices/{device_id}` : Xóa device và cascade các related registers (mapped to `devicesApi.delete()`)
 
 **Registers**
-- `GET /admin/modules/{module_id}/registers` : Lấy danh sách registers thuộc 1 module (mapped to `registersApi.getByModule()`)
-- `POST /admin/registers` : Tạo register mới (mapped to `registersApi.create()`)
-- `PUT /admin/registers/{register_id}` : Cập nhật register (mapped to `registersApi.update()`)
-- `DELETE /admin/registers/{register_id}` : Xóa register (mapped to `registersApi.delete()`)
+- `GET /devices/{device_id}/registers` : Lấy danh sách registers thuộc 1 device (mapped to `registersApi.getByDevice()`)
+- `POST /registers` : Tạo register mới (mapped to `registersApi.create()`)
+- `PUT /registers/{register_id}` : Cập nhật register (mapped to `registersApi.update()`)
+- `DELETE /registers/{register_id}` : Xóa register (mapped to `registersApi.delete()`)
 
-### APIs Pending Implementation
-
-- `POST /admin/farms/{farm_id}/config` : Upload YAML config cho farm. (Endpoint này đã có trên Backend nhưng Frontend hiện tại chưa có UI hoặc Service function để upload file YAML).
+**Users & Farm-Users**
+- `POST /auth/login` : Đăng nhập (mapped to `authApi.login()`)
+- `GET /users` : Lấy danh sách users (mapped to `authApi.getUsers()`)
+- `POST /farm-users` : Gán user vào farm (mapped to `farmUsersApi.create()`)
 
 ## Folder Structure
 ```

@@ -1,7 +1,10 @@
 import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/admin';
-const AUTH_BASE_URL = API_BASE_URL.replace(/\/admin$/, '') + '/auth';
+// After the BE refactor all resource routers live at the root (no `/admin` prefix).
+// Resources: /farms, /zones, /devices, /registers, /farm-users, /users, /actuator-commands, /automations ...
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+// Auth-action endpoints stay under /auth (login, me, me/farms).
+const AUTH_BASE_URL = `${API_BASE_URL}/auth`;
 
 // Helper function to handle fetch responses
 const fetchJson = async (url: string, options?: RequestInit) => {
@@ -142,13 +145,9 @@ export const authApi = {
 
         return response.json();
     },
-    getUsers: async (): Promise<UserResponse[]> => {
-        const token = localStorage.getItem('access_token');
-        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        const response = await fetch(`${AUTH_BASE_URL}/users`, { headers });
-        if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-        return response.json();
+    // User CRUD moved out of /auth into the /users resource router (Phase 2).
+    getUsers: (): Promise<UserResponse[]> => {
+        return fetchJson('/users');
     }
 };
 
