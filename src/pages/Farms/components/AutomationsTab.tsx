@@ -232,8 +232,8 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
     // Calculate aggregated metrics
     const rulesCount = rules.length;
     const enabledCount = rules.filter(r => r.is_enabled).length;
-    const firesToday = Object.values(activity).reduce((acc, curr) => acc + (curr?.today_count || 0), 0);
-    const failingRules = Object.keys(activity).filter(id => (activity[id]?.failed_count || 0) > 0).length;
+    const firesToday = rules.reduce((acc, rule) => acc + (activity[rule.id]?.count_today || 0), 0);
+    const failingRules = rules.filter(rule => (activity[rule.id]?.recent_failed || 0) > 0).length;
 
     const changedRulesCount = rules.filter(r => {
         const orig = originalRules.find(o => o.id === r.id);
@@ -325,9 +325,9 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                         <div className="col-enabled">{t('auto.colEnabled')}</div>
                     </div>
                     {rules.map((rule) => {
-                        const act = activity[rule.id] || { last_fired: null, failed_count: 0, today_count: 0 };
-                        const lastFiredStr = act.last_fired
-                            ? new Date(act.last_fired).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        const act = activity[rule.id] || { last_execution: null, recent_failed: 0, count_today: 0 };
+                        const lastFiredStr = act.last_execution?.triggered_at
+                            ? new Date(act.last_execution.triggered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                             : '-';
 
                         return (
@@ -347,8 +347,8 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                                 </div>
                                 <div className="col-lastFired">{lastFiredStr}</div>
                                 <div className="col-today">
-                                    <span className={`today-badge ${act.today_count > 0 ? 'active' : 'zero'}`}>
-                                        {act.today_count}
+                                    <span className={`today-badge ${act.count_today > 0 ? 'active' : 'zero'}`}>
+                                        {act.count_today}
                                     </span>
                                 </div>
                                 <div className="col-enabled">
@@ -381,11 +381,11 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                                 <div className="modal-title-row">
                                     <h3>{historyRule.name}</h3>
                                     <span className={`status-badge ${historyRule.is_enabled ? 'enabled' : 'disabled'}`}>
-                                        {historyRule.is_enabled ? 'Active' : 'Inactive'}
+                                        {historyRule.is_enabled ? t('auto.historyActive') : t('auto.historyInactive')}
                                     </span>
-                                    <span className="priority-badge">Priority {historyRule.priority}</span>
+                                    <span className="priority-badge">{t('auto.historyPriority', { priority: historyRule.priority })}</span>
                                 </div>
-                                <p className="modal-desc">{historyRule.description || 'No description provided'}</p>
+                                <p className="modal-desc">{historyRule.description || t('auto.noDescription')}</p>
                             </div>
                             <button className="close-btn" onClick={() => setHistoryRule(null)}>
                                 <X size={20} />
@@ -396,7 +396,7 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                             {historyLoading ? (
                                 <div className="modal-loading">
                                     <Loader2 className="spinner" size={28} />
-                                    <span>Loading execution history...</span>
+                                    <span>{t('auto.loadingHistory')}</span>
                                 </div>
                             ) : (
                                 <div className="modal-layout">
@@ -408,7 +408,7 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                                                     <Activity size={18} />
                                                 </div>
                                                 <div className="stat-info">
-                                                    <span className="stat-label">Total runs (7 days)</span>
+                                                    <span className="stat-label">{t('auto.totalRuns')}</span>
                                                     <span className="stat-value">
                                                         {get7dData(weeklyFrequency[historyRule.id] || []).reduce((a, b) => a + b, 0)}
                                                     </span>
@@ -420,7 +420,7 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                                                     <CheckCircle size={18} />
                                                 </div>
                                                 <div className="stat-info">
-                                                    <span className="stat-label">Success Rate</span>
+                                                    <span className="stat-label">{t('auto.successRate')}</span>
                                                     <span className="stat-value">
                                                         {historyLogs.length > 0 
                                                             ? `${Math.round((historyLogs.filter(l => l.status === 'success').length / historyLogs.length) * 100)}%`
@@ -435,7 +435,7 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                                                     <Zap size={18} />
                                                 </div>
                                                 <div className="stat-info">
-                                                    <span className="stat-label">Last Source</span>
+                                                    <span className="stat-label">{t('auto.lastSource')}</span>
                                                     <span className="stat-value source-text">
                                                         {historyLogs[0]?.trigger_source || 'N/A'}
                                                     </span>
@@ -466,9 +466,9 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
 
                                             return (
                                                 <div className="history-chart-card">
-                                                    <h4 className="chart-header">Execution Frequency (Last 7 Days)</h4>
+                                                    <h4 className="chart-header">{t('auto.freqChartTitle')}</h4>
                                                     {chartData.length === 0 ? (
-                                                        <div className="no-chart-data">No execution activity in the last 7 days</div>
+                                                        <div className="no-chart-data">{t('auto.noChartData')}</div>
                                                     ) : (
                                                         <div className="chart-wrapper">
                                                             <svg viewBox={`0 0 ${width} ${height}`} className="history-svg-chart">
@@ -493,9 +493,9 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                                                                 ))}
                                                             </svg>
                                                             <div className="chart-x-labels">
-                                                                <span>7 days ago</span>
-                                                                <span>4 days ago</span>
-                                                                <span>Today</span>
+                                                                <span>{t('auto.7daysAgo')}</span>
+                                                                <span>{t('auto.4daysAgo')}</span>
+                                                                <span>{t('auto.todayLabel')}</span>
                                                             </div>
                                                         </div>
                                                     )}
@@ -506,10 +506,10 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
 
                                     {/* Right Panel: Execution Timeline */}
                                     <div className="modal-right-panel">
-                                        <h4 className="timeline-section-title">Audit Timeline & Execution Logs</h4>
+                                        <h4 className="timeline-section-title">{t('auto.timelineTitle')}</h4>
                                         {historyLogs.length === 0 ? (
                                             <div className="drawer-empty">
-                                                No recent execution logs recorded for this rule.
+                                                {t('auto.noHistoryLogs')}
                                             </div>
                                         ) : (
                                             <div className="history-timeline-scroll">
@@ -544,7 +544,7 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
 
                                                                     {log.trigger_snapshot && Object.keys(log.trigger_snapshot).length > 0 && (
                                                                         <div className="trigger-snapshot">
-                                                                            <span className="snapshot-title">Snapshot Values:</span>
+                                                                            <span className="snapshot-title">{t('auto.snapshotTitle')}</span>
                                                                             <div className="snapshot-tags">
                                                                                 {Object.entries(log.trigger_snapshot).map(([key, val]) => (
                                                                                     <span className="snapshot-tag" key={key}>
@@ -564,7 +564,7 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
 
                                                                     {log.actuator_writes && log.actuator_writes.length > 0 && (
                                                                         <div className="actuator-writes">
-                                                                            <h6>Actuator Actions:</h6>
+                                                                            <h6>{t('auto.actuatorActions')}</h6>
                                                                             <ul>
                                                                                 {log.actuator_writes.map((write, widx) => (
                                                                                     <li key={widx}>

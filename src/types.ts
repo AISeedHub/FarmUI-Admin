@@ -117,9 +117,14 @@ export interface AutomationScene {
 }
 
 export interface AutomationActivity {
-    last_fired?: string | null;
-    failed_count: number;
-    today_count: number;
+    count_today: number;
+    recent_failed: number;
+    last_execution: {
+        occurred_at: string;
+        triggered_at: string;
+        status: string;
+        error_message: string | null;
+    } | null;
 }
 
 export type AutomationActivityMap = Record<string, AutomationActivity>;
@@ -172,5 +177,21 @@ export interface MyFarmResponse {
     is_active: boolean;
     role: 'admin' | 'operator' | 'viewer' | null;
 }
+
+export interface FleetFrequencyFarm {
+    farm_id: string;
+    farm_code: string;
+    farm_name: string;
+    counts: number[];
+    total: number;
+}
+
+export interface FleetFrequencyResponse {
+    bucket: string;
+    window: number;
+    bucket_starts: string[];
+    farms: FleetFrequencyFarm[];
+}
+
 
 

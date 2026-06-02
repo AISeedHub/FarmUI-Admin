@@ -116,13 +116,31 @@
     display: flex;
     padding: 12px 20px;
     border-bottom: 1px solid var(--border-input);
+    background: #F8FAFC;
+}
+
+.table-header > div {
     font-size: 11px;
     color: #64748B;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    font-family: var(--font-mono), monospace;
-    background: #F8FAFC;
+    display: flex;
+    align-items: center;
+}
+
+.table-header .col-rule {
+    justify-content: flex-start;
+}
+
+.table-header .col-fires24h,
+.table-header .col-lastFired,
+.table-header .col-today {
+    justify-content: center;
+}
+
+.table-header .col-enabled {
+    justify-content: flex-end;
 }
 
 .table-row {
@@ -141,11 +159,42 @@
     border-bottom: none;
 }
 
-.col-rule { flex: 2.2; }
-.col-fires24h { flex: 1; display: flex; align-items: center; justify-content: center; }
-.col-lastFired { flex: 1; text-align: center; font-size: 13px; color: var(--text-muted); font-weight: 500; }
-.col-today { flex: 0.8; display: flex; justify-content: center; align-items: center; }
-.col-enabled { flex: 1.2; display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+.col-rule {
+    flex: 2.2;
+}
+
+.col-fires24h {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.col-lastFired {
+    flex: 1;
+    text-align: center;
+}
+
+.table-row .col-lastFired {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.col-today {
+    flex: 0.8;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.col-enabled {
+    flex: 1.2;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
 
 .rule-name-row {
     display: flex;

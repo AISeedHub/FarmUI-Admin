@@ -1,4 +1,4 @@
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, UserCreate, FarmUserDetail, MyFarmResponse } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse } from '../types';
 
 // After the BE refactor all resource routers live at the root (no `/admin` prefix).
 // Resources: /farms, /zones, /devices, /registers, /farm-users, /users, /actuator-commands, /automations ...
@@ -233,8 +233,21 @@ export const automationsApi = {
             method: 'POST',
         });
     },
-    getActivity: (farmId: string): Promise<AutomationActivityMap> => {
-        return fetchJson(`/farms/${farmId}/automations/activity?recent_window=5`);
+    getActivity: async (farmId: string): Promise<AutomationActivityMap> => {
+        const raw = await fetchJson(`/farms/${farmId}/automations/activity?recent_window=5`);
+        const result: AutomationActivityMap = {};
+        if (Array.isArray(raw)) {
+            raw.forEach((item: any) => {
+                if (item.automation_id) {
+                    result[item.automation_id] = {
+                        count_today: item.count_today ?? 0,
+                        recent_failed: item.recent_failed ?? 0,
+                        last_execution: item.last_execution ?? null
+                    };
+                }
+            });
+        }
+        return result;
     },
     getFrequency: async (farmId: string, bucket: 'hour' | 'day' = 'hour', window: number = 24): Promise<Record<string, Array<{ bucket_start: string; count: number }>>> => {
         const raw = await fetchJson(`/farms/${farmId}/automations/frequency?bucket=${bucket}&window=${window}`);
@@ -250,6 +263,9 @@ export const automationsApi = {
     },
     getExecutions: (automationId: string, limit: number = 20): Promise<ExecutionHistoryRow[]> => {
         return fetchJson(`/automations/${automationId}/executions/detailed?limit=${limit}`);
+    },
+    getFleetFrequency: (bucket: 'hour' | 'day' = 'hour', window: number = 24): Promise<FleetFrequencyResponse> => {
+        return fetchJson(`/fleet/automations/frequency?bucket=${bucket}&window=${window}`);
     }
 };
 

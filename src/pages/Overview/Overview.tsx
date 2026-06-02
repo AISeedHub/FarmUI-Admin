@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Activity, Wifi, Users, LayoutGrid, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { farmsApi, usersApi } from '../../api/services';
+import { farmsApi, usersApi, automationsApi } from '../../api/services';
+import { FleetFrequencyResponse } from '../../types';
 import './Overview.css';
 
 export default function Overview() {
     const { t } = useTranslation();
 
-    const [farmCount, setFarmCount] = useState(6);
-    const [userCount, setUserCount] = useState(13);
+    const [farmCount, setFarmCount] = useState(0);
+    const [userCount, setUserCount] = useState(0);
+    const [heatmapData, setHeatmapData] = useState<FleetFrequencyResponse | null>(null);
+    const [loadingHeatmap, setLoadingHeatmap] = useState(true);
 
     useEffect(() => {
         const fetchCounts = async () => {
@@ -24,6 +27,20 @@ export default function Overview() {
             }
         };
         fetchCounts();
+    }, []);
+
+    useEffect(() => {
+        const fetchHeatmap = async () => {
+            try {
+                const data = await automationsApi.getFleetFrequency('hour', 24);
+                setHeatmapData(data);
+            } catch (err) {
+                console.error("Failed to load fleet heatmap data in Overview", err);
+            } finally {
+                setLoadingHeatmap(false);
+            }
+        };
+        fetchHeatmap();
     }, []);
 
     return (
@@ -133,23 +150,72 @@ export default function Overview() {
                     <button className="text-btn">{t('overview.fullAnalytics')}</button>
                 </div>
                 <div className="heatmap-grid">
-                    {/* Mock Heatmap Grid */}
-                    {['SAIGON-01', 'MEKONG-02', 'DELTA-03', 'DALAT-04', 'SHRIMP-05', 'COFFEE-06'].map(farm => (
-                        <div className="heatmap-row" key={farm}>
-                            <span className="row-label">{farm}</span>
-                            <div className="blocks">
-                                {Array.from({ length: 24 }).map((_, i) => (
-                                    <div key={i} className={`block val-${Math.floor(Math.random() * 5)}`}></div>
-                                ))}
+                    {loadingHeatmap ? (
+                        Array.from({ length: 6 }).map((_, idx) => (
+                            <div className="heatmap-row" key={idx}>
+                                <div className="row-label skeleton-text"></div>
+                                <div className="blocks">
+                                    {Array.from({ length: 24 }).map((_, i) => (
+                                        <div key={i} className="block skeleton-block"></div>
+                                    ))}
+                                </div>
                             </div>
+                        ))
+                    ) : heatmapData && heatmapData.farms && heatmapData.farms.length > 0 ? (
+                        heatmapData.farms.map(farm => (
+                            <div className="heatmap-row" key={farm.farm_id}>
+                                <span className="row-label" title={farm.farm_name}>{farm.farm_code}</span>
+                                <div className="blocks">
+                                    {farm.counts.map((count, i) => {
+                                        const timestamp = heatmapData.bucket_starts[i];
+                                        const date = new Date(timestamp);
+                                        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                                        const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+                                        
+                                        let valClass = 'val-0';
+                                        if (count > 0 && count <= 2) valClass = 'val-1';
+                                        else if (count > 2 && count <= 5) valClass = 'val-2';
+                                        else if (count > 5 && count <= 10) valClass = 'val-3';
+                                        else if (count > 10) valClass = 'val-4';
+
+                                        return (
+                                            <div className="block-wrapper" key={i}>
+                                                <div className={`block ${valClass}`}></div>
+                                                <div className="tooltip">
+                                                    <span className="farm-name">{farm.farm_name}</span>
+                                                    <span className="time">{dateStr} {timeStr}</span>
+                                                    <span className="count">{t('overview.firesCount', { count })}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="heatmap-empty">
+                            {t('overview.noHeatmapData')}
                         </div>
-                    ))}
-                    <div className="heatmap-x-axis">
-                        <span>0</span>
-                        <span>6</span>
-                        <span>12</span>
-                        <span>18</span>
-                    </div>
+                    )}
+                    
+                    {!loadingHeatmap && heatmapData && heatmapData.bucket_starts && heatmapData.farms && heatmapData.farms.length > 0 && (
+                        <div className="heatmap-x-axis">
+                            {heatmapData.bucket_starts.map((start, idx) => {
+                                const date = new Date(start);
+                                const hour = date.getHours();
+                                const shouldShowLabel = idx % 6 === 0 || idx === 23;
+                                return (
+                                    <span 
+                                        key={idx} 
+                                        className="x-axis-label" 
+                                        style={{ visibility: shouldShowLabel ? 'visible' : 'hidden' }}
+                                    >
+                                        {hour}:00
+                                    </span>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
