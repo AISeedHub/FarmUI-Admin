@@ -158,13 +158,6 @@ export default function FarmDetail() {
         const devs = await devicesApi.getByFarm(id);
         setDevices(devs);
 
-        // Load registers map
-        const regsMap: Record<string, Register[]> = {};
-        for (const d of devs) {
-            const regs = await registersApi.getByDevice(d.id);
-            regsMap[d.id] = regs;
-        }
-        setRegisters(regsMap);
 
         // Set dynamic selections: keep current if still existing, otherwise auto-select first
         let activeZoneId = selectedZoneId;
@@ -187,17 +180,53 @@ export default function FarmDetail() {
             setSelectedDeviceId(null);
         }
 
+        // Load registers map only for the devices in the active zone (in parallel)
+        const regsMap: Record<string, Register[]> = {};
+        if (activeZoneId) {
+            const zoneDevs = devs.filter(d => activeZoneId === 'unassigned' ? !d.zone_id : d.zone_id === activeZoneId);
+            try {
+                const results = await Promise.all(
+                    zoneDevs.map(d => registersApi.getByDevice(d.id))
+                );
+                zoneDevs.forEach((d, idx) => {
+                    regsMap[d.id] = results[idx];
+                });
+            } catch (error) {
+                console.error("Failed to load registers for active zone devices", error);
+            }
+        }
+        setRegisters(regsMap);
+
         setLoading(false);
     };
 
     // Selection click handlers
-    const handleZoneClick = (zoneId: string) => {
+    const handleZoneClick = async (zoneId: string) => {
         setSelectedZoneId(zoneId);
         const zoneDevs = devices.filter(d => zoneId === 'unassigned' ? !d.zone_id : d.zone_id === zoneId);
         if (zoneDevs.length > 0) {
             setSelectedDeviceId(zoneDevs[0].id);
         } else {
             setSelectedDeviceId(null);
+        }
+
+        // Fetch registers for the newly selected zone's devices if not already loaded!
+        const devicesToFetch = zoneDevs.filter(d => !registers[d.id]);
+        if (devicesToFetch.length > 0) {
+            try {
+                const results = await Promise.all(
+                    devicesToFetch.map(d => registersApi.getByDevice(d.id))
+                );
+                setRegisters(prev => {
+                    const updated = { ...prev };
+                    devicesToFetch.forEach((d, idx) => {
+                        updated[d.id] = results[idx];
+                    });
+                    return updated;
+                });
+            } catch (error) {
+                console.error("Failed to load registers for zone devices", error);
+            }
         }
     };
 
