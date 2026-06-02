@@ -1,18 +1,40 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Activity, Wifi, Users, LayoutGrid, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { farmsApi, usersApi, automationsApi } from '../../api/services';
-import { FleetFrequencyResponse } from '../../types';
+import { farmsApi, usersApi, devicesApi, zonesApi, automationsApi } from '../../api/services';
+import { Farm, Zone, Device, AutomationScene, FleetFrequencyResponse } from '../../types';
 import './Overview.css';
+
+interface FarmHealthRow {
+    farm: Farm;
+    zoneCount: number;
+}
+
+interface FarmScaleData {
+    farm: Farm;
+    zones: number;
+    devices: number;
+    automations: number;
+}
 
 export default function Overview() {
     const { t } = useTranslation();
+    const navigate = useNavigate();
 
     const [farmCount, setFarmCount] = useState(0);
     const [userCount, setUserCount] = useState(0);
+    const [deviceCount, setDeviceCount] = useState(0);
+    const [automationFiresToday, setAutomationFiresToday] = useState(0);
+    const [enabledRulesCount, setEnabledRulesCount] = useState(0);
     const [heatmapData, setHeatmapData] = useState<FleetFrequencyResponse | null>(null);
     const [loadingHeatmap, setLoadingHeatmap] = useState(true);
+    const [farmHealthRows, setFarmHealthRows] = useState<FarmHealthRow[]>([]);
+    const [loadingFarmHealth, setLoadingFarmHealth] = useState(true);
+    const [farmScaleData, setFarmScaleData] = useState<FarmScaleData[]>([]);
+    const [loadingScale, setLoadingScale] = useState(true);
 
+    // Fetch farms, users, devices, and automation counts
     useEffect(() => {
         const fetchCounts = async () => {
             try {
@@ -22,18 +44,69 @@ export default function Overview() {
                 ]);
                 setFarmCount(farms.length);
                 setUserCount(users.length);
+
+                // Fetch devices, zones, and automations per farm in parallel
+                const perFarmResults = await Promise.all(
+                    farms.map(async (farm) => {
+                        const [devices, zones, automations] = await Promise.all([
+                            devicesApi.getByFarm(farm.id).catch(() => [] as Device[]),
+                            zonesApi.getByFarm(farm.id).catch(() => [] as Zone[]),
+                            automationsApi.getByFarm(farm.id).catch(() => [] as AutomationScene[])
+                        ]);
+                        return { farm, devices, zones, automations };
+                    })
+                );
+
+                // Total device count
+                const totalDevices = perFarmResults.reduce((sum, r) => sum + r.devices.length, 0);
+                setDeviceCount(totalDevices);
+
+                // Enabled automation rules count
+                const totalEnabled = perFarmResults.reduce(
+                    (sum, r) => sum + r.automations.filter(a => a.is_enabled).length, 0
+                );
+                setEnabledRulesCount(totalEnabled);
+
+                // Farm health rows (farm + zone count)
+                const healthRows: FarmHealthRow[] = perFarmResults.map(r => ({
+                    farm: r.farm,
+                    zoneCount: r.zones.length
+                }));
+                setFarmHealthRows(healthRows);
+                setLoadingFarmHealth(false);
+
+                // Farm scale comparison data
+                const scaleData: FarmScaleData[] = perFarmResults.map(r => ({
+                    farm: r.farm,
+                    zones: r.zones.length,
+                    devices: r.devices.length,
+                    automations: r.automations.length
+                }));
+                setFarmScaleData(scaleData);
+                setLoadingScale(false);
+
             } catch (err) {
                 console.error("Failed to load counts in Overview", err);
+                setLoadingFarmHealth(false);
+                setLoadingScale(false);
             }
         };
         fetchCounts();
     }, []);
 
+    // Fetch heatmap data + compute today's fires
     useEffect(() => {
         const fetchHeatmap = async () => {
             try {
                 const data = await automationsApi.getFleetFrequency('hour', 24);
                 setHeatmapData(data);
+
+                // Sum the last bucket (most recent hour) totals across all farms as "fires today"
+                // Actually, sum ALL counts across all farms for the 24h window
+                if (data?.farms) {
+                    const totalFires = data.farms.reduce((sum, farm) => sum + farm.total, 0);
+                    setAutomationFiresToday(totalFires);
+                }
             } catch (err) {
                 console.error("Failed to load fleet heatmap data in Overview", err);
             } finally {
@@ -43,12 +116,20 @@ export default function Overview() {
         fetchHeatmap();
     }, []);
 
+    // Compute max value for bar chart scaling
+    const maxScaleValue = farmScaleData.length > 0
+        ? Math.max(...farmScaleData.flatMap(d => [d.zones, d.devices, d.automations]), 1)
+        : 1;
+
+    const activeFarms = farmHealthRows.filter(r => r.farm.is_active).length;
+
     return (
         <div className="overview-container">
             <div className="overview-header">
                 <span className="subtitle">AGX-1000 · {t('overview.fleet')}</span>
                 <h2>{t('overview.title')}</h2>
                 <div className="header-actions">
+                    {/* TODO: Alert count requires a fleet alerts API — hardcoded for now */}
                     <button className="fleet-alerts-btn"><span className="dot"></span> {t('overview.alertsCount', { count: 12 })}</button>
                     <button className="status-page-btn">{t('overview.statusPage')}</button>
                 </div>
@@ -58,7 +139,7 @@ export default function Overview() {
                 <div className="metric-card panel">
                     <div className="metric-title"><LayoutGrid size={14} /> {t('nav.farms').toUpperCase()}</div>
                     <div className="metric-value">{farmCount}</div>
-                    <div className="metric-trend positive">{t('overview.healthyCount')}</div>
+                    <div className="metric-trend positive">{activeFarms} {t('nav.statusHealthy').toLowerCase()}</div>
                 </div>
                 <div className="metric-card panel">
                     <div className="metric-title"><Users size={14} /> {t('nav.users').toUpperCase()}</div>
@@ -67,13 +148,13 @@ export default function Overview() {
                 </div>
                 <div className="metric-card panel">
                     <div className="metric-title"><Wifi size={14} /> {t('overview.connectedDevices')}</div>
-                    <div className="metric-value">170</div>
+                    <div className="metric-value">{deviceCount}</div>
                     <div className="metric-trend">{t('overview.sensorsAndActuators')}</div>
                 </div>
                 <div className="metric-card panel">
                     <div className="metric-title"><Zap size={14} /> {t('overview.automationFires')}</div>
-                    <div className="metric-value">93</div>
-                    <div className="metric-trend positive">{t('overview.activeRulesCount')}</div>
+                    <div className="metric-value">{automationFiresToday}</div>
+                    <div className="metric-trend positive">{enabledRulesCount} {t('overview.activeRules')}</div>
                 </div>
             </div>
 
@@ -84,59 +165,99 @@ export default function Overview() {
                             <h3>{t('overview.farmHealth')}</h3>
                             <p>{t('overview.uptimeAlertsDesc')}</p>
                         </div>
-                        <button className="manage-btn">{t('overview.manageFarms')}</button>
+                        <button className="manage-btn" onClick={() => navigate('/farms')}>{t('overview.manageFarms')}</button>
                     </div>
                     <div className="farm-list">
-                        {[
-                            { name: 'Saigon Rooftop', code: 'SAIGON-01', loc: 'Hồ Chí Minh', zones: 2, uptime: '99.9%', status: 'Healthy' },
-                            { name: 'Mekong Greens', code: 'MEKONG-02', loc: 'Cần Thơ', zones: 5, uptime: '99.4%', status: 'Healthy' },
-                            { name: 'Delta Rice Co-op', code: 'DELTA-03', loc: 'An Giang', zones: 12, uptime: '97.1%', status: 'Warning' },
-                            { name: 'Highland Berries', code: 'DALAT-04', loc: 'Đà Lạt', zones: 4, uptime: '99.8%', status: 'Healthy' },
-                            { name: 'Mekong Shrimp + Rice', code: 'SHRIMP-05', loc: 'Sóc Trăng', zones: 8, uptime: '88.2%', status: 'Critical' },
-                            { name: 'Central Coffee Estate', code: 'COFFEE-06', loc: 'Đắk Lắk', zones: 7, uptime: '99.9%', status: 'Healthy' },
-                        ].map((farm, idx) => (
-                            <div className="farm-list-item" key={idx}>
-                                <div className="farm-icon"><LayoutGrid size={16} /></div>
-                                <div className="farm-info">
-                                    <span className="name">{farm.name} <span className="code">{farm.code}</span></span>
-                                    <span className="loc">{farm.loc} · {farm.zones} {t('detail.zones').toLowerCase()}</span>
+                        {loadingFarmHealth ? (
+                            Array.from({ length: 4 }).map((_, idx) => (
+                                <div className="farm-list-item" key={idx}>
+                                    <div className="farm-icon"><LayoutGrid size={16} /></div>
+                                    <div className="farm-info">
+                                        <span className="name"><span className="skeleton-text" style={{ width: 120 }}></span></span>
+                                        <span className="loc"><span className="skeleton-text" style={{ width: 80 }}></span></span>
+                                    </div>
                                 </div>
-                                <div className="farm-stats">
-                                    <span className="uptime-label">{t('overview.uptime')}</span>
-                                    <span className={`uptime-val ${farm.status.toLowerCase()}`}>{farm.uptime}</span>
-                                    <span className={`status-badge ${farm.status.toLowerCase()}`}>
-                                        <span className="dot"></span> {t(`nav.status${farm.status}`)}
-                                    </span>
+                            ))
+                        ) : farmHealthRows.length > 0 ? (
+                            farmHealthRows.map((row) => (
+                                <div className="farm-list-item" key={row.farm.id}>
+                                    <div className="farm-icon"><LayoutGrid size={16} /></div>
+                                    <div className="farm-info">
+                                        <span className="name">
+                                            {row.farm.name} <span className="code">{row.farm.code}</span>
+                                        </span>
+                                        <span className="loc">
+                                            {row.farm.location || '—'} · {row.zoneCount} {t('detail.zones').toLowerCase()}
+                                        </span>
+                                    </div>
+                                    <div className="farm-stats">
+                                        <span className={`status-badge ${row.farm.is_active ? 'healthy' : 'critical'}`}>
+                                            <span className="dot"></span> {row.farm.is_active ? t('nav.statusHealthy') : t('farms.inactive')}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))
+                        ) : (
+                            <div className="farm-list-empty">{t('overview.noFarms')}</div>
+                        )}
                     </div>
                 </div>
 
-                <div className="recent-activity-section panel">
+                <div className="farm-scale-section panel">
                     <div className="section-header">
                         <div>
-                            <h3>{t('overview.recentActivity')}</h3>
-                            <p>{t('overview.acrossFleet')}</p>
+                            <h3>{t('overview.farmScale')}</h3>
+                            <p>{t('overview.farmScaleDesc')}</p>
                         </div>
                     </div>
-                    <div className="activity-list">
-                        {[
-                            { type: 'alert', title: 'SHRIMP-05 gateway offline', desc: 'Mekong Shrimp · 7 alerts', time: '12m' },
-                            { type: 'user', title: 'New user invited', desc: 'sang@centralcoffee.vn · operator', time: '1h' },
-                            { type: 'system', title: 'Plan upgraded to Enterprise', desc: 'DELTA-03 Delta Rice', time: '3h' },
-                            { type: 'farm', title: 'Farm provisioned', desc: 'DALAT-04 · 11 sensors paired', time: '1d' },
-                            { type: 'security', title: '2FA enforced for managers', desc: 'Policy update', time: '2d' }
-                        ].map((act, idx) => (
-                            <div className="activity-item" key={idx}>
-                                <div className={`act-icon ${act.type}`}><Activity size={14} /></div>
-                                <div className="act-info">
-                                    <span className="title">{act.title}</span>
-                                    <span className="desc">{act.desc}</span>
+                    <div className="scale-chart">
+                        {loadingScale ? (
+                            Array.from({ length: 3 }).map((_, idx) => (
+                                <div className="scale-row" key={idx}>
+                                    <div className="scale-label skeleton-text"></div>
+                                    <div className="scale-bars">
+                                        <div className="scale-bar skeleton-block" style={{ width: '60%' }}></div>
+                                    </div>
                                 </div>
-                                <div className="act-time">{act.time}</div>
+                            ))
+                        ) : farmScaleData.length > 0 ? (
+                            farmScaleData.map((d) => (
+                                <div className="scale-row" key={d.farm.id}>
+                                    <div className="scale-label" title={d.farm.name}>{d.farm.code}</div>
+                                    <div className="scale-bars">
+                                        <div className="scale-bar-group">
+                                            <div
+                                                className="scale-bar bar-zones"
+                                                style={{ width: `${(d.zones / maxScaleValue) * 100}%` }}
+                                            >
+                                                <span className="bar-value">{d.zones}</span>
+                                            </div>
+                                            <div
+                                                className="scale-bar bar-devices"
+                                                style={{ width: `${(d.devices / maxScaleValue) * 100}%` }}
+                                            >
+                                                <span className="bar-value">{d.devices}</span>
+                                            </div>
+                                            <div
+                                                className="scale-bar bar-automations"
+                                                style={{ width: `${(d.automations / maxScaleValue) * 100}%` }}
+                                            >
+                                                <span className="bar-value">{d.automations}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="scale-empty">{t('overview.noFarms')}</div>
+                        )}
+                        {!loadingScale && farmScaleData.length > 0 && (
+                            <div className="scale-legend">
+                                <span className="legend-item"><span className="legend-dot zones"></span> {t('detail.zones')}</span>
+                                <span className="legend-item"><span className="legend-dot devices"></span> {t('detail.devices')}</span>
+                                <span className="legend-item"><span className="legend-dot automations"></span> {t('overview.automationsLabel')}</span>
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
             </div>
