@@ -27,7 +27,15 @@ export default defineConfig({
     proxy: Object.fromEntries(
       apiPrefixes.map((prefix) => [
         prefix,
-        { target: BACKEND_TARGET, changeOrigin: true },
+        {
+          target: BACKEND_TARGET,
+          changeOrigin: true,
+          bypass: (req) => {
+            if (req.headers.accept?.includes('text/html')) {
+              return '/index.html';
+            }
+          },
+        },
       ])
     ),
   },
