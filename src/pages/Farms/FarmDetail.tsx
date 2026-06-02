@@ -691,7 +691,8 @@ export default function FarmDetail() {
         </>
     )}
 
-                    {activeTab === 'automations' && <AutomationsTab />}
+                    {activeTab === 'automations' && <AutomationsTab farmId={id!} />}
+
                     {activeTab === 'analytics' && <AnalyticsTab />}
                 </div>
             </div>

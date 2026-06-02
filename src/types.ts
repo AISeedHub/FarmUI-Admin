@@ -104,3 +104,69 @@ export interface FarmCloneResponse {
     registers: number;
     automations: number;
 }
+
+export interface AutomationScene {
+    id: string;
+    farm_id: string;
+    name: string;
+    priority: string; // e.g. "P1", "P5"
+    is_enabled: boolean;
+    description?: string;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface AutomationActivity {
+    last_fired?: string | null;
+    failed_count: number;
+    today_count: number;
+}
+
+export type AutomationActivityMap = Record<string, AutomationActivity>;
+
+export interface ActuatorWrite {
+    device_name: string;
+    register_code: string;
+    value: number | boolean | string;
+    status: 'pending' | 'sent' | 'failed' | string;
+    error_message?: string | null;
+}
+
+export interface ExecutionHistoryRow {
+    id: string;
+    automation_id: string;
+    executed_at: string;
+    success: boolean;
+    error_message?: string | null;
+    actuator_writes?: ActuatorWrite[];
+}
+
+export interface UserCreate {
+    email: string;
+    username: string;
+    password?: string;
+    global_role: 'user' | 'super_admin';
+    preferred_language: string;
+    is_active?: boolean;
+}
+
+export interface FarmUserDetail {
+    id: string; // farm_user_id
+    farm_id: string;
+    user_id: string;
+    role: 'admin' | 'operator' | 'viewer';
+    username?: string | null;
+    email?: string;
+}
+
+export interface MyFarmResponse {
+    id: string;
+    code: string;
+    name: string;
+    location: string | null;
+    timezone: string;
+    is_active: boolean;
+    role: 'admin' | 'operator' | 'viewer' | null;
+}
+
+

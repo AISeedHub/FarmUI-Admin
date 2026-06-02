@@ -1,4 +1,4 @@
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, UserCreate, FarmUserDetail, MyFarmResponse } from '../types';
 
 // After the BE refactor all resource routers live at the root (no `/admin` prefix).
 // Resources: /farms, /zones, /devices, /registers, /farm-users, /users, /actuator-commands, /automations ...
@@ -148,6 +148,9 @@ export const authApi = {
     // User CRUD moved out of /auth into the /users resource router (Phase 2).
     getUsers: (): Promise<UserResponse[]> => {
         return fetchJson('/users');
+    },
+    getMyFarms: (): Promise<MyFarmResponse[]> => {
+        return fetchJson('/auth/me/farms');
     }
 };
 
@@ -157,5 +160,87 @@ export const farmUsersApi = {
             method: 'POST',
             body: JSON.stringify(data),
         });
+    },
+    getByFarm: (farmId: string): Promise<FarmUserDetail[]> => {
+        return fetchJson(`/farms/${farmId}/users`);
+    },
+    update: (farmUserId: string, data: { role: 'admin' | 'operator' | 'viewer' }): Promise<FarmUserResponse> => {
+        return fetchJson(`/farm-users/${farmUserId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+    delete: async (farmUserId: string): Promise<boolean> => {
+        await fetchJson(`/farm-users/${farmUserId}`, { method: 'DELETE' });
+        return true;
     }
 };
+
+export const usersApi = {
+    getAll: (): Promise<UserResponse[]> => {
+        return fetchJson('/users');
+    },
+    getById: (userId: string): Promise<UserResponse> => {
+        return fetchJson(`/users/${userId}`);
+    },
+    create: (data: UserCreate): Promise<UserResponse> => {
+        return fetchJson('/users', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+    update: (userId: string, data: Partial<UserResponse> & { password?: string }): Promise<UserResponse> => {
+        return fetchJson(`/users/${userId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+    delete: async (userId: string): Promise<boolean> => {
+        await fetchJson(`/users/${userId}`, { method: 'DELETE' });
+        return true;
+    }
+};
+
+
+export const automationsApi = {
+    getByFarm: (farmId: string): Promise<AutomationScene[]> => {
+        return fetchJson(`/farms/${farmId}/automations`);
+    },
+    update: (id: string, data: Partial<AutomationScene>): Promise<AutomationScene> => {
+        return fetchJson(`/automations/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+    delete: async (id: string): Promise<boolean> => {
+        const result = await fetchJson(`/automations/${id}`, { method: 'DELETE' });
+        return result.success ?? true;
+    },
+    exportRules: async (farmId: string): Promise<string> => {
+        const token = localStorage.getItem('access_token');
+        const headers: Record<string, string> = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        const response = await fetch(`${API_BASE_URL}/farms/${farmId}/rules?format=yaml`, { headers });
+        if (!response.ok) {
+            throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        }
+        return response.text();
+    },
+    publishRules: (farmId: string): Promise<{ success: boolean; message?: string }> => {
+        return fetchJson(`/farms/${farmId}/rules/publish`, {
+            method: 'POST',
+        });
+    },
+    getActivity: (farmId: string): Promise<AutomationActivityMap> => {
+        return fetchJson(`/farms/${farmId}/automations/activity?recent_window=5`);
+    },
+    getFrequency: (farmId: string, bucket: 'hour' | 'day' = 'hour', window: number = 24): Promise<Record<string, number[]>> => {
+        return fetchJson(`/farms/${farmId}/automations/frequency?bucket=${bucket}&window=${window}`);
+    },
+    getExecutions: (automationId: string, limit: number = 20): Promise<ExecutionHistoryRow[]> => {
+        return fetchJson(`/automations/${automationId}/executions/detailed?limit=${limit}`);
+    }
+};
+
