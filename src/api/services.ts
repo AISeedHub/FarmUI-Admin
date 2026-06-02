@@ -236,8 +236,17 @@ export const automationsApi = {
     getActivity: (farmId: string): Promise<AutomationActivityMap> => {
         return fetchJson(`/farms/${farmId}/automations/activity?recent_window=5`);
     },
-    getFrequency: (farmId: string, bucket: 'hour' | 'day' = 'hour', window: number = 24): Promise<Record<string, number[]>> => {
-        return fetchJson(`/farms/${farmId}/automations/frequency?bucket=${bucket}&window=${window}`);
+    getFrequency: async (farmId: string, bucket: 'hour' | 'day' = 'hour', window: number = 24): Promise<Record<string, Array<{ bucket_start: string; count: number }>>> => {
+        const raw = await fetchJson(`/farms/${farmId}/automations/frequency?bucket=${bucket}&window=${window}`);
+        const result: Record<string, Array<{ bucket_start: string; count: number }>> = {};
+        if (Array.isArray(raw)) {
+            raw.forEach((item: any) => {
+                if (item.automation_id && Array.isArray(item.buckets)) {
+                    result[item.automation_id] = item.buckets;
+                }
+            });
+        }
+        return result;
     },
     getExecutions: (automationId: string, limit: number = 20): Promise<ExecutionHistoryRow[]> => {
         return fetchJson(`/automations/${automationId}/executions/detailed?limit=${limit}`);

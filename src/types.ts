@@ -135,10 +135,14 @@ export interface ActuatorWrite {
 export interface ExecutionHistoryRow {
     id: string;
     automation_id: string;
-    executed_at: string;
-    success: boolean;
+    triggered_at: string;
+    status: 'success' | 'failed' | 'partial';
     error_message?: string | null;
     actuator_writes?: ActuatorWrite[];
+    trigger_source?: 'schedule' | 'sensor' | 'manual' | string;
+    trigger_snapshot?: Record<string, any> | null;
+    occurred_at?: string;
+    completed_at?: string;
 }
 
 export interface UserCreate {
