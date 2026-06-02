@@ -109,7 +109,7 @@ const resources = {
             "detail.configDesc": "Core → zones → devices → registers | click to drill in",
             
             // Layout & Nav
-            "brand.meta": "AGX-1000 · 6 farms · 13 users",
+            "brand.meta": "AGX-1000 · {{farms}} farms · {{users}} users",
             "nav.manage": "MANAGE",
             "nav.overview": "Overview",
             "nav.users": "Users",
@@ -366,7 +366,7 @@ const resources = {
             "detail.configDesc": "코어 → 구역 → 장치 → 레지스터 | 클릭하여 세부정보 확인",
             
             // Layout & Nav
-            "brand.meta": "AGX-1000 · 농장 6개 · 사용자 13명",
+            "brand.meta": "AGX-1000 · 농장 {{farms}}개 · 사용자 {{users}}명",
             "nav.manage": "관리 항목",
             "nav.overview": "대시보드 개요",
             "nav.users": "사용자 관리",

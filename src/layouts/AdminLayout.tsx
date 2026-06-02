@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -9,6 +10,7 @@ import {
     Activity,
     Cpu
 } from 'lucide-react';
+import { farmsApi, usersApi } from '../api/services';
 import LanguageSelector from '../components/LanguageSelector';
 import './AdminLayout.css';
 
@@ -19,12 +21,31 @@ interface AdminLayoutProps {
 export default function AdminLayout({ onLogout }: AdminLayoutProps) {
     const { t } = useTranslation();
 
+    const [farmCount, setFarmCount] = useState(6);
+    const [userCount, setUserCount] = useState(13);
+
     // Mock fleet status for the sidebar
     const fleetStatus = {
         healthy: 4,
         warning: 1,
         critical: 1
     };
+
+    useEffect(() => {
+        const fetchCounts = async () => {
+            try {
+                const [farms, users] = await Promise.all([
+                    farmsApi.getAll(),
+                    usersApi.getAll()
+                ]);
+                setFarmCount(farms.length);
+                setUserCount(users.length);
+            } catch (err) {
+                console.error("Failed to load counts in AdminLayout", err);
+            }
+        };
+        fetchCounts();
+    }, []);
 
     return (
         <div className="admin-layout-wrapper">
@@ -34,7 +55,7 @@ export default function AdminLayout({ onLogout }: AdminLayoutProps) {
                     <Cpu className="brand-logo" size={24} />
                     <div className="brand-text">
                         <h3>AISEED Corp. <span className="subtitle">· Admin</span></h3>
-                        <p className="brand-meta">{t('brand.meta')}</p>
+                        <p className="brand-meta">{t('brand.meta', { farms: farmCount, users: userCount })}</p>
                     </div>
                 </div>
 
@@ -61,12 +82,12 @@ export default function AdminLayout({ onLogout }: AdminLayoutProps) {
                         <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')} end>
                             <LayoutGrid size={18} />
                             <span>{t('nav.farms')}</span>
-                            <span className="badge">6</span>
+                            <span className="badge">{farmCount}</span>
                         </NavLink>
                         <NavLink to="/users" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
                             <Users size={18} />
                             <span>{t('nav.users')}</span>
-                            <span className="badge">13</span>
+                            <span className="badge">{userCount}</span>
                         </NavLink>
                     </div>
 

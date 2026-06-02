@@ -1,9 +1,30 @@
+import { useState, useEffect } from 'react';
 import { Activity, Wifi, Users, LayoutGrid, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { farmsApi, usersApi } from '../../api/services';
 import './Overview.css';
 
 export default function Overview() {
     const { t } = useTranslation();
+
+    const [farmCount, setFarmCount] = useState(6);
+    const [userCount, setUserCount] = useState(13);
+
+    useEffect(() => {
+        const fetchCounts = async () => {
+            try {
+                const [farms, users] = await Promise.all([
+                    farmsApi.getAll(),
+                    usersApi.getAll()
+                ]);
+                setFarmCount(farms.length);
+                setUserCount(users.length);
+            } catch (err) {
+                console.error("Failed to load counts in Overview", err);
+            }
+        };
+        fetchCounts();
+    }, []);
 
     return (
         <div className="overview-container">
@@ -19,12 +40,12 @@ export default function Overview() {
             <div className="metrics-grid">
                 <div className="metric-card panel">
                     <div className="metric-title"><LayoutGrid size={14} /> {t('nav.farms').toUpperCase()}</div>
-                    <div className="metric-value">6</div>
+                    <div className="metric-value">{farmCount}</div>
                     <div className="metric-trend positive">{t('overview.healthyCount')}</div>
                 </div>
                 <div className="metric-card panel">
                     <div className="metric-title"><Users size={14} /> {t('nav.users').toUpperCase()}</div>
-                    <div className="metric-value">13</div>
+                    <div className="metric-value">{userCount}</div>
                     <div className="metric-trend positive">{t('overview.activeCount')}</div>
                 </div>
                 <div className="metric-card panel">
