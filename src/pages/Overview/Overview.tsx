@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, Wifi, Users, LayoutGrid, Zap } from 'lucide-react';
+import { Wifi, Users, LayoutGrid, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { farmsApi, usersApi, devicesApi, zonesApi, automationsApi } from '../../api/services';
 import { Farm, Zone, Device, AutomationScene, FleetFrequencyResponse } from '../../types';
