@@ -193,5 +193,40 @@ export interface FleetFrequencyResponse {
     farms: FleetFrequencyFarm[];
 }
 
+export interface NotificationChannel {
+    id: string; // uuid
+    code: string;
+    name: string;
+    webhook_url: string;
+    mention_role_id?: string | null;
+    scope: 'system' | 'farm';
+    farm_id?: string | null; // uuid, null = global if scope is farm
+    severities?: string[] | null;
+    event_types?: string[] | null;
+    is_active: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface NotificationChannelMember {
+    id?: string;
+    channel_id: string;
+    user_id: string;
+    created_at?: string;
+}
+
+export interface NotificationTemplate {
+    id: string; // uuid
+    type: string; // event type
+    locale: string; // language code e.g. vi, en, ko
+    name: string;
+    title_template: string;
+    body_template: string;
+    is_active: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+
 
 

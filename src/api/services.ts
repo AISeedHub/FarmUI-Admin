@@ -1,4 +1,4 @@
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate } from '../types';
 
 // After the BE refactor all resource routers live at the root (no `/admin` prefix).
 // Resources: /farms, /zones, /devices, /registers, /farm-users, /users, /actuator-commands, /automations ...
@@ -268,4 +268,73 @@ export const automationsApi = {
         return fetchJson(`/fleet/automations/frequency?bucket=${bucket}&window=${window}`);
     }
 };
+
+export const notificationsApi = {
+    // Channels
+    getChannels: (scope?: 'system' | 'farm', farmId?: string | null): Promise<NotificationChannel[]> => {
+        let url = '/notifications/channels';
+        const params = new URLSearchParams();
+        if (scope) params.append('scope', scope);
+        if (farmId) params.append('farm_id', farmId);
+        const query = params.toString();
+        if (query) url += `?${query}`;
+        return fetchJson(url);
+    },
+    createChannel: (data: Omit<NotificationChannel, 'id'>): Promise<NotificationChannel> => {
+        return fetchJson('/notifications/channels', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+    updateChannel: (id: string, data: Partial<NotificationChannel>): Promise<NotificationChannel> => {
+        return fetchJson(`/notifications/channels/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+    deleteChannel: async (id: string): Promise<boolean> => {
+        await fetchJson(`/notifications/channels/${id}`, { method: 'DELETE' });
+        return true;
+    },
+    testChannel: (id: string): Promise<{ success: boolean; message?: string }> => {
+        return fetchJson(`/notifications/channels/${id}/test`, { method: 'POST' });
+    },
+
+    // Channel Members
+    getChannelMembers: (channelId: string): Promise<any[]> => {
+        return fetchJson(`/notifications/channels/${channelId}/members`);
+    },
+    addChannelMember: (channelId: string, userId: string): Promise<any> => {
+        return fetchJson(`/notifications/channels/${channelId}/members`, {
+            method: 'POST',
+            body: JSON.stringify({ user_id: userId })
+        });
+    },
+    deleteChannelMember: async (channelId: string, userId: string): Promise<boolean> => {
+        await fetchJson(`/notifications/channels/${channelId}/members/${userId}`, { method: 'DELETE' });
+        return true;
+    },
+
+    // Templates
+    getTemplates: (): Promise<NotificationTemplate[]> => {
+        return fetchJson('/notifications/templates');
+    },
+    createTemplate: (data: Omit<NotificationTemplate, 'id'>): Promise<NotificationTemplate> => {
+        return fetchJson('/notifications/templates', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+    },
+    updateTemplate: (id: string, data: Partial<NotificationTemplate>): Promise<NotificationTemplate> => {
+        return fetchJson(`/notifications/templates/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(data)
+        });
+    },
+    deleteTemplate: async (id: string): Promise<boolean> => {
+        await fetchJson(`/notifications/templates/${id}`, { method: 'DELETE' });
+        return true;
+    }
+};
+
 

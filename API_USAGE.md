@@ -115,6 +115,25 @@ Tài liệu này liệt kê chi tiết toàn bộ các API endpoint backend mà 
 
 ---
 
+### I. Quản lý Thông báo & Kênh liên lạc (`notificationsApi`)
+
+| Tên phương thức | HTTP | Endpoint | Request Body | Response Type | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `notificationsApi.getChannels` | `GET` | `/notifications/channels?scope=&farm_id=` | — | `NotificationChannel[]` | Lấy danh sách kênh thông báo (Discord webhook + bộ lọc). |
+| `notificationsApi.createChannel` | `POST` | `/notifications/channels` | `Omit<NotificationChannel, 'id'>` | `NotificationChannel` | Tạo mới kênh thông báo Discord. |
+| `notificationsApi.updateChannel` | `PATCH` | `/notifications/channels/{channel_id}` | `Partial<NotificationChannel>` | `NotificationChannel` | Cập nhật thông tin kênh thông báo. |
+| `notificationsApi.deleteChannel` | `DELETE` | `/notifications/channels/{channel_id}` | — | `boolean` | Xóa kênh thông báo khỏi hệ thống. |
+| `notificationsApi.testChannel` | `POST` | `/notifications/channels/{channel_id}/test` | — | `{ success: boolean; message?: string }` | Gửi tin nhắn test để kiểm tra webhook/role Discord. |
+| `notificationsApi.getChannelMembers` | `GET` | `/notifications/channels/{channel_id}/members` | — | `any[]` | Lấy danh sách thành viên thuộc kênh thông báo. |
+| `notificationsApi.addChannelMember` | `POST` | `/notifications/channels/{channel_id}/members` | `{"user_id": "<uuid>"}` | `any` | Gán người dùng vào nhận tin nhắn của kênh thông báo. |
+| `notificationsApi.deleteChannelMember` | `DELETE` | `/notifications/channels/{channel_id}/members/{user_id}` | — | `boolean` | Gỡ người dùng khỏi kênh thông báo. |
+| `notificationsApi.getTemplates` | `GET` | `/notifications/templates` | — | `NotificationTemplate[]` | Lấy danh sách toàn bộ mẫu tin nhắn thông báo. |
+| `notificationsApi.createTemplate` | `POST` | `/notifications/templates` | `Omit<NotificationTemplate, 'id'>` | `NotificationTemplate` | Tạo mẫu thông báo mới (locale + type là unique). |
+| `notificationsApi.updateTemplate` | `PATCH` | `/notifications/templates/{template_id}` | `Partial<NotificationTemplate>` | `NotificationTemplate` | Cập nhật thông tin mẫu thông báo. |
+| `notificationsApi.deleteTemplate` | `DELETE` | `/notifications/templates/{template_id}` | — | `boolean` | Xóa mẫu thông báo khỏi hệ thống. |
+
+---
+
 ## 3. Cấu trúc Dữ liệu Chi tiết (Request/Response Models)
 
 Được định nghĩa chi tiết tại [`src/types.ts`](file:///c:/Users/Andrew/Documents/Project/FarmUI-Admin/src/types.ts).
@@ -337,3 +356,47 @@ export interface FleetFrequencyResponse {
     farms: FleetFrequencyFarm[];
 }
 ```
+
+### NotificationChannel
+```typescript
+export interface NotificationChannel {
+    id: string; // uuid
+    code: string;
+    name: string;
+    webhook_url: string;
+    mention_role_id?: string | null;
+    scope: 'system' | 'farm';
+    farm_id?: string | null; // uuid, null = global if scope is farm
+    severities?: string[] | null;
+    event_types?: string[] | null;
+    is_active: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+```
+
+### NotificationChannelMember
+```typescript
+export interface NotificationChannelMember {
+    id?: string;
+    channel_id: string;
+    user_id: string;
+    created_at?: string;
+}
+```
+
+### NotificationTemplate
+```typescript
+export interface NotificationTemplate {
+    id: string; // uuid
+    type: string; // event type
+    locale: string; // language code e.g. vi, en, ko
+    name: string;
+    title_template: string;
+    body_template: string;
+    is_active: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+```
+

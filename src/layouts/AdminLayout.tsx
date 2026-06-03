@@ -8,7 +8,8 @@ import {
     Shield,
     BarChart3,
     Activity,
-    Cpu
+    Cpu,
+    Bell
 } from 'lucide-react';
 import { farmsApi, usersApi } from '../api/services';
 import LanguageSelector from '../components/LanguageSelector';
@@ -93,6 +94,10 @@ export default function AdminLayout({ onLogout }: AdminLayoutProps) {
 
                     <div className="nav-group">
                         <h4 className="nav-group-title">{t('nav.platform')}</h4>
+                        <NavLink to="/notifications" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
+                            <Bell size={18} />
+                            <span>{t('nav.notifications')}</span>
+                        </NavLink>
                         <NavLink to="/roles" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
                             <Shield size={18} />
                             <span>{t('nav.roles')}</span>
