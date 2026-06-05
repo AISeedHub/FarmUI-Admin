@@ -322,12 +322,20 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                         <div className="col-fires24h">{t('auto.colFires24h')}</div>
                         <div className="col-lastFired">{t('auto.colLastFired')}</div>
                         <div className="col-today">{t('auto.colToday')}</div>
-                        <div className="col-enabled">{t('auto.colEnabled')}</div>
+                        <div className="col-enabled" style={{ gap: '12px' }}>
+                            <div style={{ width: '36px', display: 'flex', justifyContent: 'center', whiteSpace: 'nowrap' }}>
+                                {t('auto.colEnabled')}
+                            </div>
+                            <button className="history-btn" style={{ visibility: 'hidden', pointerEvents: 'none' }}>
+                                <Clock size={12} />
+                                <span>{t('auto.history')}</span>
+                            </button>
+                        </div>
                     </div>
                     {rules.map((rule) => {
                         const act = activity[rule.id] || { last_execution: null, recent_failed: 0, count_today: 0 };
                         const lastFiredStr = act.last_execution?.triggered_at
-                            ? new Date(act.last_execution.triggered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                            ? new Date(act.last_execution.triggered_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                             : '-';
 
                         return (
