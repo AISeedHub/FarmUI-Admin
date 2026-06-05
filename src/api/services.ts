@@ -337,6 +337,10 @@ export const notificationsApi = {
     deleteTemplate: async (id: string): Promise<boolean> => {
         await fetchJson(`/notifications/templates/${id}`, { method: 'DELETE' });
         return true;
+    },
+    getTemplateVariables: (type?: string): Promise<any> => {
+        const url = type ? `/notifications/template-variables?type=${type}` : '/notifications/template-variables';
+        return fetchJson(url);
     }
 };
 

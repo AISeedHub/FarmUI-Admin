@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Bell,
@@ -89,6 +89,63 @@ export default function NotificationsManager() {
         body_template: '',
         is_active: true
     });
+
+    const [templateVarsInfo, setTemplateVarsInfo] = useState<any>(null);
+    const [loadingVars, setLoadingVars] = useState(false);
+    const [lastFocusedField, setLastFocusedField] = useState<'title' | 'body'>('body');
+    const titleRef = useRef<HTMLInputElement>(null);
+    const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+    const fetchAndSetTemplateVars = async (type: string, isNew: boolean = false) => {
+        setLoadingVars(true);
+        try {
+            const data = await notificationsApi.getTemplateVariables(type);
+            setTemplateVarsInfo(data);
+            
+            if (isNew && data && data.types && data.types.length > 0) {
+                const typeInfo = data.types[0];
+                setTemplateForm(prev => ({
+                    ...prev,
+                    title_template: typeInfo.default_title || prev.title_template,
+                    body_template: typeInfo.default_body || prev.body_template
+                }));
+            }
+        } catch (error) {
+            console.error('Failed to fetch template variables', error);
+            setTemplateVarsInfo(null);
+        } finally {
+            setLoadingVars(false);
+        }
+    };
+
+    const handleInsertVariable = (varName: string) => {
+        const textToInsert = `{${varName}}`;
+        const fieldRef = lastFocusedField === 'title' ? titleRef : bodyRef;
+        const currentElem = fieldRef.current;
+        
+        if (currentElem) {
+            const startPos = currentElem.selectionStart || 0;
+            const endPos = currentElem.selectionEnd || 0;
+            const currentVal = lastFocusedField === 'title' ? templateForm.title_template : templateForm.body_template;
+            
+            const newVal = currentVal.substring(0, startPos) + textToInsert + currentVal.substring(endPos);
+            
+            setTemplateForm(prev => ({
+                ...prev,
+                [lastFocusedField === 'title' ? 'title_template' : 'body_template']: newVal
+            }));
+            
+            setTimeout(() => {
+                currentElem.focus();
+                currentElem.setSelectionRange(startPos + textToInsert.length, startPos + textToInsert.length);
+            }, 0);
+        } else {
+            setTemplateForm(prev => ({
+                ...prev,
+                body_template: prev.body_template + textToInsert
+            }));
+        }
+    };
 
     const eventTypeOptions = [
         'automation_execution',
@@ -291,6 +348,7 @@ export default function NotificationsManager() {
 
     // --- Template CRUD handlers ---
     const handleOpenTemplateModal = (template: NotificationTemplate | null = null) => {
+        const initialType = template ? template.type : 'farm_offline';
         if (template) {
             setEditingTemplate(template);
             setTemplateForm({
@@ -313,6 +371,7 @@ export default function NotificationsManager() {
             });
         }
         setIsTemplateModalOpen(true);
+        fetchAndSetTemplateVars(initialType, !template);
     };
 
     const handleSaveTemplate = async (e: React.FormEvent) => {
@@ -958,7 +1017,11 @@ export default function NotificationsManager() {
                                         <label>Event Type *</label>
                                         <select 
                                             value={templateForm.type}
-                                            onChange={e => setTemplateForm({ ...templateForm, type: e.target.value })}
+                                            onChange={async e => {
+                                                const newType = e.target.value;
+                                                setTemplateForm(prev => ({ ...prev, type: newType }));
+                                                await fetchAndSetTemplateVars(newType, !editingTemplate);
+                                            }}
                                         >
                                             {eventTypeOptions.map(t => (
                                                 <option key={t} value={t}>{t}</option>
@@ -997,8 +1060,9 @@ export default function NotificationsManager() {
                                         placeholder="e.g. 🔴 Farm mất kết nối: {farm_code}"
                                         value={templateForm.title_template}
                                         onChange={e => setTemplateForm({ ...templateForm, title_template: e.target.value })}
+                                        onFocus={() => setLastFocusedField('title')}
+                                        ref={titleRef}
                                     />
-                                    <span className="help-text">Variables parsed from event context: <code>{`{farm_code}`}</code>, <code>{`{farm_name}`}</code></span>
                                 </div>
 
                                 <div className="form-group">
@@ -1009,9 +1073,87 @@ export default function NotificationsManager() {
                                         placeholder="e.g. Farm {farm_name} không gửi telemetry {minutes} phút."
                                         value={templateForm.body_template}
                                         onChange={e => setTemplateForm({ ...templateForm, body_template: e.target.value })}
+                                        onFocus={() => setLastFocusedField('body')}
+                                        ref={bodyRef}
                                     />
-                                    <span className="help-text">Variables: <code>{`{farm_name}`}</code>, <code>{`{minutes}`}</code>, <code>{`{severity}`}</code></span>
                                 </div>
+
+                                {templateVarsInfo && (
+                                    <div className="template-variables-section" style={{ marginTop: '16px', padding: '12px', background: 'var(--bg-color)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                                        <h4 style={{ fontSize: '13px', margin: '0 0 8px 0', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-color)' }}>
+                                            <HelpCircle size={14} /> Available Variables
+                                        </h4>
+                                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 12px 0' }}>
+                                            Click on a variable to insert it into the <strong>{lastFocusedField === 'title' ? 'Title' : 'Body'}</strong>.
+                                        </p>
+                                        
+                                        {loadingVars ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                <Loader2 size={14} className="spinner" style={{ animation: 'spin 1s linear infinite' }} /> Loading variables...
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                {templateVarsInfo.common && templateVarsInfo.common.length > 0 && (
+                                                    <div>
+                                                        <strong style={{ fontSize: '12px', color: 'var(--text-color)' }}>Common Variables</strong>
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                                                            {templateVarsInfo.common.map((v: any) => (
+                                                                <button
+                                                                    key={v.name}
+                                                                    type="button"
+                                                                    className="variable-btn"
+                                                                    title={v.description + (v.example ? ` (e.g. ${v.example})` : '')}
+                                                                    onClick={() => handleInsertVariable(v.name)}
+                                                                    style={{
+                                                                        background: 'var(--background-modifier-hover)',
+                                                                        border: '1px solid var(--border)',
+                                                                        padding: '4px 8px',
+                                                                        borderRadius: '4px',
+                                                                        fontSize: '11px',
+                                                                        fontFamily: 'monospace',
+                                                                        cursor: 'pointer',
+                                                                        color: 'var(--text-color)'
+                                                                    }}
+                                                                >
+                                                                    {`{${v.name}}`}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                
+                                                {templateVarsInfo.types && templateVarsInfo.types.length > 0 && templateVarsInfo.types[0].variables && templateVarsInfo.types[0].variables.length > 0 && (
+                                                    <div>
+                                                        <strong style={{ fontSize: '12px', color: 'var(--text-color)' }}>{templateVarsInfo.types[0].label || 'Event'} Variables</strong>
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                                                            {templateVarsInfo.types[0].variables.map((v: any) => (
+                                                                <button
+                                                                    key={v.name}
+                                                                    type="button"
+                                                                    className="variable-btn"
+                                                                    title={v.description + (v.example ? ` (e.g. ${v.example})` : '')}
+                                                                    onClick={() => handleInsertVariable(v.name)}
+                                                                    style={{
+                                                                        background: 'var(--background-modifier-hover)',
+                                                                        border: '1px dashed var(--color-primary)',
+                                                                        padding: '4px 8px',
+                                                                        borderRadius: '4px',
+                                                                        fontSize: '11px',
+                                                                        fontFamily: 'monospace',
+                                                                        cursor: 'pointer',
+                                                                        color: 'var(--color-primary)'
+                                                                    }}
+                                                                >
+                                                                    {`{${v.name}}`}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 <div className="toggle-switch-wrapper">
                                     <label className="toggle-switch">
