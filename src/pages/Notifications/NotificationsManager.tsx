@@ -797,7 +797,7 @@ export default function NotificationsManager() {
                                         ) : (
                                             <div className="checkbox-grid scrollable" style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                 {availableEventTypes.map(evt => {
-                                                    const isChecked = channelForm.event_types === null || channelForm.event_types.includes(evt.value);
+                                                    const isChecked = channelForm.event_types == null || channelForm.event_types.includes(evt.value);
                                                     return (
                                                         <div key={evt.value} className="checkbox-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <input 
