@@ -330,7 +330,7 @@ const resources = {
             "notifications.eventTypeLabel": "Event Types (Empty = All)",
             "notifications.colTemplateName": "Template Name",
             "notifications.colTemplateType": "Event Type",
-            "notifications.colTemplateLocale": "Locale",
+            "notifications.colTemplateLanguage": "Language",
             "notifications.colTemplateTitle": "Title Template",
             "notifications.colTemplateBody": "Body Template"
         }
@@ -662,7 +662,7 @@ const resources = {
             "notifications.eventTypeLabel": "이벤트 유형 (비워두면 전체 수신)",
             "notifications.colTemplateName": "템플릿 이름",
             "notifications.colTemplateType": "이벤트 유형",
-            "notifications.colTemplateLocale": "언어 (Locale)",
+            "notifications.colTemplateLanguage": "언어",
             "notifications.colTemplateTitle": "제목 템플릿",
             "notifications.colTemplateBody": "본문 템플릿"
         }

@@ -280,6 +280,9 @@ export const notificationsApi = {
         if (query) url += `?${query}`;
         return fetchJson(url);
     },
+    getEventTypes: (scope: 'system' | 'farm'): Promise<Record<string, Array<{ value: string; label: string }>>> => {
+        return fetchJson(`/notifications/event-types?scope=${scope}`);
+    },
     createChannel: (data: Omit<NotificationChannel, 'id'>): Promise<NotificationChannel> => {
         return fetchJson('/notifications/channels', {
             method: 'POST',

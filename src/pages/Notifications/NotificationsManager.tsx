@@ -49,11 +49,27 @@ export default function NotificationsManager() {
         mention_role_id: '',
         scope: 'system',
         farm_id: null,
-        severities: [],
-        event_types: [],
+        language: null,
+        event_types: null,
         is_active: true
     });
     const [revealedWebhooks, setRevealedWebhooks] = useState<Record<string, boolean>>({});
+    const [availableEventTypes, setAvailableEventTypes] = useState<{ value: string; label: string }[]>([]);
+    const [loadingEventTypes, setLoadingEventTypes] = useState(false);
+
+    const fetchAndSetEventTypes = async (scope: 'system' | 'farm') => {
+        setLoadingEventTypes(true);
+        try {
+            const responseData = await notificationsApi.getEventTypes(scope);
+            const types = responseData && responseData[scope] ? responseData[scope] : [];
+            setAvailableEventTypes(types);
+        } catch (error) {
+            console.error('Failed to fetch event types for scope:', scope, error);
+            setAvailableEventTypes([]);
+        } finally {
+            setLoadingEventTypes(false);
+        }
+    };
 
     // --- Member Modal & States ---
     const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
@@ -67,14 +83,13 @@ export default function NotificationsManager() {
     const [editingTemplate, setEditingTemplate] = useState<NotificationTemplate | null>(null);
     const [templateForm, setTemplateForm] = useState<Omit<NotificationTemplate, 'id'>>({
         type: 'farm_offline',
-        locale: 'en',
+        language: 'en',
         name: '',
         title_template: '',
         body_template: '',
         is_active: true
     });
 
-    const severityOptions = ['info', 'warning', 'critical', 'report'];
     const eventTypeOptions = [
         'automation_execution',
         'farm_offline',
@@ -110,7 +125,11 @@ export default function NotificationsManager() {
     };
 
     // --- Channel CRUD handlers ---
-    const handleOpenChannelModal = (channel: NotificationChannel | null = null) => {
+    const handleOpenChannelModal = async (channel: NotificationChannel | null = null) => {
+        const scope = channel ? channel.scope : 'system';
+        setIsChannelModalOpen(true);
+        await fetchAndSetEventTypes(scope);
+
         if (channel) {
             setEditingChannel(channel);
             setChannelForm({
@@ -120,8 +139,8 @@ export default function NotificationsManager() {
                 mention_role_id: channel.mention_role_id || '',
                 scope: channel.scope,
                 farm_id: channel.farm_id || null,
-                severities: channel.severities || [],
-                event_types: channel.event_types || [],
+                language: channel.language || null,
+                event_types: channel.event_types || null,
                 is_active: channel.is_active
             });
         } else {
@@ -133,27 +152,37 @@ export default function NotificationsManager() {
                 mention_role_id: '',
                 scope: 'system',
                 farm_id: null,
-                severities: [],
-                event_types: [],
+                language: null,
+                event_types: null,
                 is_active: true
             });
         }
-        setIsChannelModalOpen(true);
     };
 
     const handleSaveChannel = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (channelForm.scope === 'farm' && !channelForm.farm_id) {
+            alert('Farm association is required for farm-scoped channels.');
+            return;
+        }
+
         setSaving(true);
         try {
-            // Clean up optional fields
-            const payload: Omit<NotificationChannel, 'id'> = {
-                ...channelForm,
+            const payload: any = {
+                code: channelForm.code.trim(),
+                name: channelForm.name.trim(),
                 webhook_url: channelForm.webhook_url.trim(),
                 mention_role_id: channelForm.mention_role_id?.trim() || null,
-                farm_id: channelForm.scope === 'farm' ? (channelForm.farm_id || null) : null,
-                severities: channelForm.severities && channelForm.severities.length > 0 ? channelForm.severities : null,
-                event_types: channelForm.event_types && channelForm.event_types.length > 0 ? channelForm.event_types : null
+                scope: channelForm.scope,
+                language: channelForm.language || null,
+                event_types: channelForm.event_types,
+                is_active: channelForm.is_active
             };
+
+            if (channelForm.scope === 'farm') {
+                payload.farm_id = channelForm.farm_id;
+            }
 
             if (editingChannel) {
                 await notificationsApi.updateChannel(editingChannel.id, payload);
@@ -266,7 +295,7 @@ export default function NotificationsManager() {
             setEditingTemplate(template);
             setTemplateForm({
                 type: template.type,
-                locale: template.locale,
+                language: template.language,
                 name: template.name,
                 title_template: template.title_template,
                 body_template: template.body_template,
@@ -276,7 +305,7 @@ export default function NotificationsManager() {
             setEditingTemplate(null);
             setTemplateForm({
                 type: 'farm_offline',
-                locale: 'en',
+                language: 'en',
                 name: '',
                 title_template: '',
                 body_template: '',
@@ -473,12 +502,17 @@ export default function NotificationsManager() {
                                             <td className="code-cell">{channel.code}</td>
                                             <td className="name-cell">{channel.name}</td>
                                             <td>
-                                                <span className={`scope-badge ${channel.scope}`}>
-                                                    {channel.scope === 'system' 
-                                                        ? t('notifications.scopeSystem') 
-                                                        : getFarmName(channel.farm_id)
-                                                    }
-                                                </span>
+                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                    <span className={`scope-badge ${channel.scope}`}>
+                                                        {channel.scope === 'system' 
+                                                            ? t('notifications.scopeSystem') 
+                                                            : getFarmName(channel.farm_id)
+                                                        }
+                                                    </span>
+                                                    <span className="locale-badge" style={{ textTransform: 'uppercase', padding: '2px 6px', fontSize: '10px' }}>
+                                                        {channel.language || 'default'}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td>
                                                 <div className="webhook-cell">
@@ -505,18 +539,14 @@ export default function NotificationsManager() {
                                             </td>
                                             <td>
                                                 <div className="filters-cell">
-                                                    {(!channel.severities || channel.severities.length === 0) && 
-                                                     (!channel.event_types || channel.event_types.length === 0) ? (
-                                                        <span className="empty-filter">All events & severities</span>
+                                                    {channel.event_types === null || channel.event_types === undefined ? (
+                                                        <span className="empty-filter">All event types</span>
+                                                    ) : channel.event_types.length === 0 ? (
+                                                        <span className="filter-tag severity" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--color-danger)' }}>Muted</span>
                                                     ) : (
-                                                        <>
-                                                            {channel.severities && channel.severities.map(sev => (
-                                                                <span key={sev} className="filter-tag severity">{sev}</span>
-                                                            ))}
-                                                            {channel.event_types && channel.event_types.map(evt => (
-                                                                <span key={evt} className="filter-tag event-type">{evt}</span>
-                                                            ))}
-                                                        </>
+                                                        channel.event_types.map(evt => (
+                                                            <span key={evt} className="filter-tag event-type">{evt.replace(/_/g, ' ')}</span>
+                                                        ))
                                                     )}
                                                 </div>
                                             </td>
@@ -578,7 +608,7 @@ export default function NotificationsManager() {
                             <tr>
                                 <th>{t('notifications.colTemplateName')}</th>
                                 <th>{t('notifications.colTemplateType')}</th>
-                                <th>{t('notifications.colTemplateLocale')}</th>
+                                <th>{t('notifications.colTemplateLanguage')}</th>
                                 <th>{t('notifications.colTemplateTitle')}</th>
                                 <th>{t('notifications.colTemplateBody')}</th>
                                 <th>{t('notifications.colActive')}</th>
@@ -600,7 +630,7 @@ export default function NotificationsManager() {
                                             <span className="filter-tag event-type">{template.type}</span>
                                         </td>
                                         <td>
-                                            <span className="locale-badge">{template.locale}</span>
+                                            <span className="locale-badge">{template.language}</span>
                                         </td>
                                         <td className="template-text">{template.title_template}</td>
                                         <td className="template-text truncate">{template.body_template}</td>
@@ -692,7 +722,16 @@ export default function NotificationsManager() {
                                         <label>Routing Scope</label>
                                         <select 
                                             value={channelForm.scope}
-                                            onChange={e => setChannelForm({ ...channelForm, scope: e.target.value as any })}
+                                            onChange={async e => {
+                                                const newScope = e.target.value as 'system' | 'farm';
+                                                setChannelForm({ 
+                                                    ...channelForm, 
+                                                    scope: newScope,
+                                                    farm_id: newScope === 'system' ? null : channelForm.farm_id,
+                                                    event_types: null
+                                                });
+                                                await fetchAndSetEventTypes(newScope);
+                                            }}
                                         >
                                             <option value="system">System (Super Admin alerts)</option>
                                             <option value="farm">Farm (Specific farm alerts)</option>
@@ -700,14 +739,28 @@ export default function NotificationsManager() {
                                     </div>
                                 </div>
 
+                                <div className="form-group">
+                                    <label>Language Override</label>
+                                    <select 
+                                        value={channelForm.language || ''}
+                                        onChange={e => setChannelForm({ ...channelForm, language: e.target.value || null })}
+                                    >
+                                        <option value="">-- Use Default / Farm Lang --</option>
+                                        <option value="en">English (en)</option>
+                                        <option value="vi">Vietnamese (vi)</option>
+                                        <option value="ko">Korean (ko)</option>
+                                    </select>
+                                </div>
+
                                 {channelForm.scope === 'farm' && (
                                     <div className="form-group">
-                                        <label>Farm Association</label>
+                                        <label>Farm Association *</label>
                                         <select 
+                                            required
                                             value={channelForm.farm_id || ''}
                                             onChange={e => setChannelForm({ ...channelForm, farm_id: e.target.value || null })}
                                         >
-                                            <option value="">{t('notifications.scopeFarmGlobal')}</option>
+                                            <option value="" disabled>-- Select a Farm --</option>
                                             {farms.map(f => (
                                                 <option key={f.id} value={f.id}>{f.name} ({f.code})</option>
                                             ))}
@@ -715,73 +768,67 @@ export default function NotificationsManager() {
                                     </div>
                                 )}
 
-                                <div className="form-group flex-checkbox">
-                                    <input 
-                                        id="channel-is-active"
-                                        type="checkbox" 
-                                        checked={channelForm.is_active}
-                                        onChange={e => setChannelForm({ ...channelForm, is_active: e.target.checked })}
-                                    />
-                                    <label htmlFor="channel-is-active" className="checkbox-label">Channel is Active</label>
+                                <div className="toggle-switch-wrapper">
+                                    <label className="toggle-switch">
+                                        <input 
+                                            id="channel-is-active"
+                                            type="checkbox" 
+                                            checked={channelForm.is_active}
+                                            onChange={e => setChannelForm({ ...channelForm, is_active: e.target.checked })}
+                                        />
+                                        <span className="toggle-slider"></span>
+                                    </label>
+                                    <span className="toggle-switch-label" onClick={() => setChannelForm({ ...channelForm, is_active: !channelForm.is_active })}>
+                                        Channel is Active
+                                    </span>
                                 </div>
 
-                                <div className="routing-filters-section">
-                                    <span className="section-title">{t('notifications.filters')}</span>
+                                <div className="routing-filters-section" style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px' }}>
+                                    <span className="section-title" style={{ display: 'block', marginBottom: '12px', fontSize: '13px', fontWeight: 600, color: 'var(--text-color)' }}>Event Type Filters</span>
                                     
-                                    <div className="filters-grid">
-                                        <div className="filter-group">
-                                            <label>{t('notifications.severityLabel')}</label>
-                                            <div className="checkbox-grid">
-                                                {severityOptions.map(sev => {
-                                                    const checked = channelForm.severities?.includes(sev) || false;
+                                    <div className="filter-group">
+                                        {loadingEventTypes ? (
+                                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', color: 'var(--text-muted)', padding: '10px 0' }}>
+                                                <Loader2 className="spinner" size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                                <span>Loading options...</span>
+                                            </div>
+                                        ) : availableEventTypes.length === 0 ? (
+                                            <span className="help-text" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No event types available for this scope.</span>
+                                        ) : (
+                                            <div className="checkbox-grid scrollable" style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {availableEventTypes.map(evt => {
+                                                    const isChecked = channelForm.event_types === null || channelForm.event_types.includes(evt.value);
                                                     return (
-                                                        <div key={sev} className="checkbox-item">
+                                                        <div key={evt.value} className="checkbox-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <input 
                                                                 type="checkbox"
-                                                                id={`sev-${sev}`}
-                                                                checked={checked}
+                                                                id={`evt-${evt.value}`}
+                                                                checked={isChecked}
                                                                 onChange={e => {
-                                                                    const current = channelForm.severities || [];
-                                                                    const next = e.target.checked 
-                                                                        ? [...current, sev] 
-                                                                        : current.filter(x => x !== sev);
-                                                                    setChannelForm({ ...channelForm, severities: next });
+                                                                    const current = channelForm.event_types;
+                                                                    const checked = e.target.checked;
+                                                                    
+                                                                    const next = checked
+                                                                        ? [...(current || []), evt.value]
+                                                                        : (current || availableEventTypes.map(x => x.value)).filter(x => x !== evt.value);
+                                                                    
+                                                                    const allChecked = availableEventTypes.every(x => next.includes(x.value));
+                                                                    setChannelForm(prev => ({ 
+                                                                        ...prev, 
+                                                                        event_types: allChecked ? null : next 
+                                                                    }));
                                                                 }}
                                                             />
-                                                            <label htmlFor={`sev-${sev}`}>{sev}</label>
+                                                            <label htmlFor={`evt-${evt.value}`} style={{ fontSize: '13px', cursor: 'pointer' }}>{evt.label}</label>
                                                         </div>
                                                     );
                                                 })}
                                             </div>
-                                        </div>
-
-                                        <div className="filter-group">
-                                            <label>{t('notifications.eventTypeLabel')}</label>
-                                            <div className="checkbox-grid scrollable">
-                                                {eventTypeOptions.map(evt => {
-                                                    const checked = channelForm.event_types?.includes(evt) || false;
-                                                    return (
-                                                        <div key={evt} className="checkbox-item">
-                                                            <input 
-                                                                type="checkbox"
-                                                                id={`evt-${evt}`}
-                                                                checked={checked}
-                                                                onChange={e => {
-                                                                    const current = channelForm.event_types || [];
-                                                                    const next = e.target.checked 
-                                                                        ? [...current, evt] 
-                                                                        : current.filter(x => x !== evt);
-                                                                    setChannelForm({ ...channelForm, event_types: next });
-                                                                }}
-                                                            />
-                                                            <label htmlFor={`evt-${evt}`}>{evt.replace('_', ' ')}</label>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
                                 </div>
+
+
                             </div>
                             <div className="modal-actions">
                                 <button 
@@ -919,10 +966,10 @@ export default function NotificationsManager() {
                                         </select>
                                     </div>
                                     <div className="form-group">
-                                        <label>Locale *</label>
+                                        <label>Language *</label>
                                         <select 
-                                            value={templateForm.locale}
-                                            onChange={e => setTemplateForm({ ...templateForm, locale: e.target.value })}
+                                            value={templateForm.language}
+                                            onChange={e => setTemplateForm({ ...templateForm, language: e.target.value })}
                                         >
                                             <option value="en">English (en)</option>
                                             <option value="vi">Vietnamese (vi)</option>
@@ -966,14 +1013,19 @@ export default function NotificationsManager() {
                                     <span className="help-text">Variables: <code>{`{farm_name}`}</code>, <code>{`{minutes}`}</code>, <code>{`{severity}`}</code></span>
                                 </div>
 
-                                <div className="form-group flex-checkbox">
-                                    <input 
-                                        id="template-is-active"
-                                        type="checkbox" 
-                                        checked={templateForm.is_active}
-                                        onChange={e => setTemplateForm({ ...templateForm, is_active: e.target.checked })}
-                                    />
-                                    <label htmlFor="template-is-active" className="checkbox-label">Template is Active</label>
+                                <div className="toggle-switch-wrapper">
+                                    <label className="toggle-switch">
+                                        <input 
+                                            id="template-is-active"
+                                            type="checkbox" 
+                                            checked={templateForm.is_active}
+                                            onChange={e => setTemplateForm({ ...templateForm, is_active: e.target.checked })}
+                                        />
+                                        <span className="toggle-slider"></span>
+                                    </label>
+                                    <span className="toggle-switch-label" onClick={() => setTemplateForm({ ...templateForm, is_active: !templateForm.is_active })}>
+                                        Template is Active
+                                    </span>
                                 </div>
                             </div>
                             <div className="modal-actions">

@@ -201,6 +201,7 @@ export interface NotificationChannel {
     mention_role_id?: string | null;
     scope: 'system' | 'farm';
     farm_id?: string | null; // uuid, null = global if scope is farm
+    language?: string | null; // e.g. en, ko, vi
     severities?: string[] | null;
     event_types?: string[] | null;
     is_active: boolean;
@@ -218,7 +219,7 @@ export interface NotificationChannelMember {
 export interface NotificationTemplate {
     id: string; // uuid
     type: string; // event type
-    locale: string; // language code e.g. vi, en, ko
+    language: string; // language code e.g. vi, en, ko
     name: string;
     title_template: string;
     body_template: string;
