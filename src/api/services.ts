@@ -1,4 +1,4 @@
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, NotificationLog } from '../types';
 
 // After the BE refactor all resource routers live at the root (no `/admin` prefix).
 // Resources: /farms, /zones, /devices, /registers, /farm-users, /users, /actuator-commands, /automations ...
@@ -340,6 +340,28 @@ export const notificationsApi = {
     },
     getTemplateVariables: (type?: string): Promise<any> => {
         const url = type ? `/notifications/template-variables?type=${type}` : '/notifications/template-variables';
+        return fetchJson(url);
+    },
+    getLogs: (params: {
+        type?: string;
+        severity?: string;
+        scope?: 'system' | 'farm';
+        farm_id?: string | null;
+        status?: string;
+        since?: string;
+        until?: string;
+        limit?: number;
+        offset?: number;
+    }): Promise<any> => {
+        let url = '/notifications/logs';
+        const queryParams = new URLSearchParams();
+        Object.entries(params).forEach(([key, val]) => {
+            if (val !== undefined && val !== null && val !== '') {
+                queryParams.append(key, String(val));
+            }
+        });
+        const queryStr = queryParams.toString();
+        if (queryStr) url += `?${queryStr}`;
         return fetchJson(url);
     }
 };

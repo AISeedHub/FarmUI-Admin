@@ -332,7 +332,17 @@ const resources = {
             "notifications.colTemplateType": "Event Type",
             "notifications.colTemplateLanguage": "Language",
             "notifications.colTemplateTitle": "Title Template",
-            "notifications.colTemplateBody": "Body Template"
+            "notifications.colTemplateBody": "Body Template",
+            "notifications.btnLogs": "View History Logs",
+            "notifications.logsTitle": "Notification Logs & History: {{name}}",
+            "notifications.loadingLogs": "Loading notification logs...",
+            "notifications.noLogs": "No recent notifications recorded.",
+            "notifications.logsTotal": "Total Notifications",
+            "notifications.deliveryRate": "Success Rate",
+            "notifications.deliveryFailures": "Failures",
+            "notifications.chartTitle": "Notification Volume (Last 7 Days)",
+            "notifications.searchPlaceholder": "Search logs title or message...",
+            "notifications.timelineTitle": "Sent Messages Timeline"
         }
     },
     ko: {
@@ -664,7 +674,17 @@ const resources = {
             "notifications.colTemplateType": "이벤트 유형",
             "notifications.colTemplateLanguage": "언어",
             "notifications.colTemplateTitle": "제목 템플릿",
-            "notifications.colTemplateBody": "본문 템플릿"
+            "notifications.colTemplateBody": "본문 템플릿",
+            "notifications.btnLogs": "발송 이력 보기",
+            "notifications.logsTitle": "알림 발송 이력: {{name}}",
+            "notifications.loadingLogs": "알림 이력을 불러오는 중...",
+            "notifications.noLogs": "최근 알림 기록이 없습니다.",
+            "notifications.logsTotal": "총 알림 발송 수",
+            "notifications.deliveryRate": "성공률",
+            "notifications.deliveryFailures": "실패 수",
+            "notifications.chartTitle": "알림 발송 빈도 (최근 7일)",
+            "notifications.searchPlaceholder": "제목 또는 내용 검색...",
+            "notifications.timelineTitle": "알림 발송 타임라인"
         }
     }
 };

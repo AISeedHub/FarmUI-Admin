@@ -228,6 +228,22 @@ export interface NotificationTemplate {
     updated_at?: string;
 }
 
+export interface NotificationLog {
+    id: string; // uuid
+    channel_id?: string | null; // uuid
+    type: string; // event type e.g. farm_offline
+    severity: string; // info, warning, critical
+    scope: 'system' | 'farm';
+    farm_id?: string | null; // uuid
+    title: string;
+    body: string;
+    status: 'success' | 'failed' | string;
+    error_message?: string | null;
+    created_at: string; // timestamp
+    sent_at?: string; // fallback timestamp
+}
+
+
 
 
 

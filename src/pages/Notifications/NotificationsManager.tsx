@@ -12,10 +12,15 @@ import {
     Copy,
     Eye,
     EyeOff,
-    HelpCircle
+    HelpCircle,
+    History,
+    X,
+    Activity,
+    CheckCircle,
+    AlertTriangle
 } from 'lucide-react';
 import { notificationsApi, farmsApi, usersApi } from '../../api/services';
-import { Farm, UserResponse, NotificationChannel, NotificationTemplate } from '../../types';
+import { Farm, UserResponse, NotificationChannel, NotificationTemplate, NotificationLog } from '../../types';
 import './NotificationsManager.css';
 
 export default function NotificationsManager() {
@@ -91,6 +96,16 @@ export default function NotificationsManager() {
     });
 
     const [templateVarsInfo, setTemplateVarsInfo] = useState<any>(null);
+
+    // --- Log History Popup States ---
+    const [selectedChannelForLogs, setSelectedChannelForLogs] = useState<NotificationChannel | null>(null);
+    const [logs, setLogs] = useState<NotificationLog[]>([]);
+    const [loadingLogs, setLoadingLogs] = useState(false);
+    const [logSearchTerm, setLogSearchTerm] = useState('');
+    const [logStatusFilter, setLogStatusFilter] = useState<'all' | 'success' | 'failed'>('all');
+    const [logSeverityFilter, setLogSeverityFilter] = useState<'all' | 'info' | 'warning' | 'critical'>('all');
+    const [logTypeFilter, setLogTypeFilter] = useState('all');
+    const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
     const [loadingVars, setLoadingVars] = useState(false);
     const [lastFocusedField, setLastFocusedField] = useState<'title' | 'body'>('body');
     const titleRef = useRef<HTMLInputElement>(null);
@@ -346,6 +361,46 @@ export default function NotificationsManager() {
         };
     };
 
+    const handleOpenLogsModal = async (channel: NotificationChannel) => {
+        setSelectedChannelForLogs(channel);
+        setLogs([]);
+        setLoadingLogs(true);
+        setLogSearchTerm('');
+        setLogStatusFilter('all');
+        setLogSeverityFilter('all');
+        setLogTypeFilter('all');
+        setExpandedLogId(null);
+
+        try {
+            const params: any = {
+                scope: channel.scope,
+                limit: 100
+            };
+            if (channel.scope === 'farm' && channel.farm_id) {
+                params.farm_id = channel.farm_id;
+            }
+
+            const response = await notificationsApi.getLogs(params);
+            const rawLogs = Array.isArray(response) ? response : (response?.items || response?.logs || []);
+            
+            const filteredLogs = rawLogs.filter((log: NotificationLog) => {
+                if (log.channel_id) {
+                    return log.channel_id === channel.id;
+                }
+                if (channel.event_types && channel.event_types.length > 0) {
+                    return channel.event_types.includes(log.type);
+                }
+                return true;
+            });
+
+            setLogs(filteredLogs);
+        } catch (err) {
+            console.error('Failed to load notification logs', err);
+        } finally {
+            setLoadingLogs(false);
+        }
+    };
+
     // --- Template CRUD handlers ---
     const handleOpenTemplateModal = (template: NotificationTemplate | null = null) => {
         const initialType = template ? template.type : 'farm_offline';
@@ -457,6 +512,58 @@ export default function NotificationsManager() {
     const getFarmName = (farmId: string | null | undefined) => {
         if (!farmId) return t('notifications.scopeFarmGlobal');
         return farms.find(f => f.id === farmId)?.name || 'Unknown Farm';
+    };
+
+    const getLogs7dData = () => {
+        const result = Array(7).fill(0);
+        const now = new Date();
+        logs.forEach(log => {
+            const logDate = new Date(log.created_at || log.sent_at || '');
+            const diffTime = now.getTime() - logDate.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays >= 0 && diffDays < 7) {
+                result[6 - diffDays]++;
+            }
+        });
+        return result;
+    };
+
+    const getFilteredLogs = () => {
+        return logs.filter(log => {
+            const matchesSearch = !logSearchTerm || 
+                (log.title && log.title.toLowerCase().includes(logSearchTerm.toLowerCase())) ||
+                (log.body && log.body.toLowerCase().includes(logSearchTerm.toLowerCase()));
+            
+            if (!matchesSearch) return false;
+
+            if (logStatusFilter !== 'all') {
+                if (log.status !== logStatusFilter) return false;
+            }
+
+            if (logSeverityFilter !== 'all') {
+                if (log.severity !== logSeverityFilter) return false;
+            }
+
+            if (logTypeFilter !== 'all') {
+                if (log.type !== logTypeFilter) return false;
+            }
+
+            return true;
+        });
+    };
+
+    const getRelativeTimeString = (date: Date) => {
+        const now = new Date();
+        const diffMs = now.getTime() - date.getTime();
+        const diffSecs = Math.floor(diffMs / 1000);
+        const diffMins = Math.floor(diffSecs / 60);
+        const diffHours = Math.floor(diffMins / 60);
+        const diffDays = Math.floor(diffHours / 24);
+
+        if (diffSecs < 60) return 'Just now';
+        if (diffMins < 60) return `${diffMins}m ago`;
+        if (diffHours < 24) return `${diffHours}h ago`;
+        return `${diffDays}d ago`;
     };
 
     return (
@@ -617,6 +724,13 @@ export default function NotificationsManager() {
                                             </td>
                                             <td className="actions-cell" style={{ textAlign: 'right' }}>
                                                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                                    <button 
+                                                        className="context-menu-btn" 
+                                                        title={t('notifications.btnLogs')}
+                                                        onClick={() => handleOpenLogsModal(channel)}
+                                                    >
+                                                        <History size={15} />
+                                                    </button>
                                                     <button 
                                                         className="context-menu-btn" 
                                                         title={t('notifications.btnMembers')}
@@ -1188,6 +1302,293 @@ export default function NotificationsManager() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Notification Logs History Modal */}
+            {selectedChannelForLogs && (
+                <div className="modal-overlay" onClick={() => setSelectedChannelForLogs(null)}>
+                    <div className="history-modal panel logs-history-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <div>
+                                <div className="modal-title-row">
+                                    <h3>{t('notifications.logsTitle', { name: selectedChannelForLogs.name })}</h3>
+                                    <span className={`status-pill ${selectedChannelForLogs.is_active ? 'active' : 'suspended'}`}>
+                                        <span className="dot"></span>
+                                        {selectedChannelForLogs.is_active ? t('farms.active') : t('farms.inactive')}
+                                    </span>
+                                    <span className="locale-badge">{selectedChannelForLogs.language || 'default'}</span>
+                                    <span className="scope-badge system" style={{ textTransform: 'uppercase', fontSize: '10px', padding: '2px 8px' }}>
+                                        {selectedChannelForLogs.scope}
+                                    </span>
+                                </div>
+                                <p className="modal-desc">Code: <code>{selectedChannelForLogs.code}</code></p>
+                            </div>
+                            <button className="close-btn" onClick={() => setSelectedChannelForLogs(null)}>
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="modal-body">
+                            {loadingLogs ? (
+                                <div className="modal-loading">
+                                    <Loader2 className="spinner" size={28} style={{ animation: 'spin 1s linear infinite' }} />
+                                    <span>{t('notifications.loadingLogs')}</span>
+                                </div>
+                            ) : (
+                                <div className="modal-layout logs-modal-layout">
+                                    {/* Left Panel: Statistics & Filters */}
+                                    <div className="modal-left-panel">
+                                        {/* Stats Cards */}
+                                        {(() => {
+                                            const totalCount = logs.length;
+                                            const successCount = logs.filter(l => l.status === 'sent').length;
+                                            const successPct = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 100;
+                                            const failureCount = logs.filter(l => l.status === 'failed').length;
+
+                                            return (
+                                                <div className="stats-grid">
+                                                    <div className="stat-card">
+                                                        <div className="stat-icon rate">
+                                                            <Activity size={18} />
+                                                        </div>
+                                                        <div className="stat-info">
+                                                            <span className="stat-label">{t('notifications.logsTotal')}</span>
+                                                            <span className="stat-value">{totalCount}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="stat-card">
+                                                        <div className="stat-icon runs">
+                                                            <CheckCircle size={18} />
+                                                        </div>
+                                                        <div className="stat-info">
+                                                            <span className="stat-label">{t('notifications.deliveryRate')}</span>
+                                                            <span className="stat-value">{successPct}%</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="stat-card" style={{ borderLeft: failureCount > 0 ? '3px solid var(--color-danger)' : undefined }}>
+                                                        <div className="stat-icon source" style={{ color: failureCount > 0 ? 'var(--color-danger)' : undefined, background: failureCount > 0 ? 'rgba(239, 68, 68, 0.1)' : undefined }}>
+                                                            <AlertTriangle size={18} />
+                                                        </div>
+                                                        <div className="stat-info">
+                                                            <span className="stat-label">{t('notifications.deliveryFailures')}</span>
+                                                            <span className="stat-value" style={{ color: failureCount > 0 ? 'var(--color-danger)' : undefined }}>{failureCount}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* Chart section */}
+                                        {(() => {
+                                            const chartData = getLogs7dData();
+                                            const maxVal = Math.max(...chartData, 1);
+                                            const height = 120;
+                                            const width = 312;
+                                            const padding = 15;
+                                            
+                                            const points = chartData.map((val, index) => {
+                                                const x = padding + (index / (chartData.length - 1 || 1)) * (width - 2 * padding);
+                                                const y = height - padding - (val / maxVal) * (height - 2 * padding);
+                                                return { x, y, val };
+                                            });
+
+                                            const pathD = points.length > 0 
+                                                ? `M ${points[0].x} ${points[0].y} ` + points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ')
+                                                : '';
+                                            const areaD = points.length > 0
+                                                ? `${pathD} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`
+                                                : '';
+
+                                            return (
+                                                <div className="history-chart-card">
+                                                    <h4 className="chart-header">{t('notifications.chartTitle')}</h4>
+                                                    <div className="chart-wrapper">
+                                                        <svg viewBox={`0 0 ${width} ${height}`} className="history-svg-chart">
+                                                            <defs>
+                                                                <linearGradient id="logsChartGrad" x1="0" y1="0" x2="0" y2="1">
+                                                                    <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.2" />
+                                                                    <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
+                                                                </linearGradient>
+                                                            </defs>
+                                                            <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="var(--border-input)" strokeDasharray="3,3" />
+                                                            <line x1={padding} y1={height / 2} x2={width - padding} y2={height / 2} stroke="var(--border-input)" strokeDasharray="3,3" />
+                                                            <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="var(--border-input)" />
+
+                                                            {areaD && <path d={areaD} fill="url(#logsChartGrad)" />}
+                                                            {pathD && <path d={pathD} fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />}
+
+                                                            {points.map((p, idx) => (
+                                                                <g key={idx} className="chart-dot-group">
+                                                                    <circle cx={p.x} cy={p.y} r="3" fill="var(--panel-bg)" stroke="var(--primary)" strokeWidth="2" />
+                                                                    <title>{`${7 - idx} days ago: ${p.val} alerts`}</title>
+                                                                </g>
+                                                            ))}
+                                                        </svg>
+                                                        <div className="chart-x-labels">
+                                                            <span>7d ago</span>
+                                                            <span>4d ago</span>
+                                                            <span>Today</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
+                                        {/* Filter Section */}
+                                        <div className="logs-filters-panel" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                Filters
+                                            </span>
+                                            
+                                            <div className="search-wrapper" style={{ width: '100%' }}>
+                                                <Search className="search-icon" size={14} />
+                                                <input
+                                                    className="search-input"
+                                                    style={{ height: '34px', fontSize: '12px' }}
+                                                    placeholder={t('notifications.searchPlaceholder')}
+                                                    value={logSearchTerm}
+                                                    onChange={(e) => setLogSearchTerm(e.target.value)}
+                                                />
+                                            </div>
+
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                <div className="form-group">
+                                                    <label style={{ fontSize: '10px' }}>Status</label>
+                                                    <select
+                                                        style={{ height: '34px', padding: '0 8px', fontSize: '12px' }}
+                                                        value={logStatusFilter}
+                                                        onChange={(e) => setLogStatusFilter(e.target.value as any)}
+                                                    >
+                                                        <option value="all">All Statuses</option>
+                                                        <option value="sent">Sent</option>
+                                                        <option value="pending">Pending</option>
+                                                        <option value="failed">Failed</option>
+                                                        <option value="skipped">Skipped</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="form-group">
+                                                    <label style={{ fontSize: '10px' }}>Severity</label>
+                                                    <select
+                                                        style={{ height: '34px', padding: '0 8px', fontSize: '12px' }}
+                                                        value={logSeverityFilter}
+                                                        onChange={(e) => setLogSeverityFilter(e.target.value as any)}
+                                                    >
+                                                        <option value="all">All Severities</option>
+                                                        <option value="info">Info</option>
+                                                        <option value="warning">Warning</option>
+                                                        <option value="critical">Critical</option>
+                                                        <option value="report">Report</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            <div className="form-group">
+                                                <label style={{ fontSize: '10px' }}>Event Type</label>
+                                                <select
+                                                    style={{ height: '34px', padding: '0 8px', fontSize: '12px' }}
+                                                    value={logTypeFilter}
+                                                    onChange={(e) => setLogTypeFilter(e.target.value)}
+                                                >
+                                                    <option value="all">All Types</option>
+                                                    {Array.from(new Set(logs.map(l => l.type))).map(type => (
+                                                        <option key={type} value={type}>{type.replace(/_/g, ' ')}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Right Panel: Scrollable timeline */}
+                                    <div className="modal-right-panel">
+                                        <h4 className="timeline-section-title">{t('notifications.timelineTitle')}</h4>
+                                        {(() => {
+                                            const filtered = getFilteredLogs();
+                                            if (filtered.length === 0) {
+                                                return (
+                                                    <div className="drawer-empty" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: '13px' }}>
+                                                        {t('notifications.noLogs')}
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <div className="history-timeline-scroll">
+                                                    <div className="history-timeline">
+                                                        {filtered.map(log => {
+                                                            const isSuccess = log.status === 'sent';
+                                                            const isFailed = log.status === 'failed';
+                                                            const isPending = log.status === 'pending';
+                                                            const isSkipped = log.status === 'skipped';
+                                                            const logDate = new Date(log.created_at || log.sent_at || '');
+                                                            const relativeTime = getRelativeTimeString(logDate);
+                                                            const absoluteTime = logDate.toLocaleString();
+                                                            const isExpanded = expandedLogId === log.id;
+
+                                                            let timelineClass = 'skipped';
+                                                            if (isSuccess) timelineClass = 'success';
+                                                            else if (isFailed) timelineClass = 'failed';
+                                                            else if (isPending) timelineClass = 'pending';
+
+                                                            return (
+                                                                <div 
+                                                                    key={log.id}
+                                                                    className={`timeline-item ${timelineClass}`}
+                                                                >
+                                                                    <div className="timeline-badge">
+                                                                        <span className="dot"></span>
+                                                                    </div>
+                                                                    <div className="timeline-content logs-timeline-content" style={{ cursor: 'pointer' }} onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
+                                                                        <div className="timeline-header">
+                                                                            <div className="timeline-time-info" style={{ gap: '6px' }}>
+                                                                                <span className="timestamp" style={{ fontSize: '13px' }}>{log.title || 'Untitled Notification'}</span>
+                                                                                <span className="source-tag" style={{ background: '#ecfdf5', color: '#10b981', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 600 }}>{log.type.replace(/_/g, ' ')}</span>
+                                                                                <span className={`filter-tag severity ${log.severity}`} style={{ fontSize: '9px', fontWeight: 600, padding: '1px 6px', textTransform: 'capitalize' }}>{log.severity}</span>
+                                                                            </div>
+                                                                            <span className={`status-tag ${log.status}`} style={{ fontSize: '9px' }}>
+                                                                                {log.status.toUpperCase()}
+                                                                            </span>
+                                                                        </div>
+                                                                        
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                                                                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }} title={absoluteTime}>
+                                                                                {relativeTime} · {absoluteTime}
+                                                                            </span>
+                                                                            <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 500 }}>
+                                                                                {isExpanded ? 'Collapse' : 'Expand'}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        {isExpanded && (
+                                                                            <div className="log-expanded-details" style={{ marginTop: '12px', borderTop: '1px dashed var(--border)', paddingTop: '12px', animation: 'fadeIn 0.2s ease-out' }} onClick={(e) => e.stopPropagation()}>
+                                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                                                    <div className="log-message-body" style={{ background: 'var(--bg-color)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px', fontSize: '12px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', color: 'var(--text-main)' }}>
+                                                                                        {log.body}
+                                                                                    </div>
+                                                                                    {log.error_message && (
+                                                                                        <div className="error-message" style={{ margin: 0, padding: '8px 12px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.15)', borderRadius: '6px', color: 'var(--color-danger)', fontSize: '11px' }}>
+                                                                                            <strong>Error:</strong> {log.error_message}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
