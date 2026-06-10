@@ -1523,7 +1523,6 @@ export default function NotificationsManager() {
                                                             const isSuccess = log.status === 'sent';
                                                             const isFailed = log.status === 'failed';
                                                             const isPending = log.status === 'pending';
-                                                            const isSkipped = log.status === 'skipped';
                                                             const logDate = new Date(log.created_at || log.sent_at || '');
                                                             const relativeTime = getRelativeTimeString(logDate);
                                                             const absoluteTime = logDate.toLocaleString();
