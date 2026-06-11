@@ -10,6 +10,12 @@ const initializeData = () => {
             location: "Sector 7G",
             timezone: "Asia/Seoul",
             default_language: "en",
+            primary_crop: null,
+            planting_date: null,
+            latitude: null,
+            longitude: null,
+            weather_grid_nx: null,
+            weather_grid_ny: null,
             is_active: true,
             created_at: new Date().toISOString()
         }

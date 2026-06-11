@@ -5,6 +5,12 @@ export interface Farm {
     location: string;
     timezone: string;
     default_language: string;
+    primary_crop: string | null;
+    planting_date: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    weather_grid_nx: number | null;
+    weather_grid_ny: number | null;
     is_active: boolean;
     created_at?: string;
     updated_at?: string;
