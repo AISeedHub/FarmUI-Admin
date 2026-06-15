@@ -249,6 +249,40 @@
     padding-left: 14px;
 }
 
+.rule-creator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 5px;
+    padding-left: 14px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.rule-creator svg {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.role-badge {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.role-badge.admin {
+    background: rgba(5, 150, 105, 0.12);
+    color: var(--primary);
+}
+
+.role-badge.user {
+    background: #f1f5f9;
+    color: #475569;
+}
+
 .mini-chart {
     display: flex;
     align-items: flex-end;
@@ -339,6 +373,16 @@
     border-color: var(--text-muted);
     color: var(--text-main);
     background: var(--bg-color);
+}
+
+.history-btn.icon-only {
+    padding: 5px 7px;
+}
+
+.history-btn.danger:hover {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+    background: var(--color-danger-bg);
 }
 
 /* Loading & Error States */

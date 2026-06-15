@@ -1,6 +1,6 @@
 
 
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetAvailable, PresetTuneValue } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 // Auth-action endpoints stay under /auth (login, me, me/farms).
@@ -206,8 +206,26 @@ export const automationsApi = {
     getByFarm: (farmId: string): Promise<AutomationScene[]> => {
         return fetchJson(`/farms/${farmId}/automations`);
     },
+    // Full nested scene (groups + actions) — used to hydrate the edit form.
+    getById: (id: string): Promise<AutomationDetail> => {
+        return fetchJson(`/automations/${id}`);
+    },
+    // Create a whole scene in one shot (metadata + condition tree + actions). Requires Bearer.
+    create: (data: AutomationCreatePayload): Promise<AutomationDetail> => {
+        return fetchJson('/automations', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
     update: (id: string, data: Partial<AutomationScene>): Promise<AutomationScene> => {
         return fetchJson(`/automations/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+    // Full-replace a scene (wipe + rebuild condition tree + actions). Recommended for the edit form.
+    fullUpdate: (id: string, data: AutomationFullUpdatePayload): Promise<AutomationDetail> => {
+        return fetchJson(`/automations/${id}/full`, {
             method: 'PUT',
             body: JSON.stringify(data),
         });
@@ -267,6 +285,88 @@ export const automationsApi = {
     getFleetFrequency: (bucket: 'hour' | 'day' = 'hour', window: number = 24): Promise<FleetFrequencyResponse> => {
         return fetchJson(`/fleet/automations/frequency?bucket=${bucket}&window=${window}`);
     }
+};
+
+// ── Presets (expert-authored, farm-scoped) ───────────────────────────────
+// 6 expert-authoring ops (super_admin → 403 otherwise) + 3 farm-member ops.
+// Note: GET /farms/{id}/automations does NOT include presets — they live here.
+export const presetsApi = {
+    // — Expert authoring (super_admin) —
+    // List presets of a farm (admin view). Returns AutomationScene rows (is_preset=true).
+    getByFarm: (farmId: string): Promise<AutomationScene[]> => {
+        return fetchJson(`/farms/${farmId}/presets`);
+    },
+    // Full nested preset (groups + actions, incl. tunable flags) — hydrate the editor.
+    getById: (automationId: string): Promise<AutomationDetail> => {
+        return fetchJson(`/presets/${automationId}`);
+    },
+    // Create a preset in a farm. Body omits farm_id (path) + is_preset (server sets true);
+    // priority is clamped into the preset band server-side.
+    create: (farmId: string, data: PresetFullPayload): Promise<AutomationDetail> => {
+        return fetchJson(`/farms/${farmId}/presets`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+    // Update metadata only (name/description/priority/is_enabled/...).
+    updateMeta: (automationId: string, data: Partial<AutomationScene>): Promise<AutomationScene> => {
+        return fetchJson(`/presets/${automationId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+    // Full-replace a preset (wipe + rebuild tree + actions; keeps is_preset). Used by editor.
+    fullUpdate: (automationId: string, data: PresetFullPayload): Promise<AutomationDetail> => {
+        return fetchJson(`/presets/${automationId}/full`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+    delete: async (automationId: string): Promise<boolean> => {
+        const result = await fetchJson(`/presets/${automationId}`, { method: 'DELETE' });
+        return result?.success ?? true;
+    },
+
+    // — Farm-member view + control (any farm member; super_admin always passes) —
+    // Presets + their whitelisted tunable thresholds, for dashboards. Tolerant to BE
+    // field-name variants so the panel can render labels/bounds regardless of shape.
+    getAvailable: async (farmId: string): Promise<PresetAvailable[]> => {
+        const raw = await fetchJson(`/farms/${farmId}/presets/available`);
+        const list: any[] = Array.isArray(raw) ? raw : (raw?.presets ?? []);
+        return list.map((p: any): PresetAvailable => ({
+            id: p.id ?? p.automation_id,
+            name: p.name,
+            description: p.description ?? null,
+            priority: p.priority,
+            is_enabled: p.is_enabled ?? true,
+            tunables: (p.tunables ?? p.tunable_thresholds ?? p.thresholds ?? []).map((t: any) => ({
+                condition_id: t.condition_id ?? t.id,
+                register_id: t.register_id ?? null,
+                current_value: t.current_value ?? t.value,
+                operator: t.operator,
+                tunable_min: t.tunable_min ?? t.min ?? null,
+                tunable_max: t.tunable_max ?? t.max ?? null,
+                register_min: t.register_min ?? t.min_value ?? null,
+                register_max: t.register_max ?? t.max_value ?? null,
+                label: t.label ?? t.register_code ?? t.name ?? null,
+                unit: t.unit ?? null,
+            })),
+        }));
+    },
+    // Enable/disable a preset (re-publishes the rules bundle server-side).
+    setEnabled: (farmId: string, automationId: string, isEnabled: boolean): Promise<{ success?: boolean }> => {
+        return fetchJson(`/farms/${farmId}/presets/${automationId}/enabled`, {
+            method: 'PUT',
+            body: JSON.stringify({ is_enabled: isEnabled }),
+        });
+    },
+    // Tune whitelisted thresholds. All values validated before any write (atomic).
+    tune: (farmId: string, automationId: string, values: PresetTuneValue[]): Promise<{ success?: boolean }> => {
+        return fetchJson(`/farms/${farmId}/presets/${automationId}/tune`, {
+            method: 'PUT',
+            body: JSON.stringify({ values }),
+        });
+    },
 };
 
 export const notificationsApi = {

@@ -118,6 +118,8 @@ export interface AutomationScene {
     priority: string; // e.g. "P1", "P5"
     is_enabled: boolean;
     description?: string;
+    created_by?: string | null; // user id of creator (resolve via usersApi)
+    updated_by?: string | null; // user id of last metadata/full editor; null until first edit
     created_at?: string;
     updated_at?: string;
 }
@@ -154,6 +156,122 @@ export interface ExecutionHistoryRow {
     trigger_snapshot?: Record<string, any> | null;
     occurred_at?: string;
     completed_at?: string;
+}
+
+// ── Automation editor (create / full-edit) ───────────────────────────────
+export type EvaluationMode = 'edge' | 'interval';
+export type LogicalOp = 'AND' | 'OR';
+export type ConditionType = 'time_of_day' | 'time_range' | 'day_of_week' | 'sun_event' | 'register_value';
+export type AutomationActionType = 'set_register_value' | 'notification' | 'delay' | 'run_automation';
+
+export interface AutomationCondition {
+    id?: string;
+    condition_type: ConditionType;
+    register_id?: string | null;
+    params: Record<string, any>;
+    is_negated?: boolean;
+    display_order?: number;
+    // ── Preset-only (register_value conditions) ──
+    // When is_tunable, farm members may adjust params.value within [tunable_min, tunable_max].
+    is_tunable?: boolean;
+    tunable_min?: number | null;
+    tunable_max?: number | null;
+}
+
+export interface AutomationConditionGroup {
+    id?: string;
+    parent_group_id?: string | null;
+    logical_op: LogicalOp;
+    display_order?: number;
+    conditions: AutomationCondition[];
+    sub_groups: AutomationConditionGroup[];
+}
+
+export interface AutomationAction {
+    id?: string;
+    action_type: AutomationActionType;
+    target_device_id?: string | null;
+    target_register_id?: string | null;
+    value?: number | null;
+    params?: Record<string, any>;
+    delay_seconds_before?: number;
+    execution_order?: number;
+}
+
+// GET /automations/{id} — full nested scene used to hydrate the edit form.
+export interface AutomationDetail extends AutomationScene {
+    display_names?: Record<string, string> | null;
+    evaluation_mode?: EvaluationMode;
+    condition_groups: AutomationConditionGroup[];
+    actions: AutomationAction[];
+    // created_by / updated_by inherited from AutomationScene
+}
+
+// POST /automations body (full tree).
+export interface AutomationCreatePayload {
+    farm_id: string;
+    name: string;
+    display_names?: Record<string, string> | null;
+    description?: string;
+    evaluation_mode: EvaluationMode;
+    priority: number;
+    is_enabled: boolean;
+    condition_groups: AutomationConditionGroup[];
+    actions: AutomationAction[];
+}
+
+// PUT /automations/{id}/full body — same as create minus farm_id.
+export type AutomationFullUpdatePayload = Omit<AutomationCreatePayload, 'farm_id'>;
+
+// ── Presets (expert-authored, farm-scoped) ───────────────────────────────
+// A preset is an automation row with is_preset=true, authored by a super_admin
+// in a specific farm, living in a high-priority band. It reuses the whole
+// condition/action tree; the only extras are tunable thresholds + dedicated
+// enable/tune endpoints for farm members.
+
+// POST /farms/{farm_id}/presets and PUT /presets/{id}/full body.
+// Same shape as a full automation but WITHOUT farm_id (taken from path) and
+// WITHOUT is_preset (server sets it). priority is optional (server clamps into
+// the preset band; omit → floor). Conditions may carry is_tunable/tunable_min/max.
+export interface PresetFullPayload {
+    name: string;
+    display_names?: Record<string, string> | null;
+    description?: string;
+    evaluation_mode: EvaluationMode;
+    priority?: number;
+    is_enabled: boolean;
+    condition_groups: AutomationConditionGroup[];
+    actions: AutomationAction[];
+}
+
+// A single whitelisted threshold a farm member can tune (from GET .../presets/available).
+export interface PresetTunable {
+    condition_id: string;
+    register_id?: string | null;
+    current_value: number;
+    operator?: string;            // e.g. "<", ">="
+    tunable_min?: number | null;  // expert-set lower bound
+    tunable_max?: number | null;  // expert-set upper bound
+    register_min?: number | null; // register min_value (hard bound)
+    register_max?: number | null; // register max_value (hard bound)
+    label?: string | null;        // friendly label (register code / device name) if BE provides
+    unit?: string | null;
+}
+
+// GET /farms/{farm_id}/presets/available — preset row + its tunable thresholds.
+export interface PresetAvailable {
+    id: string;
+    name: string;
+    description?: string | null;
+    priority?: string | number;
+    is_enabled: boolean;
+    tunables: PresetTunable[];
+}
+
+// PUT /farms/{farm_id}/presets/{id}/tune body.
+export interface PresetTuneValue {
+    condition_id: string;
+    value: number;
 }
 
 export interface UserCreate {

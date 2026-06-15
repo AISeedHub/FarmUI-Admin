@@ -1,0 +1,943 @@
+/* ── Automation create/edit modal ── */
+.ae-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(8px);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: modalFadeIn 0.25s ease-out forwards;
+}
+
+.ae-modal {
+    width: 760px;
+    max-width: 96%;
+    max-height: 92vh;
+    background: #ffffff;
+    border: 1px solid var(--border-input);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+    animation: modalScaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.ae-modal:hover {
+    transform: none;
+}
+
+.ae-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border-input);
+    background: var(--bg-color);
+    flex-shrink: 0;
+}
+
+.ae-header h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.ae-close {
+    background: transparent;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 6px;
+    color: var(--text-muted);
+    display: flex;
+}
+
+.ae-close:hover {
+    color: var(--text-main);
+    background: #fff;
+}
+
+.ae-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 60px;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.ae-load-error svg {
+    color: var(--color-danger);
+}
+
+.ae-modal .spinner {
+    animation: ae-spin 1s linear infinite;
+    color: var(--primary);
+}
+
+@keyframes ae-spin {
+    to { transform: rotate(360deg); }
+}
+
+.ae-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Sections */
+.ae-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ae-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-input);
+}
+
+.ae-section-hint,
+.ae-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.ae-empty {
+    padding: 10px 12px;
+    background: #f8fafc;
+    border: 1px dashed var(--border-input);
+    border-radius: 8px;
+    text-align: center;
+}
+
+/* Fields */
+.ae-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ae-field label,
+.ae-pfield label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.ae-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.ae-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0;
+}
+
+.ae-toggle-row span {
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+/* Condition group (single, flat) */
+.ae-group {
+    border: 1px solid var(--border-input);
+    border-left: 3px solid var(--primary);
+    border-radius: 10px;
+    background: #fff;
+}
+
+.ae-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-input);
+}
+
+.ae-group-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ae-json {
+    font-family: var(--font-mono), monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.ae-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.ae-logic-toggle,
+.ae-mode-toggle,
+.ae-onoff {
+    display: inline-flex;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.ae-logic-toggle button,
+.ae-mode-toggle button,
+.ae-onoff button {
+    border: none;
+    border-radius: 0;
+    background: #fff;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.ae-logic-toggle button.active,
+.ae-mode-toggle button.active,
+.ae-onoff button.active {
+    background: var(--primary);
+    color: #fff;
+}
+
+.ae-logic-toggle button:hover:not(.active),
+.ae-mode-toggle button:hover:not(.active),
+.ae-onoff button:hover:not(.active) {
+    background: var(--bg-color);
+}
+
+.ae-group-body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ae-group-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* Condition card */
+.ae-cond {
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ae-cond-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ae-cond-type {
+    flex: 1;
+    max-width: 240px;
+}
+
+.ae-negate {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ae-negate input {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.ae-cond-params,
+.ae-action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.ae-pfield {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    min-width: 140px;
+}
+
+.ae-pfield.short {
+    flex: 0 0 110px;
+    min-width: 90px;
+}
+
+.ae-pfield.full {
+    flex: 1 1 100%;
+}
+
+/* Preset: tunable threshold controls (register_value conditions only) */
+.ae-tunable {
+    border-top: 1px dashed var(--border-input);
+    padding-top: 10px;
+    margin-top: 2px;
+    gap: 6px;
+}
+
+.ae-tunable-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.ae-tunable-toggle input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.ae-tunable-toggle svg { color: var(--primary); }
+
+.ae-tunable-bounds {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--primary-glow, rgba(5, 150, 105, 0.06));
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+}
+
+.ae-tunable-reg {
+    flex: 1 1 100%;
+    font-style: italic;
+}
+
+/* Days picker */
+.ae-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ae-day {
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--text-muted);
+}
+
+.ae-day.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+/* Actions */
+.ae-actions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ae-action {
+    border: 1px solid var(--border-input);
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.ae-action-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-color);
+    border-bottom: 1px solid var(--border-input);
+}
+
+.ae-action-order {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ae-action-type {
+    flex: 1;
+    max-width: 240px;
+}
+
+.ae-action-params {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ae-action-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ae-onoff button {
+    flex: 1;
+}
+
+/* Buttons */
+.ae-btn-add {
+    background: transparent;
+    border: 1px dashed var(--border-input);
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 8px;
+}
+
+.ae-btn-add.small {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.ae-btn-add:hover {
+    border-color: var(--primary);
+    background: var(--primary-glow);
+}
+
+.ae-btn-remove {
+    background: transparent;
+    border: 1px solid var(--border-input);
+    color: var(--text-muted);
+    padding: 5px;
+    border-radius: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+    display: flex;
+}
+
+.ae-btn-remove:hover {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+    background: var(--color-danger-bg);
+}
+
+/* Footer */
+.ae-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-input);
+    background: var(--bg-color);
+    flex-shrink: 0;
+}
+
+.ae-footer-right {
+    display: flex;
+    gap: 12px;
+    margin-left: auto;
+}
+
+.ae-cancel {
+    background: transparent;
+    border: 1px solid var(--border-input);
+}
+
+.ae-cancel:hover {
+    background: #fff;
+}
+
+/* ── Header wand ── */
+.ae-wand {
+    color: var(--primary);
+    vertical-align: -3px;
+    margin-right: 6px;
+}
+
+.ae-header h3 {
+    display: flex;
+    align-items: center;
+}
+
+/* ── Stepper ── */
+.ae-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border-input);
+    flex-shrink: 0;
+}
+
+.ae-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+    color: var(--text-muted);
+}
+
+.ae-step:hover { background: transparent; }
+
+.ae-step-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #64748b;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+}
+
+.ae-step-label {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ae-step.active .ae-step-num,
+.ae-step.done .ae-step-num {
+    background: var(--primary);
+    color: #fff;
+}
+
+.ae-step.active .ae-step-label,
+.ae-step.done .ae-step-label {
+    color: var(--primary);
+}
+
+.ae-step-line {
+    width: 60px;
+    height: 2px;
+    background: var(--border-input);
+    margin: 0 4px;
+}
+
+/* ── Empty state box ── */
+.ae-empty-box {
+    padding: 28px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    background: #f8fafc;
+    border: 1px dashed var(--border-input);
+    border-radius: 12px;
+}
+
+/* ── Match toggle row ── */
+.ae-match {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ae-match-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+/* ── Card list ── */
+.ae-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ae-cond-label,
+.ae-action-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    flex: 1;
+}
+
+/* ── Add condition/action toggle ── */
+.ae-add-toggle {
+    align-self: flex-start;
+    background: var(--primary);
+    border: 1px solid var(--primary);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ae-add-toggle:hover {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+    color: #fff;
+}
+
+.ae-add-toggle.open {
+    background: var(--primary-hover);
+}
+
+/* ── Category picker ── */
+.ae-picker {
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    padding: 14px;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    animation: aePickerIn 0.18s ease-out;
+}
+
+@keyframes aePickerIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.ae-picker-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ae-picker-hdr {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.ae-picker-items {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.ae-picker-items.wide {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.ae-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-start;
+    background: #f8faf8;
+    border: 1px solid var(--border-input);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    text-align: left;
+}
+
+.ae-picker-item svg { color: var(--primary); flex-shrink: 0; }
+
+.ae-picker-item:hover {
+    border-color: var(--primary);
+    background: var(--primary-glow);
+}
+
+/* ── Audit line (edit mode) ── */
+.ae-audit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--bg-color);
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 9px 12px;
+}
+
+.ae-audit-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ae-audit-item strong {
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+/* ── Enable checkbox ── */
+.ae-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.ae-check input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* ── Summary box ── */
+.ae-summary {
+    background: var(--bg-color);
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.ae-summary-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.ae-sum-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ae-sum-badge {
+    align-self: flex-start;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+
+.ae-sum-badge.if { background: rgba(37, 99, 235, 0.1); color: #2563eb; }
+.ae-sum-badge.then { background: rgba(217, 119, 6, 0.12); color: #d97706; }
+
+.ae-sum-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-main);
+    padding-left: 4px;
+}
+
+.ae-sum-row svg { color: var(--text-muted); flex-shrink: 0; }
+.ae-sum-row.muted { color: var(--text-muted); font-style: italic; }
+
+/* ── Entry screen ── */
+.ae-scratch {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    text-align: left;
+    background: #f4faf6;
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.ae-scratch:hover {
+    border-color: var(--primary);
+    background: var(--primary-glow);
+}
+
+.ae-scratch-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ae-scratch-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ae-scratch-text strong { font-size: 15px; color: var(--text-main); }
+.ae-scratch-text span { font-size: 13px; color: var(--text-muted); }
+
+.ae-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    gap: 12px;
+}
+
+.ae-divider::before,
+.ae-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-input);
+}
+
+.ae-copy-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ae-copy-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid var(--border-input);
+    border-radius: 10px;
+    background: #fafefb;
+    transition: var(--transition-smooth);
+}
+
+.ae-copy-row:hover {
+    border-color: var(--primary);
+    background: var(--primary-glow);
+}
+
+.ae-copy-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: var(--color-success-bg);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ae-copy-name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.ae-copy-btn {
+    background: transparent;
+    border: none;
+    color: var(--primary);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 10px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ae-copy-btn:hover { background: var(--primary-glow); }
+
+/* ── Copy preview popover ── */
+.ae-preview {
+    position: fixed;
+    width: 320px;
+    background: #fff;
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.05);
+    padding: 14px;
+    z-index: 1200;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    pointer-events: none;
+    animation: aePickerIn 0.15s ease-out;
+}
+
+.ae-preview-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.ae-preview-title svg { color: var(--primary); }
+
+.ae-preview-loading {
+    display: flex;
+    justify-content: center;
+    padding: 12px;
+}
+
+@media (max-width: 700px) {
+    .ae-grid-2 { grid-template-columns: 1fr; }
+    .ae-picker-items, .ae-picker-items.wide { grid-template-columns: 1fr 1fr; }
+    .ae-step-line { width: 24px; }
+    .ae-step-label { display: none; }
+}

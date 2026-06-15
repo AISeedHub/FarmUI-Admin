@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register } from '../../types';
 import { farmsApi, zonesApi, devicesApi, registersApi } from '../../api/services';
 import AutomationsTab from './components/AutomationsTab';
+import PresetsPanel from './components/PresetsPanel';
 import AnalyticsTab from './components/AnalyticsTab';
 import './FarmDetail.css';
 
@@ -14,7 +15,7 @@ export default function FarmDetail() {
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
 
-    const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'analytics'>('config');
+    const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'presets' | 'analytics'>('config');
 
     const [farm, setFarm] = useState<Farm | null>(null);
     const [zones, setZones] = useState<Zone[]>([]);
@@ -451,6 +452,9 @@ export default function FarmDetail() {
                     <button className={`sidebar-tab-btn ${activeTab === 'automations' ? 'active' : ''}`} onClick={() => setActiveTab('automations')}>
                         <Zap size={16} /> {t('detail.tabAutomations')}
                     </button>
+                    <button className={`sidebar-tab-btn ${activeTab === 'presets' ? 'active' : ''}`} onClick={() => setActiveTab('presets')}>
+                        <Layers size={16} /> {t('detail.tabPresets')}
+                    </button>
                     <button className={`sidebar-tab-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
                         <Activity size={16} /> {t('detail.tabAnalytics')}
                     </button>
@@ -721,6 +725,8 @@ export default function FarmDetail() {
     )}
 
                     {activeTab === 'automations' && <AutomationsTab farmId={id!} />}
+
+                    {activeTab === 'presets' && <PresetsPanel farmId={id!} />}
 
                     {activeTab === 'analytics' && <AnalyticsTab />}
                 </div>

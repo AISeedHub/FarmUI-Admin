@@ -1,0 +1,292 @@
+/* ── Expert Presets tab ── */
+/* Fills the farm-detail tab area but does NOT scroll itself: overflow:hidden keeps it
+   off the compositor's scroll layers. The modal's full-viewport backdrop-filter blur
+   samples this region, and blurring over a composited *scroll* layer (overflow:auto)
+   flickers in Chromium. Scrolling lives on the inner .presets-list instead — the same
+   structure the Automations tab uses (overflow:hidden tab + inner scroll) without flicker. */
+.presets-tab {
+    flex: 1;
+    min-height: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.presets-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    flex: 1;
+    min-height: 0;
+}
+
+.presets-panel.loading-state,
+.presets-panel.error-state {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px;
+}
+
+.presets-panel.loading-state .spinner {
+    animation: spin 1s linear infinite;
+    color: var(--primary);
+}
+
+.presets-panel.error-state svg { color: var(--color-danger); }
+
+.presets-title-icon {
+    color: var(--primary);
+    vertical-align: -3px;
+    margin-right: 4px;
+}
+
+/* Empty state */
+.presets-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    background: #f8fafc;
+    border: 1px dashed var(--border-input);
+    border-radius: 12px;
+}
+
+.presets-empty svg { color: var(--border); opacity: 0.7; }
+.presets-empty p { margin: 0; font-size: 13px; }
+
+/* List */
+.presets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.preset-card {
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    background: #ffffff;
+    overflow: hidden;
+    transition: var(--transition-smooth);
+}
+
+.preset-card:hover {
+    border-color: var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.preset-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+}
+
+.preset-info { min-width: 0; flex: 1; }
+
+.preset-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.preset-name-row .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.preset-name-row .dot.active {
+    background: var(--color-success);
+    box-shadow: 0 0 0 2px var(--color-success-bg);
+}
+
+.preset-name-row .dot.inactive { background: #d1d5db; }
+
+.preset-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-main);
+}
+
+/* Reuse priority-tag look, accent the "managed" band */
+.priority-tag.managed {
+    background: rgba(124, 58, 237, 0.1);
+    color: #7c3aed;
+    border-color: rgba(124, 58, 237, 0.25);
+}
+
+.tunable-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 9999px;
+    background: rgba(14, 165, 233, 0.1);
+    color: #0284c7;
+}
+
+.preset-description {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 5px;
+    padding-left: 14px;
+}
+
+.preset-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.preset-controls .toggle.busy {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.preset-controls .history-btn.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-glow);
+}
+
+.history-btn .chev {
+    transition: transform 0.18s ease;
+}
+
+.history-btn .chev.open { transform: rotate(180deg); }
+
+/* Tune panel (inline expand) */
+.preset-tune-panel {
+    border-top: 1px solid var(--border-input);
+    background: #fafbff;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: aePickerIn 0.18s ease-out;
+}
+
+.tune-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.tune-panel-head svg { color: var(--primary); }
+
+.tune-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tune-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #ffffff;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 10px 14px;
+}
+
+.tune-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.tune-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tune-op {
+    font-family: var(--font-mono), monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+    background: var(--primary-glow);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.tune-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.tune-input-wrap input {
+    width: 90px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    font-size: 13px;
+    text-align: right;
+}
+
+.tune-input-wrap input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+.tune-unit {
+    font-size: 12px;
+    color: var(--text-muted);
+    min-width: 24px;
+}
+
+.tune-bounds {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-mono), monospace;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tune-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+@media (max-width: 720px) {
+    .preset-main { flex-direction: column; align-items: stretch; }
+    .preset-controls { justify-content: flex-end; }
+    .tune-row { flex-wrap: wrap; gap: 8px; }
+    .tune-bounds { width: 100%; }
+}

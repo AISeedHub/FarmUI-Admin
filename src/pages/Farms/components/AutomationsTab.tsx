@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, Send, Loader2, AlertTriangle, RefreshCw, X, Activity, CheckCircle, Clock, Cpu, Zap, User } from 'lucide-react';
-import { automationsApi } from '../../../api/services';
-import { AutomationScene, AutomationActivityMap, ExecutionHistoryRow } from '../../../types';
+import { Download, Send, Loader2, AlertTriangle, RefreshCw, X, Activity, CheckCircle, Clock, Cpu, Zap, User, Plus, Pencil, Trash2 } from 'lucide-react';
+import { automationsApi, usersApi } from '../../../api/services';
+import { AutomationScene, AutomationActivityMap, ExecutionHistoryRow, UserResponse } from '../../../types';
+import AutomationEditorModal from './AutomationEditorModal';
 import './AutomationsTab.css';
 
 interface AutomationsTabProps {
@@ -15,6 +16,7 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
     const [rules, setRules] = useState<AutomationScene[]>([]);
     const [originalRules, setOriginalRules] = useState<AutomationScene[]>([]);
     const [activity, setActivity] = useState<AutomationActivityMap>({});
+    const [users, setUsers] = useState<Record<string, UserResponse>>({});
     const [frequency, setFrequency] = useState<Record<string, Array<{ bucket_start: string; count: number }>>>({});
     const [weeklyFrequency, setWeeklyFrequency] = useState<Record<string, Array<{ bucket_start: string; count: number }>>>({});
     const [loading, setLoading] = useState(true);
@@ -109,6 +111,25 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
     const [historyLogs, setHistoryLogs] = useState<ExecutionHistoryRow[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
 
+    // Create / edit editor state (null editId = create)
+    const [editorOpen, setEditorOpen] = useState(false);
+    const [editId, setEditId] = useState<string | null>(null);
+
+    const openCreate = () => { setEditId(null); setEditorOpen(true); };
+    const openEdit = (rule: AutomationScene) => { setEditId(rule.id); setEditorOpen(true); };
+    const handleEditorSaved = () => { setEditorOpen(false); loadData(); };
+
+    const handleDeleteRule = async (rule: AutomationScene) => {
+        if (!window.confirm(t('auto.deleteConfirm'))) return;
+        try {
+            await automationsApi.delete(rule.id);
+            alert(t('auto.deleteSuccess'));
+            loadData();
+        } catch (err: any) {
+            alert(t('auto.deleteFailed', { error: err?.message || 'Unknown error' }));
+        }
+    };
+
     useEffect(() => {
         if (farmId) {
             loadData();
@@ -155,12 +176,23 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                 console.warn('Failed to load weekly frequency:', err);
                 return {} as Record<string, Array<{ bucket_start: string; count: number }>>;
             });
+            // Users directory to resolve created_by/updated_by ids → name + role.
+            // May 403 for non-admins; degrade gracefully (no creator shown).
+            const usersPromise = usersApi.getAll().then(list => {
+                const map: Record<string, UserResponse> = {};
+                list.forEach(u => { map[u.id] = u; });
+                return map;
+            }).catch(err => {
+                console.warn('Failed to load users directory:', err);
+                return {} as Record<string, UserResponse>;
+            });
 
-            const [rulesResult, activityResult, frequencyResult, weeklyFrequencyResult] = await Promise.all([
+            const [rulesResult, activityResult, frequencyResult, weeklyFrequencyResult, usersResult] = await Promise.all([
                 rulesPromise,
                 activityPromise,
                 frequencyPromise,
-                weeklyFrequencyPromise
+                weeklyFrequencyPromise,
+                usersPromise
             ]);
 
             setRules(rulesResult);
@@ -168,6 +200,7 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
             setActivity(activityResult);
             setFrequency(frequencyResult);
             setWeeklyFrequency(weeklyFrequencyResult);
+            setUsers(usersResult);
         } catch (err: any) {
             console.error('Failed to load automation data:', err);
             setError(err?.message || 'Failed to load automations');
@@ -290,6 +323,13 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                     </div>
                     <div className="actions">
                         <button
+                            className="primary-btn flex-center"
+                            onClick={openCreate}
+                        >
+                            <Plus size={14} />
+                            {t('auto.newRule')}
+                        </button>
+                        <button
                             className="secondary-btn flex-center"
                             onClick={handleExportYaml}
                             disabled={exporting}
@@ -337,6 +377,8 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                         const lastFiredStr = act.last_execution?.triggered_at
                             ? new Date(act.last_execution.triggered_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                             : '-';
+                        const creator = rule.created_by ? users[rule.created_by] : undefined;
+                        const creatorIsAdmin = creator?.global_role === 'super_admin';
 
                         return (
                             <div className="table-row" key={rule.id}>
@@ -349,6 +391,15 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                                     <div className="rule-description">
                                         {rule.description || t('detail.noDescription')}
                                     </div>
+                                    {creator && (
+                                        <div className="rule-creator" title={`${t('auto.createdByLabel')} ${creator.username}`}>
+                                            <User size={11} />
+                                            <span>{t('auto.createdByLabel')} {creator.username}</span>
+                                            <span className={`role-badge ${creatorIsAdmin ? 'admin' : 'user'}`}>
+                                                {creatorIsAdmin ? t('auto.roleAdmin') : t('auto.roleUser')}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="col-fires24h">
                                     {renderSparklineSVG(frequency[rule.id] || [], rule.is_enabled)}
@@ -372,6 +423,20 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                                     >
                                         <Clock size={12} />
                                         <span>{t('auto.history')}</span>
+                                    </button>
+                                    <button
+                                        className="history-btn icon-only"
+                                        title={t('auto.editTooltip')}
+                                        onClick={() => openEdit(rule)}
+                                    >
+                                        <Pencil size={12} />
+                                    </button>
+                                    <button
+                                        className="history-btn icon-only danger"
+                                        title={t('auto.deleteTooltip')}
+                                        onClick={() => handleDeleteRule(rule)}
+                                    >
+                                        <Trash2 size={12} />
                                     </button>
                                 </div>
                             </div>
@@ -601,6 +666,16 @@ export default function AutomationsTab({ farmId }: AutomationsTabProps) {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {editorOpen && (
+                <AutomationEditorModal
+                    farmId={farmId}
+                    automationId={editId}
+                    automations={rules}
+                    onClose={() => setEditorOpen(false)}
+                    onSaved={handleEditorSaved}
+                />
             )}
         </div>
     );
