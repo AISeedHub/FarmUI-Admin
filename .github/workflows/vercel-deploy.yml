@@ -5,15 +5,19 @@
 # Docs live on a dedicated `docs` branch (kept separate from `main` code) and
 # deploy from there — pushing docs work to `docs` triggers a production deploy.
 #
-# One-time setup (Vercel):
-#   1. Create a Vercel project linked to this repo (separate from any app project).
-#   2. Set the project's Root Directory = `website`  (Framework preset: Docusaurus).
-#   3. (If the project uses Vercel's Git integration) set its Production Branch = `docs`.
-#   4. Add repo Actions secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.
-#      (TOKEN + ORG_ID are the same across all your projects; PROJECT_ID differs
-#       per project — copy it from the Vercel project's Settings.)
+# IMPORTANT: this repo ALSO deploys an app to Vercel from `main` (VERCEL_PROJECT_ID).
+# Docs use a SEPARATE Vercel project + a SEPARATE secret (VERCEL_DOC_PROJECT_ID) so a
+# docs deploy never clobbers the app's production.
 #
-# Vercel builds Docusaurus remotely. Matches the pattern used by Farm-Docs / FarmUI-Dashboard.
+# One-time setup (Vercel) for the DOCS project:
+#   1. Create a NEW, separate Vercel project linked to this repo (not the app's).
+#   2. (If it uses Vercel's Git integration) set its Production Branch = `docs`.
+#      Root Directory can stay at the repo root — the root vercel.json builds website/.
+#   3. Add the repo Actions secret VERCEL_DOC_PROJECT_ID = that docs project's id.
+#      (VERCEL_TOKEN + VERCEL_ORG_ID are shared with the app project.)
+#
+# Vercel builds Docusaurus remotely. Until VERCEL_DOC_PROJECT_ID exists, this deploy
+# fails harmlessly without touching the app project.
 # =============================================================================
 name: Deploy docs to Vercel
 
@@ -42,4 +46,5 @@ jobs:
         run: vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          # Separate from the app's VERCEL_PROJECT_ID — docs deploy to their own project.
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_DOC_PROJECT_ID }}
