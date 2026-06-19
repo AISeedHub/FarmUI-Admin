@@ -1,0 +1,45 @@
+# =============================================================================
+# Deploy this repo's docs site (website/) to its OWN Vercel project.
+# Drop into a source repo at .github/workflows/vercel-deploy.yml.
+#
+# Docs live on a dedicated `docs` branch (kept separate from `main` code) and
+# deploy from there — pushing docs work to `docs` triggers a production deploy.
+#
+# One-time setup (Vercel):
+#   1. Create a Vercel project linked to this repo (separate from any app project).
+#   2. Set the project's Root Directory = `website`  (Framework preset: Docusaurus).
+#   3. (If the project uses Vercel's Git integration) set its Production Branch = `docs`.
+#   4. Add repo Actions secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.
+#      (TOKEN + ORG_ID are the same across all your projects; PROJECT_ID differs
+#       per project — copy it from the Vercel project's Settings.)
+#
+# Vercel builds Docusaurus remotely. Matches the pattern used by Farm-Docs / FarmUI-Dashboard.
+# =============================================================================
+name: Deploy docs to Vercel
+
+on:
+  push:
+    branches: [docs]
+  workflow_dispatch:
+
+# Only one production deploy at a time; a newer deploy cancels an in-flight one so
+# the latest commit always wins the production alias (prevents a slow older deploy
+# from re-aliasing production to a stale build).
+concurrency:
+  group: vercel-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy to Vercel (production)
+        run: vercel deploy --prod --token ${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

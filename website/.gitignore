@@ -1,0 +1,12 @@
+# Docusaurus / Node
+node_modules/
+build/
+.docusaurus/
+.cache-loader/
+
+# Misc
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local
