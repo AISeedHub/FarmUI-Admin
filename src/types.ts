@@ -367,6 +367,57 @@ export interface NotificationLog {
     sent_at?: string; // fallback timestamp
 }
 
+// ── System & edge health ──────────────────────────────────────────────────
+// GET /health — infra liveness (no auth). Reachability of Postgres/InfluxDB/MQTT.
+export interface HealthComponent {
+    ok: boolean;
+    detail: string;
+}
+
+export interface InfraHealthResponse {
+    status: 'ok' | 'degraded' | string;
+    components: Record<string, HealthComponent>; // keyed by postgres / influxdb / mqtt
+}
+
+// Host + modbus snapshot published by a farm's edge gateway (FarmLink).
+export interface EdgeHealthMetrics {
+    cpu_usage_percent: number;
+    ram_usage_percent: number;
+    disk_usage_percent: number;
+    uptime_seconds: number;
+    modbus_connected: boolean;
+    disk_free_gb: number;
+}
+
+// GET /admin/edge-health — one entry per farm (latest snapshot in the window).
+// Farms without health in the window are omitted by the server.
+export interface EdgeHealthFarm {
+    farm_id: string;
+    status: 'online' | 'offline' | string;
+    time: string; // ISO timestamp of the snapshot
+    metrics: EdgeHealthMetrics;
+}
+
+export interface EdgeHealthFleetResponse {
+    period: string;
+    farms: EdgeHealthFarm[];
+}
+
+// GET /farms/{farm_id}/edge-health/history — flat (long-format) records.
+// One record = one field at one timestamp. modbus_connected is dropped when aggregated.
+export interface EdgeHealthHistoryRecord {
+    time: string; // ISO timestamp
+    field: string; // cpu_usage_percent | ram_usage_percent | disk_usage_percent | uptime_seconds | disk_free_gb | modbus_connected
+    value: number;
+    status: string; // online | offline
+}
+
+export interface EdgeHealthHistoryResponse {
+    farm: string; // farm code (e.g. "naju_01")
+    period: string;
+    records: EdgeHealthHistoryRecord[];
+}
+
 
 
 

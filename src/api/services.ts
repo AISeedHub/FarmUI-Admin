@@ -1,6 +1,6 @@
 
 
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetAvailable, PresetTuneValue } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 // Auth-action endpoints stay under /auth (login, me, me/farms).
@@ -463,6 +463,31 @@ export const notificationsApi = {
         const queryStr = queryParams.toString();
         if (queryStr) url += `?${queryStr}`;
         return fetchJson(url);
+    }
+};
+
+// ── System & edge health ──────────────────────────────────────────────────
+export const healthApi = {
+    // Infra liveness: Postgres / InfluxDB / MQTT reachability. No auth required
+    // (the Bearer header added by fetchJson is harmless here).
+    getInfra: (): Promise<InfraHealthResponse> => {
+        return fetchJson('/health');
+    },
+    // Fleet edge-health overview — latest snapshot per farm. super_admin only
+    // (throws "API Error: 403" otherwise). `period` is an Influx duration.
+    getFleetEdgeHealth: (period: string = '24h'): Promise<EdgeHealthFleetResponse> => {
+        return fetchJson(`/admin/edge-health?period=${encodeURIComponent(period)}`);
+    },
+    // Time-series edge health for a single farm. `aggregate_every` (e.g. "5m")
+    // downsamples numeric fields for long ranges; omit it for raw records.
+    getFarmEdgeHistory: (
+        farmId: string,
+        period: string = '24h',
+        aggregateEvery?: string
+    ): Promise<EdgeHealthHistoryResponse> => {
+        const params = new URLSearchParams({ period });
+        if (aggregateEvery) params.append('aggregate_every', aggregateEvery);
+        return fetchJson(`/farms/${farmId}/edge-health/history?${params.toString()}`);
     }
 };
 
