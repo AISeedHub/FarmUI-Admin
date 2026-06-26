@@ -84,6 +84,11 @@ FarmUI-Admin communicates with the SmartFarm FastAPI backend. Sau đợt refacto
 - `GET /users` : Lấy danh sách users (mapped to `authApi.getUsers()`)
 - `POST /farm-users` : Gán user vào farm (mapped to `farmUsersApi.create()`)
 
+**System Health**
+- `GET /health` : Infra liveness Postgres/InfluxDB/MQTT — không cần auth (mapped to `healthApi.getInfra()`)
+- `GET /admin/edge-health?period=` : Fleet edge-health overview, **chỉ super_admin** (mapped to `healthApi.getFleetEdgeHealth()`)
+- `GET /farms/{farm_id}/edge-health/history` : Time-series edge-health của 1 farm (mapped to `healthApi.getFarmEdgeHistory()`)
+
 ## Folder Structure
 ```
 FarmUI-Admin/

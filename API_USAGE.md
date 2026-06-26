@@ -134,6 +134,44 @@ Tài liệu này liệt kê chi tiết toàn bộ các API endpoint backend mà 
 
 ---
 
+### J. Giám sát Sức khỏe Hệ thống & Edge Gateway (`healthApi`)
+
+> Tiêu thụ bởi trang **System Health** ([`src/pages/Health/SystemHealth.tsx`](file:///c:/Users/Andrew/Documents/Project/FarmUI-Admin/src/pages/Health/SystemHealth.tsx)). Phân biệt 2 nhóm: `/health` là **infra liveness** (Postgres/InfluxDB/MQTT của backend); `/admin/edge-health` là **health của edge gateway từng farm** (host CPU/RAM/disk + modbus, do FarmLink publish vào InfluxDB) — hai khái niệm khác hẳn nhau.
+
+| Tên phương thức | HTTP | Endpoint | Request/Query | Response Type | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `healthApi.getInfra` | `GET` | `/health` | — | `InfraHealthResponse` | Reachability Postgres/InfluxDB/MQTT. **Không cần auth**. `status: ok\|degraded` + chi tiết từng component. |
+| `healthApi.getFleetEdgeHealth` | `GET` | `/admin/edge-health?period=` | `?period=24h` (mặc định) | `EdgeHealthFleetResponse` | Fleet overview: snapshot mới nhất mỗi farm. **Chỉ super_admin** (403 nếu không). `period` là Influx duration. Farm không có health trong window → không xuất hiện. |
+| `healthApi.getFarmEdgeHistory` | `GET` | `/farms/{farm_id}/edge-health/history?period=&aggregate_every=` | `?period=24h&aggregate_every=5m` | `EdgeHealthHistoryResponse` | Time-series 1 farm (flat records). `aggregate_every` (vd `5m`) downsample numeric cho range dài (bỏ `modbus_connected`); bỏ trống = raw. |
+
+**Ví dụ response:**
+
+```jsonc
+// GET /health
+{ "status": "degraded",
+  "components": {
+    "postgres": {"ok": true,  "detail": ""},
+    "influxdb": {"ok": false, "detail": "connection refused"},
+    "mqtt":     {"ok": true,  "detail": ""}
+  } }
+
+// GET /admin/edge-health
+{ "period": "24h",
+  "farms": [
+    { "farm_id": "2000...0001", "status": "online",
+      "time": "2026-06-26T08:14:31+00:00",
+      "metrics": { "cpu_usage_percent": 14.3, "ram_usage_percent": 45.1,
+                   "disk_usage_percent": 73.2, "uptime_seconds": 7205,
+                   "modbus_connected": true, "disk_free_gb": 249.57 } }
+  ] }
+
+// GET /farms/{farm_id}/edge-health/history → flat records
+{ "farm": "naju_01", "period": "24h",
+  "records": [ { "time": "...", "field": "cpu_usage_percent", "value": 14.3, "status": "online" } ] }
+```
+
+---
+
 ## 3. Cấu trúc Dữ liệu Chi tiết (Request/Response Models)
 
 Được định nghĩa chi tiết tại [`src/types.ts`](file:///c:/Users/Andrew/Documents/Project/FarmUI-Admin/src/types.ts).
@@ -397,6 +435,57 @@ export interface NotificationTemplate {
     is_active: boolean;
     created_at?: string;
     updated_at?: string;
+}
+```
+
+### Health & Edge Health
+```typescript
+// GET /health — infra liveness (không cần auth)
+export interface HealthComponent {
+    ok: boolean;
+    detail: string;
+}
+
+export interface InfraHealthResponse {
+    status: 'ok' | 'degraded' | string;
+    components: Record<string, HealthComponent>; // keyed by postgres / influxdb / mqtt
+}
+
+// Snapshot host + modbus do edge gateway (FarmLink) publish
+export interface EdgeHealthMetrics {
+    cpu_usage_percent: number;
+    ram_usage_percent: number;
+    disk_usage_percent: number;
+    uptime_seconds: number;
+    modbus_connected: boolean;
+    disk_free_gb: number;
+}
+
+// GET /admin/edge-health — 1 entry mỗi farm (snapshot mới nhất trong window)
+export interface EdgeHealthFarm {
+    farm_id: string;
+    status: 'online' | 'offline' | string;
+    time: string; // ISO timestamp của snapshot
+    metrics: EdgeHealthMetrics;
+}
+
+export interface EdgeHealthFleetResponse {
+    period: string;
+    farms: EdgeHealthFarm[];
+}
+
+// GET /farms/{farm_id}/edge-health/history — flat records (1 record = 1 field tại 1 thời điểm)
+export interface EdgeHealthHistoryRecord {
+    time: string; // ISO timestamp
+    field: string; // cpu_usage_percent | ram_usage_percent | disk_usage_percent | uptime_seconds | disk_free_gb | modbus_connected
+    value: number;
+    status: string; // online | offline
+}
+
+export interface EdgeHealthHistoryResponse {
+    farm: string; // farm code (vd "naju_01")
+    period: string;
+    records: EdgeHealthHistoryRecord[];
 }
 ```
 
