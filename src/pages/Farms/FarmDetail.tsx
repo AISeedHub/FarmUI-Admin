@@ -1,13 +1,14 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register } from '../../types';
 import { farmsApi, zonesApi, devicesApi, registersApi } from '../../api/services';
 import AutomationsTab from './components/AutomationsTab';
 import PresetsPanel from './components/PresetsPanel';
 import AnalyticsTab from './components/AnalyticsTab';
+import CamerasTab from './components/CamerasTab';
 import './FarmDetail.css';
 
 export default function FarmDetail() {
@@ -15,7 +16,7 @@ export default function FarmDetail() {
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
 
-    const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'presets' | 'analytics'>('config');
+    const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'presets' | 'analytics' | 'cameras'>('config');
 
     const [farm, setFarm] = useState<Farm | null>(null);
     const [zones, setZones] = useState<Zone[]>([]);
@@ -160,11 +161,13 @@ export default function FarmDetail() {
         setDevices(devs);
 
 
-        // Set dynamic selections: keep current if still existing, otherwise auto-select first
+        // Set dynamic selections: keep current if still existing, otherwise auto-select first.
+        // The config tab is modbus-only, so camera-zones (default_unit_id == null) are excluded here.
+        const modbusZs = zs.filter(z => z.default_unit_id != null);
         let activeZoneId = selectedZoneId;
-        const exists = activeZoneId && (activeZoneId === 'unassigned' || zs.some(z => z.id === activeZoneId));
+        const exists = activeZoneId && (activeZoneId === 'unassigned' || modbusZs.some(z => z.id === activeZoneId));
         if (!exists) {
-            if (zs.length > 0) activeZoneId = zs[0].id;
+            if (modbusZs.length > 0) activeZoneId = modbusZs[0].id;
             else if (devs.some(d => !d.zone_id)) activeZoneId = 'unassigned';
             else activeZoneId = null;
         }
@@ -199,6 +202,15 @@ export default function FarmDetail() {
         setRegisters(regsMap);
 
         setLoading(false);
+    };
+
+    // Lightweight zones-only refresh (keeps current drill-down selection intact).
+    // Used after the Cameras tab creates a camera-zone via the shared /zones API.
+    const reloadZones = async () => {
+        if (!id) return;
+        const zs = await zonesApi.getByFarm(id);
+        zs.sort((a, b) => a.display_order - b.display_order);
+        setZones(zs);
     };
 
     // Selection click handlers
@@ -386,6 +398,10 @@ export default function FarmDetail() {
     if (loading) return <div className="loading">{t('detail.loadingBlueprint')}</div>;
     if (!farm) return null;
 
+    // Config tab is modbus-only: hide camera-zones (default_unit_id == null) from the
+    // blueprint and the device zone picker. They are managed in the Cameras tab instead.
+    const modbusZones = zones.filter(z => z.default_unit_id != null);
+
     const currentZoneDevices = selectedZoneId
         ? devices.filter(d => selectedZoneId === 'unassigned' ? !d.zone_id : d.zone_id === selectedZoneId)
         : [];
@@ -454,6 +470,9 @@ export default function FarmDetail() {
                     </button>
                     <button className={`sidebar-tab-btn ${activeTab === 'presets' ? 'active' : ''}`} onClick={() => setActiveTab('presets')}>
                         <Layers size={16} /> {t('detail.tabPresets')}
+                    </button>
+                    <button className={`sidebar-tab-btn ${activeTab === 'cameras' ? 'active' : ''}`} onClick={() => setActiveTab('cameras')}>
+                        <Video size={16} /> {t('detail.tabCameras')}
                     </button>
                     <button className={`sidebar-tab-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
                         <Activity size={16} /> {t('detail.tabAnalytics')}
@@ -602,7 +621,7 @@ export default function FarmDetail() {
                                 <Plus size={12} /> {t('btn.addZone')}
                             </button>
                         </div>
-                        {zones.map((zone) => (
+                        {modbusZones.map((zone) => (
                             <div
                                 key={zone.id}
                                 ref={el => zoneRefs.current[zone.id] = el}
@@ -618,7 +637,7 @@ export default function FarmDetail() {
                                 </div>
                                 <p className="node-desc">{zone.description || t('detail.noDescription')}</p>
                                 <div className="zone-meta">
-                                    <span>{t('detail.unitId')}: {zone.default_unit_id}</span>
+                                    <span>{t('detail.unitId')}: {zone.default_unit_id ?? '—'}</span>
                                     <span>{t('detail.order')}: {zone.display_order}</span>
                                 </div>
                             </div>
@@ -728,6 +747,8 @@ export default function FarmDetail() {
 
                     {activeTab === 'presets' && <PresetsPanel farmId={id!} />}
 
+                    {activeTab === 'cameras' && <CamerasTab farmId={id!} zones={zones} onZonesChanged={reloadZones} />}
+
                     {activeTab === 'analytics' && <AnalyticsTab />}
                 </div>
             </div>
@@ -800,7 +821,7 @@ export default function FarmDetail() {
                             <label>{t('detail.zone')}</label>
                             <select value={deviceModal.data.zone_id || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, zone_id: e.target.value || null } })}>
                                 <option value="">-- {t('detail.unassigned')} --</option>
-                                {zones.map(zone => (
+                                {modbusZones.map(zone => (
                                     <option key={zone.id} value={zone.id}>{zone.name} ({zone.code})</option>
                                 ))}
                             </select>

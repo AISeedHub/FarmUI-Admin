@@ -23,7 +23,9 @@ export interface Zone {
     name: string;
     display_names?: Record<string, string> | null;
     description: string;
-    default_unit_id: number;
+    // null = camera-zone (no modbus unit); a real unit id = modbus (sensor/actuator) zone.
+    // Both kinds share this table; the discriminator is whether default_unit_id is set.
+    default_unit_id: number | null;
     display_order: number;
     is_active: boolean;
     created_at?: string;
@@ -416,6 +418,58 @@ export interface EdgeHealthHistoryResponse {
     farm: string; // farm code (e.g. "naju_01")
     period: string;
     records: EdgeHealthHistoryRecord[];
+}
+
+// ── Cameras (farm-scoped, optionally zone-scoped) ──────────────────────────
+// FE picks the player from stream_protocol. rtsp_url carries credentials and is
+// admin-only — mask it in any shared/list view.
+export type StreamProtocol = 'webrtc' | 'hls' | 'rtsp';
+
+// GET responses (CameraResponse).
+export interface Camera {
+    id: string; // uuid
+    farm_id: string; // uuid
+    zone_id: string | null; // uuid | null
+    code: string; // unique within the farm
+    name: string;
+    display_names: Record<string, string> | null; // { "vi": "...", "en": "..." }
+    description: string | null;
+    rtsp_url: string; // ⚠️ includes credentials — admin-only
+    stream_key: string | null; // id/path on the media server (unique when set)
+    stream_protocol: StreamProtocol;
+    is_active: boolean;
+    display_order: number;
+    created_at: string; // ISO datetime
+    updated_at: string | null;
+}
+
+// POST /cameras body.
+export interface CameraCreate {
+    farm_id: string; // required
+    zone_id?: string | null;
+    code: string; // required, max 50, unique/farm
+    name: string; // required, max 255
+    display_names?: Record<string, string> | null;
+    description?: string | null;
+    rtsp_url: string; // required
+    stream_key?: string | null; // max 255, globally unique when set
+    stream_protocol?: StreamProtocol; // default "webrtc"
+    is_active?: boolean; // default true
+    display_order?: number; // default 0
+}
+
+// PUT /cameras/{id} body — all optional; send only the fields that changed.
+export interface CameraUpdate {
+    zone_id?: string | null;
+    code?: string;
+    name?: string;
+    display_names?: Record<string, string> | null;
+    description?: string | null;
+    rtsp_url?: string;
+    stream_key?: string | null;
+    stream_protocol?: StreamProtocol;
+    is_active?: boolean;
+    display_order?: number;
 }
 
 

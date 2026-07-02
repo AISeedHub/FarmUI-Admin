@@ -1,0 +1,468 @@
+/* Cameras tab — reuses shared tokens from AutomationsTab.css
+   (.metrics-row, .metric-box, .primary-btn, .secondary-btn, .toggle/.knob)
+   which are bundled globally via FarmDetail's imports. */
+
+.cameras-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+    flex: 1;
+    height: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.cameras-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Local section header (independent of Overview.css) */
+.cameras-section .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+}
+
+.cameras-section .section-header h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.cameras-section .section-header p {
+    margin: 4px 0 0 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.cameras-section .actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.zone-filter {
+    width: auto;
+    min-width: 150px;
+    font-size: 13px;
+    padding: 6px 12px;
+}
+
+/* Camera card grid */
+.camera-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    padding: 2px;
+}
+
+.camera-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border-input);
+    border-radius: 14px;
+    background: #ffffff;
+    overflow: hidden;
+    transition: var(--transition-smooth);
+}
+
+.camera-card:hover {
+    border-color: var(--border-active);
+    box-shadow: 0 8px 24px rgba(13, 92, 58, 0.06);
+    transform: translateY(-2px);
+}
+
+.camera-card.inactive {
+    opacity: 0.7;
+}
+
+/* Thumbnail / preview placeholder strip */
+.camera-thumb {
+    position: relative;
+    height: 92px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.85);
+    background:
+        radial-gradient(circle at 30% 30%, rgba(14, 165, 233, 0.18), transparent 60%),
+        linear-gradient(135deg, #1e293b, #334155);
+}
+
+.camera-card.inactive .camera-thumb {
+    background: linear-gradient(135deg, #475569, #64748b);
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.protocol-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 7px;
+    border-radius: 5px;
+    color: #ffffff;
+    font-family: var(--font-mono), monospace;
+}
+
+.protocol-badge.webrtc { background: rgba(16, 185, 129, 0.9); }
+.protocol-badge.hls { background: rgba(245, 158, 11, 0.9); }
+.protocol-badge.rtsp { background: rgba(99, 102, 241, 0.9); }
+
+.status-pill {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-pill.on {
+    background: rgba(16, 185, 129, 0.18);
+    color: #d1fae5;
+}
+
+.status-pill.off {
+    background: rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+}
+
+/* Card body */
+.camera-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    flex: 1;
+}
+
+.camera-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.camera-title-row h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.camera-code {
+    font-size: 10px;
+    font-family: var(--font-mono), monospace;
+    color: #475569;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    padding: 1px 6px;
+    border-radius: 5px;
+    flex-shrink: 0;
+}
+
+.camera-zone {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.camera-zone svg {
+    color: var(--primary);
+    flex-shrink: 0;
+}
+
+.camera-desc {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.camera-meta {
+    display: flex;
+    gap: 10px;
+}
+
+.camera-meta .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.camera-meta .meta-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.camera-meta .meta-value {
+    font-size: 12px;
+    color: var(--text-main);
+    font-family: var(--font-mono), monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* RTSP credential row */
+.rtsp-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f8fafc;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 5px 8px;
+}
+
+.rtsp-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+
+.rtsp-url {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    font-family: var(--font-mono), monospace;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Card footer */
+.camera-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-input);
+    background: #fafafa;
+}
+
+.footer-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.icon-btn {
+    background: transparent;
+    border: 1px solid var(--border-input);
+    padding: 5px;
+    border-radius: 7px;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+    width: auto;
+}
+
+.icon-btn:hover {
+    border-color: var(--text-muted);
+    color: var(--text-main);
+    background: #ffffff;
+}
+
+.icon-btn.danger:hover {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+    background: var(--color-danger-bg);
+}
+
+.icon-btn .copied {
+    color: var(--color-success);
+}
+
+/* Empty / loading / error states */
+.cameras-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex: 1;
+    color: var(--text-muted);
+    font-size: 13px;
+    border: 1px dashed var(--border-input);
+    border-radius: 12px;
+    padding: 48px;
+}
+
+.cameras-empty svg {
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+
+.cameras-tab.loading-state,
+.cameras-tab.error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 60px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    color: var(--text-muted);
+}
+
+.cameras-tab.loading-state .spinner {
+    animation: spin 1s linear infinite;
+    color: var(--primary);
+}
+
+.cameras-tab.error-state svg {
+    color: var(--color-danger);
+}
+
+/* Modal extras (base modal styles come from FarmDetail.css / FarmsList.css) */
+.label-with-hint {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.cred-warning {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #d97706;
+    background: rgba(245, 158, 11, 0.12);
+    padding: 1px 7px;
+    border-radius: 5px;
+}
+
+.rtsp-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rtsp-input-wrap input {
+    flex: 1;
+    font-family: var(--font-mono), monospace;
+    font-size: 12px;
+}
+
+.rtsp-input-wrap .icon-btn {
+    padding: 9px;
+    flex-shrink: 0;
+}
+
+.modal-content .checkbox-group {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px;
+}
+
+.modal-content .checkbox-group input {
+    width: auto;
+}
+
+.modal-content .checkbox-group label {
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-size: 13px !important;
+    color: var(--text-main) !important;
+}
+
+.modal-content .primary .spinner {
+    animation: spin 1s linear infinite;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+/* Existing-zone / new-zone segmented toggle */
+.zone-mode-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    width: fit-content;
+}
+
+.zone-mode-toggle button {
+    background: #ffffff;
+    border: none;
+    border-radius: 0;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    width: auto;
+    transition: var(--transition-smooth);
+}
+
+.zone-mode-toggle button + button {
+    border-left: 1px solid var(--border-input);
+}
+
+.zone-mode-toggle button.active {
+    background: var(--primary);
+    color: #ffffff;
+}
+
+.zone-mode-toggle button:not(.active):hover {
+    background: var(--bg-color);
+    color: var(--text-main);
+}
+
+.new-zone-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.new-zone-fields .zone-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+}

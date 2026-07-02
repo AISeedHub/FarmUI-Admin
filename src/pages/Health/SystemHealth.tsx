@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Activity,
@@ -86,6 +86,35 @@ function formatRelative(iso: string): string {
     return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// Nearest index to `target` in an ascending-sorted array (binary search).
+function nearestIdx(arr: number[], target: number): number {
+    if (arr.length === 0) return -1;
+    let lo = 0;
+    let hi = arr.length - 1;
+    if (target <= arr[0]) return 0;
+    if (target >= arr[hi]) return hi;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (arr[mid] === target) return mid;
+        if (arr[mid] < target) lo = mid + 1; else hi = mid - 1;
+    }
+    return Math.abs(arr[lo] - target) < Math.abs(arr[hi] - target) ? lo : hi;
+}
+
+// X-axis tick label — granularity adapts to the visible time span.
+function formatAxisTime(ms: number, spanMs: number): string {
+    const d = new Date(ms);
+    const p = (n: number) => String(n).padStart(2, '0');
+    if (spanMs <= 36 * 3600 * 1000) return `${p(d.getHours())}:${p(d.getMinutes())}`;
+    if (spanMs <= 5 * 86400 * 1000) return `${p(d.getDate())} ${p(d.getHours())}h`;
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+// Tooltip header — compact absolute timestamp.
+function formatTooltipTime(ms: number): string {
+    return new Date(ms).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
 // ── Tiny multi-line SVG chart (0–100% fixed axis), time-scaled on X ─────────
 interface Series {
     key: string;
@@ -95,58 +124,123 @@ interface Series {
 }
 
 function UsageLineChart({ series }: { series: Series[] }) {
-    const width = 640;
-    const height = 220;
-    const padX = 36;
-    const padY = 18;
+    const width = 700;
+    const height = 240;
+    const padTop = 14;
+    const padBottom = 28;
+    const padLeft = 40;
+    const padRight = 16;
 
-    const allTimes = series.flatMap(s => s.points.map(p => p.t));
-    if (allTimes.length === 0) return null;
-    const tMin = Math.min(...allTimes);
-    const tMax = Math.max(...allTimes);
-    const tSpan = tMax - tMin || 1;
+    const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-    const xOf = (t: number) => padX + ((t - tMin) / tSpan) * (width - padX - padY);
-    const yOf = (v: number) => padY + (1 - Math.max(0, Math.min(100, v)) / 100) * (height - 2 * padY);
+    // Unified time axis + per-series time→value lookups (built once per data change).
+    const { tMin, tSpan, timeline, maps } = useMemo(() => {
+        const tset = new Set<number>();
+        series.forEach(s => s.points.forEach(p => tset.add(p.t)));
+        const tl = Array.from(tset).sort((a, b) => a - b);
+        const ms = series.map(s => {
+            const m = new Map<number, number>();
+            s.points.forEach(p => m.set(p.t, p.v));
+            return m;
+        });
+        const lo = tl.length ? tl[0] : 0;
+        const hi = tl.length ? tl[tl.length - 1] : 1;
+        return { tMin: lo, tSpan: (hi - lo) || 1, timeline: tl, maps: ms };
+    }, [series]);
 
-    const gridLines = [0, 25, 50, 75, 100];
+    if (timeline.length === 0) return null;
+
+    const plotW = width - padLeft - padRight;
+    const plotH = height - padTop - padBottom;
+    const xOf = (t: number) => padLeft + ((t - tMin) / tSpan) * plotW;
+    const yOf = (v: number) => padTop + (1 - Math.max(0, Math.min(100, v)) / 100) * plotH;
+
+    const yGrid = [0, 25, 50, 75, 100];
+    const tickCount = 5;
+    const xTicks = Array.from({ length: tickCount }, (_, i) => tMin + (i / (tickCount - 1)) * tSpan);
+
+    const handleMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        if (!rect.width) return;
+        const vx = ((e.clientX - rect.left) / rect.width) * width;
+        const f = Math.max(0, Math.min(1, (vx - padLeft) / plotW));
+        const idx = nearestIdx(timeline, tMin + f * tSpan);
+        if (idx !== hoverIdx) setHoverIdx(idx); // only re-render when the snapped point changes
+    };
+
+    const hoverT = hoverIdx != null && hoverIdx < timeline.length ? timeline[hoverIdx] : null;
+    const hoverXPct = hoverT != null ? (xOf(hoverT) / width) * 100 : 0;
+    const tipTransform = hoverXPct < 28 ? 'translateX(0)' : hoverXPct > 72 ? 'translateX(-100%)' : 'translateX(-50%)';
 
     return (
-        <svg viewBox={`0 0 ${width} ${height}`} className="health-svg-chart" preserveAspectRatio="none">
-            {/* horizontal gridlines + y labels */}
-            {gridLines.map(g => (
-                <g key={g}>
-                    <line
-                        x1={padX}
-                        y1={yOf(g)}
-                        x2={width - padY}
-                        y2={yOf(g)}
-                        stroke="var(--border-input)"
-                        strokeDasharray={g === 0 ? undefined : '3,3'}
-                        strokeWidth={g === 0 ? 1 : 0.75}
-                    />
-                    <text x={4} y={yOf(g) + 3} className="health-chart-axis-label">{g}</text>
-                </g>
-            ))}
-            {/* one path per series */}
-            {series.map(s => {
-                if (s.points.length === 0) return null;
-                const d = s.points
-                    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xOf(p.t).toFixed(1)} ${yOf(p.v).toFixed(1)}`)
-                    .join(' ');
-                return (
-                    <path
-                        key={s.key}
-                        d={d}
-                        fill="none"
-                        stroke={s.color}
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                    />
-                );
-            })}
-        </svg>
+        <div className="health-chart-wrap" onMouseMove={handleMove} onMouseLeave={() => setHoverIdx(null)}>
+            <svg viewBox={`0 0 ${width} ${height}`} className="health-svg-chart" preserveAspectRatio="none">
+                {/* y gridlines + labels */}
+                {yGrid.map(g => (
+                    <g key={`y${g}`}>
+                        <line
+                            x1={padLeft} y1={yOf(g)} x2={width - padRight} y2={yOf(g)}
+                            stroke="var(--border-input)" strokeDasharray={g === 0 ? undefined : '3,3'} strokeWidth={g === 0 ? 1 : 0.75}
+                        />
+                        <text x={padLeft - 6} y={yOf(g) + 3} textAnchor="end" className="health-chart-axis-label">{g}</text>
+                    </g>
+                ))}
+                {/* x ticks + time labels */}
+                {xTicks.map((t, i) => (
+                    <g key={`x${i}`}>
+                        <line
+                            x1={xOf(t)} y1={padTop} x2={xOf(t)} y2={height - padBottom}
+                            stroke="var(--border-input)" strokeDasharray="3,3" strokeWidth={0.5} opacity={0.6}
+                        />
+                        <text x={xOf(t)} y={height - padBottom + 16} textAnchor="middle" className="health-chart-axis-label">
+                            {formatAxisTime(t, tSpan)}
+                        </text>
+                    </g>
+                ))}
+                {/* one path per series */}
+                {series.map(s => {
+                    if (s.points.length === 0) return null;
+                    const d = s.points
+                        .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xOf(p.t).toFixed(1)} ${yOf(p.v).toFixed(1)}`)
+                        .join(' ');
+                    return (
+                        <path key={s.key} d={d} fill="none" stroke={s.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    );
+                })}
+                {/* hover guide line + per-series dots */}
+                {hoverT != null && (
+                    <g>
+                        <line
+                            x1={xOf(hoverT)} y1={padTop} x2={xOf(hoverT)} y2={height - padBottom}
+                            stroke="var(--text-muted)" strokeWidth={1} strokeDasharray="4,3" opacity={0.55}
+                        />
+                        {series.map((s, i) => {
+                            const v = maps[i].get(hoverT);
+                            if (v == null) return null;
+                            return <circle key={s.key} cx={xOf(hoverT)} cy={yOf(v)} r={3.5} fill="var(--panel-bg)" stroke={s.color} strokeWidth={2} />;
+                        })}
+                    </g>
+                )}
+            </svg>
+
+            {/* HTML tooltip overlay — crisp text, positioned over the snapped point */}
+            {hoverT != null && (
+                <div className="health-chart-tooltip" style={{ left: `${hoverXPct}%`, transform: tipTransform }}>
+                    <div className="hct-time">{formatTooltipTime(hoverT)}</div>
+                    {series.map((s, i) => {
+                        const v = maps[i].get(hoverT);
+                        if (v == null) return null;
+                        return (
+                            <div className="hct-row" key={s.key}>
+                                <span className="hct-dot" style={{ background: s.color }}></span>
+                                <span className="hct-label">{s.label}</span>
+                                <span className="hct-val">{Math.round(v)}%</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
     );
 }
 

@@ -1,6 +1,6 @@
 
 
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 // Auth-action endpoints stay under /auth (login, me, me/farms).
@@ -125,6 +125,37 @@ export const registersApi = {
     },
     delete: async (id: string): Promise<boolean> => {
         const result = await fetchJson(`/registers/${id}`, { method: 'DELETE' });
+        return result.success ?? true;
+    }
+};
+
+// ── Cameras (farm-scoped, optionally zone-scoped) ──────────────────────────
+// rtsp_url returned here carries credentials — admin surface only.
+export const camerasApi = {
+    getByFarm: (farmId: string): Promise<Camera[]> => {
+        return fetchJson(`/farms/${farmId}/cameras`);
+    },
+    getByZone: (zoneId: string): Promise<Camera[]> => {
+        return fetchJson(`/zones/${zoneId}/cameras`);
+    },
+    getById: (id: string): Promise<Camera> => {
+        return fetchJson(`/cameras/${id}`);
+    },
+    create: (data: CameraCreate): Promise<Camera> => {
+        return fetchJson('/cameras', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+    // Partial update — only send the fields that changed.
+    update: (id: string, data: CameraUpdate): Promise<Camera> => {
+        return fetchJson(`/cameras/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+    delete: async (id: string): Promise<boolean> => {
+        const result = await fetchJson(`/cameras/${id}`, { method: 'DELETE' });
         return result.success ?? true;
     }
 };
