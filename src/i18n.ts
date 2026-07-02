@@ -613,11 +613,12 @@ const resources = {
             "camera.fProtocol": "Stream protocol",
             "camera.fActive": "Camera is active",
             "camera.zoneLabel": "Camera zone",
-            "camera.zoneExisting": "Existing zone",
             "camera.zoneNew": "New zone",
-            "camera.zoneNamePh": "Camera zone name (e.g. North greenhouse)",
-            "camera.zoneCodePh": "zone_code",
-            "camera.zoneNewHint": "Creates a camera-zone (a shared zone with no modbus unit) and assigns this camera to it. The code must be unique within the farm.",
+            "camera.newZoneTitle": "New camera zone",
+            "camera.zoneNewHint": "Creates a camera-zone (a shared zone with no modbus unit). The code must be unique within the farm. Once created it appears in the list above and is selected automatically.",
+            "camera.zoneCreateBtn": "Create zone",
+            "camera.zoneCreateSuccess": "Camera zone created successfully!",
+            "camera.zoneSaveFailed": "Failed to create zone: {{error}}",
             "camera.vZoneRequired": "A new zone needs both a name and a code.",
             "camera.zoneCodeTaken": "Zone code \"{{code}}\" is already used in this farm. Choose another."
         }
@@ -1232,11 +1233,12 @@ const resources = {
             "camera.fProtocol": "스트림 프로토콜",
             "camera.fActive": "카메라 활성화",
             "camera.zoneLabel": "카메라 구역",
-            "camera.zoneExisting": "기존 구역",
             "camera.zoneNew": "새 구역",
-            "camera.zoneNamePh": "카메라 구역 이름 (예: 북쪽 온실)",
-            "camera.zoneCodePh": "zone_code",
-            "camera.zoneNewHint": "카메라 구역(모드버스 유닛이 없는 공용 구역)을 생성하고 이 카메라를 배정합니다. 코드는 농장 내에서 고유해야 합니다.",
+            "camera.newZoneTitle": "새 카메라 구역",
+            "camera.zoneNewHint": "카메라 구역(모드버스 유닛이 없는 공용 구역)을 생성합니다. 코드는 농장 내에서 고유해야 합니다. 생성하면 위 목록에 나타나며 자동으로 선택됩니다.",
+            "camera.zoneCreateBtn": "구역 생성",
+            "camera.zoneCreateSuccess": "카메라 구역이 생성되었습니다!",
+            "camera.zoneSaveFailed": "구역 생성 실패: {{error}}",
             "camera.vZoneRequired": "새 구역에는 이름과 코드가 모두 필요합니다.",
             "camera.zoneCodeTaken": "구역 코드 \"{{code}}\"은(는) 이미 이 농장에서 사용 중입니다. 다른 코드를 선택하세요."
         }

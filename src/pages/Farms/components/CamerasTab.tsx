@@ -22,14 +22,26 @@ const slug = (s: string) => s.toLowerCase().trim().replace(/\s+/g, '_').replace(
 // A camera-zone is a shared `zones` row with no modbus unit (default_unit_id == null).
 const isCameraZone = (z: Zone) => z.default_unit_id == null;
 
+// Parse the display_names JSON textarea → cleaned map (blank values dropped) or null.
+// Returns undefined when the text is present but not valid JSON (caller shows an error).
+const parseDisplayNames = (str?: string): Record<string, string> | null | undefined => {
+    if (!str || !str.trim()) return null;
+    try {
+        const parsed = JSON.parse(str);
+        const cleaned = Object.fromEntries(
+            Object.entries(parsed).filter(([, v]) => typeof v === 'string' && (v as string).trim() !== '')
+        ) as Record<string, string>;
+        return Object.keys(cleaned).length ? cleaned : null;
+    } catch {
+        return undefined;
+    }
+};
+
 // Editable shape backing the modal form. display_names is edited as raw JSON text
 // (displayNamesStr) and parsed on save — same convention as the zone/device modals.
-// zoneMode toggles between assigning an existing camera-zone and creating one inline.
+// Camera-zones are created in their own modal, not inline here.
 type CameraForm = Partial<Camera> & {
     displayNamesStr?: string;
-    zoneMode?: 'existing' | 'new';
-    newZoneName?: string;
-    newZoneCode?: string;
 };
 
 export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTabProps) {
@@ -46,6 +58,11 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
     const [form, setForm] = useState<CameraForm>({});
     const [saving, setSaving] = useState(false);
     const [revealUrl, setRevealUrl] = useState(false); // reveal rtsp_url inside the modal
+
+    // Independent "create camera-zone" sub-modal (opens over the camera form).
+    const [zoneModalOpen, setZoneModalOpen] = useState(false);
+    const [zoneForm, setZoneForm] = useState<{ name?: string; code?: string; displayNamesStr?: string }>({});
+    const [savingZone, setSavingZone] = useState(false);
 
     // Per-card reveal + copy feedback for the (credential-bearing) rtsp_url.
     const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -94,7 +111,6 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
             stream_protocol: 'webrtc',
             display_order: cameras.length,
             zone_id: zoneFilter !== 'all' && zoneFilter !== 'unassigned' ? zoneFilter : null,
-            zoneMode: 'existing',
             displayNamesStr: DEFAULT_DISPLAY_NAMES,
         });
         setModalOpen(true);
@@ -103,8 +119,57 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
     const openEdit = (cam: Camera) => {
         setEditId(cam.id);
         setRevealUrl(false);
-        setForm({ ...cam, zoneMode: 'existing', displayNamesStr: JSON.stringify(cam.display_names || {}, null, 2) });
+        setForm({ ...cam, displayNamesStr: JSON.stringify(cam.display_names || {}, null, 2) });
         setModalOpen(true);
+    };
+
+    // Independent camera-zone creation. On success it refreshes the parent zone list
+    // (so the picker updates) and auto-selects the new zone in the camera form.
+    const openZoneModal = () => {
+        setZoneForm({ displayNamesStr: DEFAULT_DISPLAY_NAMES });
+        setZoneModalOpen(true);
+    };
+
+    const handleSaveZone = async () => {
+        const name = zoneForm.name?.trim();
+        const code = zoneForm.code?.trim();
+        if (!name || !code) {
+            alert(t('camera.vZoneRequired'));
+            return;
+        }
+        // Zone code shares a per-farm namespace with sensor/actuator zones, so check against
+        // ALL zones (the BE may surface a raw 500 on the unique-constraint hit).
+        if (zones.some(z => z.code.toLowerCase() === code.toLowerCase())) {
+            alert(t('camera.zoneCodeTaken', { code }));
+            return;
+        }
+        const displayNames = parseDisplayNames(zoneForm.displayNamesStr);
+        if (displayNames === undefined) {
+            alert(t('detail.invalidJson'));
+            return;
+        }
+        setSavingZone(true);
+        try {
+            const newZone = await zonesApi.create({
+                farm_id: farmId,
+                code,
+                name,
+                display_names: displayNames,
+                description: 'Camera zone',
+                default_unit_id: null, // camera-zone marker
+                display_order: 0,
+                is_active: true,
+            });
+            await onZonesChanged?.();                       // refresh parent zones → picker updates
+            setForm(f => ({ ...f, zone_id: newZone.id }));  // auto-select the fresh zone
+            setZoneModalOpen(false);
+            setZoneForm({});
+            alert(t('camera.zoneCreateSuccess'));
+        } catch (err: any) {
+            alert(t('camera.zoneSaveFailed', { error: err?.message || 'Unknown error' }));
+        } finally {
+            setSavingZone(false);
+        }
     };
 
     const handleSave = async () => {
@@ -115,62 +180,18 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
         }
 
         // Parse display_names JSON (optional).
-        let displayNames: Record<string, string> | null = null;
-        if (form.displayNamesStr && form.displayNamesStr.trim()) {
-            try {
-                const parsed = JSON.parse(form.displayNamesStr);
-                // Drop empty values so we don't persist blank language entries.
-                const cleaned = Object.fromEntries(
-                    Object.entries(parsed).filter(([, v]) => typeof v === 'string' && v.trim() !== '')
-                ) as Record<string, string>;
-                displayNames = Object.keys(cleaned).length ? cleaned : null;
-            } catch {
-                alert(t('detail.invalidJson'));
-                return;
-            }
-        }
-
-        // Validate the inline-zone branch up front (all synchronous) before any writes.
-        const creatingZone = form.zoneMode === 'new';
-        const newZoneName = form.newZoneName?.trim();
-        const newZoneCode = form.newZoneCode?.trim();
-        if (creatingZone) {
-            if (!newZoneName || !newZoneCode) {
-                alert(t('camera.vZoneRequired'));
-                return;
-            }
-            // Zone code shares a per-farm namespace with sensor/actuator zones, so check
-            // against ALL zones (the BE may surface a raw 500 on the unique-constraint hit).
-            if (zones.some(z => z.code.toLowerCase() === newZoneCode.toLowerCase())) {
-                alert(t('camera.zoneCodeTaken', { code: newZoneCode }));
-                return;
-            }
+        const displayNames = parseDisplayNames(form.displayNamesStr);
+        if (displayNames === undefined) {
+            alert(t('detail.invalidJson'));
+            return;
         }
 
         setSaving(true);
         try {
-            // Step 1 (optional): create the camera-zone — a shared zones row with
-            // default_unit_id = null and a "Camera zone" marker description.
-            let zoneId = form.zone_id || null;
-            if (creatingZone) {
-                const newZone = await zonesApi.create({
-                    farm_id: farmId,
-                    code: newZoneCode!,
-                    name: newZoneName!,
-                    display_names: null,
-                    description: 'Camera zone',
-                    default_unit_id: null,
-                    display_order: 0,
-                    is_active: true,
-                });
-                zoneId = newZone.id;
-                // Surface the new zone immediately (also keeps it reusable if step 2 fails).
-                await onZonesChanged?.();
-            }
-
-            // Step 2: create / update the camera, assigned to the resolved zone.
+            // Zone assignment is a plain field here — camera-zones are created separately
+            // in their own modal, so this is a single write.
             const base = {
-                zone_id: zoneId,
+                zone_id: form.zone_id || null,
                 code: form.code.trim(),
                 name: form.name.trim(),
                 display_names: displayNames,
@@ -192,8 +213,6 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
             setModalOpen(false);
             loadData();
         } catch (err: any) {
-            // If the camera write failed after a zone was created, the zone is left behind
-            // (harmless) and already visible in the picker for reuse on the next attempt.
             alert(t('camera.saveFailed', { error: err?.message || 'Unknown error' }));
         } finally {
             setSaving(false);
@@ -480,41 +499,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
 
                             <div className="form-group full-width">
                                 <label>{t('camera.zoneLabel')}</label>
-                                <div className="zone-mode-toggle">
-                                    <button
-                                        type="button"
-                                        className={form.zoneMode !== 'new' ? 'active' : ''}
-                                        onClick={() => setForm(f => ({ ...f, zoneMode: 'existing' }))}
-                                    >
-                                        {t('camera.zoneExisting')}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={form.zoneMode === 'new' ? 'active' : ''}
-                                        onClick={() => setForm(f => ({ ...f, zoneMode: 'new' }))}
-                                    >
-                                        <Plus size={12} /> {t('camera.zoneNew')}
-                                    </button>
-                                </div>
-
-                                {form.zoneMode === 'new' ? (
-                                    <div className="new-zone-fields">
-                                        <input
-                                            placeholder={t('camera.zoneNamePh')}
-                                            value={form.newZoneName || ''}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                setForm(f => ({ ...f, newZoneName: val, newZoneCode: slug(val) }));
-                                            }}
-                                        />
-                                        <input
-                                            placeholder={t('camera.zoneCodePh')}
-                                            value={form.newZoneCode || ''}
-                                            onChange={e => setForm(f => ({ ...f, newZoneCode: e.target.value }))}
-                                        />
-                                        <span className="zone-hint">{t('camera.zoneNewHint')}</span>
-                                    </div>
-                                ) : (
+                                <div className="zone-picker-row">
                                     <select value={form.zone_id || ''} onChange={e => setForm(f => ({ ...f, zone_id: e.target.value || null }))}>
                                         <option value="">-- {t('detail.unassigned')} --</option>
                                         {cameraZones.map(z => (
@@ -523,7 +508,10 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                                             </option>
                                         ))}
                                     </select>
-                                )}
+                                    <button type="button" className="secondary-btn flex-center" onClick={openZoneModal}>
+                                        <Plus size={14} /> {t('camera.zoneNew')}
+                                    </button>
+                                </div>
                             </div>
                             <div className="form-group">
                                 <label>{t('detail.displayOrder')}</label>
@@ -550,6 +538,46 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                             <button className="primary" onClick={handleSave} disabled={saving}>
                                 {saving ? <Loader2 className="spinner" size={14} /> : null}
                                 {saving ? t('auto.saving') : t('btn.save')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Independent camera-zone creation modal (layers over the camera form) */}
+            {zoneModalOpen && (
+                <div className="modal-overlay" onClick={() => !savingZone && setZoneModalOpen(false)}>
+                    <div className="modal-content panel" onClick={e => e.stopPropagation()}>
+                        <h3>{t('camera.newZoneTitle')}</h3>
+                        <div className="form-group">
+                            <label>{t('detail.zoneNameInternal')}</label>
+                            <input
+                                autoFocus
+                                value={zoneForm.name || ''}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    setZoneForm(z => ({ ...z, name: val, code: slug(val) }));
+                                }}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>{t('detail.zoneCode')}</label>
+                            <input value={zoneForm.code || ''} onChange={e => setZoneForm(z => ({ ...z, code: e.target.value }))} />
+                        </div>
+                        <div className="form-group">
+                            <label>{t('detail.displayNamesJson')}</label>
+                            <textarea
+                                rows={4}
+                                value={zoneForm.displayNamesStr ?? ''}
+                                onChange={e => setZoneForm(z => ({ ...z, displayNamesStr: e.target.value }))}
+                            />
+                        </div>
+                        <p className="zone-hint">{t('camera.zoneNewHint')}</p>
+                        <div className="modal-actions">
+                            <button onClick={() => setZoneModalOpen(false)} disabled={savingZone}>{t('btn.cancel')}</button>
+                            <button className="primary" onClick={handleSaveZone} disabled={savingZone}>
+                                {savingZone ? <Loader2 className="spinner" size={14} /> : null}
+                                {savingZone ? t('auto.saving') : t('camera.zoneCreateBtn')}
                             </button>
                         </div>
                     </div>
