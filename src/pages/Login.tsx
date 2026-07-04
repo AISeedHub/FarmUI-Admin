@@ -30,7 +30,7 @@ export default function Login({ onLogin }: LoginProps) {
 
             localStorage.setItem('access_token', response.access_token);
             onLogin();
-            navigate('/', { replace: true });
+            navigate('/overview', { replace: true });
         } catch (err: any) {
             setError(err.message || 'Login failed. Please check your credentials.');
         } finally {

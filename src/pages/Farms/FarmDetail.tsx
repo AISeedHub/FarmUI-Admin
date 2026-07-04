@@ -147,7 +147,7 @@ export default function FarmDetail() {
 
         const f = await farmsApi.getById(id);
         if (!f) {
-            navigate('/');
+            navigate('/farms');
             return;
         }
         setFarm(f);
@@ -416,7 +416,7 @@ export default function FarmDetail() {
             <div className="farm-detail-sidebar">
                 <div className="sidebar-header">
                     <div className="sidebar-header-top">
-                        <button className="back-btn-simple" onClick={() => navigate('/')}>
+                        <button className="back-btn-simple" onClick={() => navigate('/farms')}>
                             <ArrowLeft size={16} />
                         </button>
                         <div className="farm-title-info">

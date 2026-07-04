@@ -42,8 +42,9 @@ export default function App() {
             isAuthenticated ? <AdminLayout onLogout={handleLogout} /> : <Navigate to="/login" replace />
           }
         >
+          <Route index element={<Navigate to="/overview" replace />} />
           <Route path="overview" element={<Overview />} />
-          <Route index element={<FarmsList />} />
+          <Route path="farms" element={<FarmsList />} />
           <Route path="farms/:id" element={<FarmDetail />} />
           <Route path="users" element={<UsersList />} />
           <Route path="notifications" element={<NotificationsManager />} />

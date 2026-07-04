@@ -80,7 +80,7 @@ export default function AdminLayout({ onLogout }: AdminLayoutProps) {
                             <LayoutDashboard size={18} />
                             <span>{t('nav.overview')}</span>
                         </NavLink>
-                        <NavLink to="/" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')} end>
+                        <NavLink to="/farms" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
                             <LayoutGrid size={18} />
                             <span>{t('nav.farms')}</span>
                             <span className="badge">{farmCount}</span>
