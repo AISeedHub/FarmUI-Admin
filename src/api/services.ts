@@ -11,6 +11,8 @@ const fetchJson = async (url: string, options?: RequestInit) => {
     const token = localStorage.getItem('access_token');
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        // Bỏ qua trang cảnh báo của ngrok-free (nếu không có, ngrok trả HTML không kèm header CORS)
+        'ngrok-skip-browser-warning': 'true',
         ...((options?.headers as Record<string, string>) || {})
     };
     if (token) {
@@ -166,6 +168,7 @@ export const authApi = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true',
             },
             body: JSON.stringify(credentials),
         });
@@ -267,7 +270,9 @@ export const automationsApi = {
     },
     exportRules: async (farmId: string): Promise<string> => {
         const token = localStorage.getItem('access_token');
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = {
+            'ngrok-skip-browser-warning': 'true',
+        };
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
