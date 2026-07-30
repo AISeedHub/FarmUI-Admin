@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma } from 'lucide-react';
 import YAML from 'yaml';
-import { Farm, Zone, Device, Register } from '../../types';
-import { farmsApi, zonesApi, devicesApi, registersApi } from '../../api/services';
+import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors } from '../../types';
+import { farmsApi, zonesApi, devicesApi, registersApi, ApiError } from '../../api/services';
+import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../utils/displayNames';
 import AutomationsTab from './components/AutomationsTab';
 import PresetsPanel from './components/PresetsPanel';
+import VirtualSensorsPanel from './components/VirtualSensorsPanel';
 import AnalyticsTab from './components/AnalyticsTab';
 import CamerasTab from './components/CamerasTab';
 import './FarmDetail.css';
@@ -16,7 +18,7 @@ export default function FarmDetail() {
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
 
-    const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'presets' | 'analytics' | 'cameras'>('config');
+    const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'presets' | 'virtualSensors' | 'analytics' | 'cameras'>('config');
 
     const [farm, setFarm] = useState<Farm | null>(null);
     const [zones, setZones] = useState<Zone[]>([]);
@@ -257,12 +259,14 @@ export default function FarmDetail() {
         };
 
         if (processedData.displayNamesStr !== undefined) {
-            try {
-                processedData.display_names = processedData.displayNamesStr ? JSON.parse(processedData.displayNamesStr) : null;
-            } catch (e) {
+            // Blank entries of the pre-filled scaffold are dropped, so an untouched
+            // { "en": "", "ko": "" } clears the field instead of storing empty labels.
+            const dn = parseDisplayNamesText(processedData.displayNamesStr);
+            if (!dn.ok) {
                 alert(t('detail.invalidJson'));
                 return;
             }
+            processedData.display_names = dn.value;
             delete processedData.displayNamesStr;
         }
 
@@ -292,12 +296,14 @@ export default function FarmDetail() {
         };
 
         if (processedData.displayNamesStr !== undefined) {
-            try {
-                processedData.display_names = processedData.displayNamesStr ? JSON.parse(processedData.displayNamesStr) : null;
-            } catch (e) {
+            // Blank entries of the pre-filled scaffold are dropped, so an untouched
+            // { "en": "", "ko": "" } clears the field instead of storing empty labels.
+            const dn = parseDisplayNamesText(processedData.displayNamesStr);
+            if (!dn.ok) {
                 alert(t('detail.invalidJson'));
                 return;
             }
+            processedData.display_names = dn.value;
             delete processedData.displayNamesStr;
         }
         if (deviceModal.type === 'new') {
@@ -331,12 +337,14 @@ export default function FarmDetail() {
         };
 
         if (processedData.displayNamesStr !== undefined) {
-            try {
-                processedData.display_names = processedData.displayNamesStr ? JSON.parse(processedData.displayNamesStr) : null;
-            } catch (e) {
+            // Blank entries of the pre-filled scaffold are dropped, so an untouched
+            // { "en": "", "ko": "" } clears the field instead of storing empty labels.
+            const dn = parseDisplayNamesText(processedData.displayNamesStr);
+            if (!dn.ok) {
                 alert(t('detail.invalidJson'));
                 return;
             }
+            processedData.display_names = dn.value;
             delete processedData.displayNamesStr;
         }
 
@@ -361,9 +369,22 @@ export default function FarmDetail() {
     };
 
     const deleteRegister = async (regId: string) => {
-        if (window.confirm(t('detail.confirmDeleteRegister'))) {
+        if (!window.confirm(t('detail.confirmDeleteRegister'))) return;
+        try {
             await registersApi.delete(regId);
             loadData();
+        } catch (err: any) {
+            // A register that still feeds a virtual sensor is refused with 409 and the
+            // list of aggregates holding it — name them so the fix is obvious.
+            if (err instanceof ApiError && err.status === 409) {
+                const detail = err.detail as RegisterInUseByVirtualSensors | undefined;
+                const codes = (detail?.virtual_sensors || []).map(v => v.code).filter(Boolean);
+                alert(codes.length
+                    ? t('detail.registerInUseByVs', { list: codes.join(', ') })
+                    : t('detail.registerInUse', { error: err.message }));
+                return;
+            }
+            alert(t('detail.deleteRegisterFailed', { error: err?.message || 'Unknown error' }));
         }
     };
 
@@ -470,6 +491,9 @@ export default function FarmDetail() {
                     </button>
                     <button className={`sidebar-tab-btn ${activeTab === 'presets' ? 'active' : ''}`} onClick={() => setActiveTab('presets')}>
                         <Layers size={16} /> {t('detail.tabPresets')}
+                    </button>
+                    <button className={`sidebar-tab-btn ${activeTab === 'virtualSensors' ? 'active' : ''}`} onClick={() => setActiveTab('virtualSensors')}>
+                        <Sigma size={16} /> {t('detail.tabVirtualSensors')}
                     </button>
                     <button className={`sidebar-tab-btn ${activeTab === 'cameras' ? 'active' : ''}`} onClick={() => setActiveTab('cameras')}>
                         <Video size={16} /> {t('detail.tabCameras')}
@@ -617,7 +641,7 @@ export default function FarmDetail() {
                     <div className="zones-column">
                         <div className="column-header-row">
                             <h3 className="column-title">{t('detail.zones')}</h3>
-                            <button className="add-btn-small" onClick={() => setZoneModal({ isOpen: true, type: 'new', data: { is_active: true, display_order: zones.length + 1, default_unit_id: 1, displayNamesStr: '{\n  "en": "",\n  "ko": "",\n  "vi": ""\n}' } })}>
+                            <button className="add-btn-small" onClick={() => setZoneModal({ isOpen: true, type: 'new', data: { is_active: true, display_order: zones.length + 1, default_unit_id: 1, displayNamesStr: emptyDisplayNamesText() } })}>
                                 <Plus size={12} /> {t('btn.addZone')}
                             </button>
                         </div>
@@ -631,7 +655,7 @@ export default function FarmDetail() {
                                 <div className="node-head">
                                     <h4>{zone.display_names?.[i18n.language] || zone.display_names?.en || zone.display_names?.ko || zone.display_names?.vi || zone.name || zone.code}</h4>
                                     <div className="node-actions">
-                                        <button onClick={(e) => { e.stopPropagation(); setZoneModal({ isOpen: true, type: 'edit', data: { ...zone, displayNamesStr: JSON.stringify(zone.display_names || {}, null, 2) } }); }}><Edit2 size={12} /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setZoneModal({ isOpen: true, type: 'edit', data: { ...zone, displayNamesStr: displayNamesToText(zone.display_names) } }); }}><Edit2 size={12} /></button>
                                         <button className="del" onClick={(e) => { e.stopPropagation(); deleteZone(zone.id); }}><Trash2 size={12} /></button>
                                     </div>
                                 </div>
@@ -663,7 +687,7 @@ export default function FarmDetail() {
                         <div className="column-header-row">
                             <h3 className="column-title">{t('detail.devices')}</h3>
                             {selectedZoneId && selectedZoneId !== 'unassigned' && (
-                                <button className="add-btn-small" onClick={() => setDeviceModal({ isOpen: true, type: 'new', data: { is_active: true, device_kind: 'sensor', device_type: 'sensor_group', unit_id: zones.find(z => z.id === selectedZoneId)?.default_unit_id || 1, zone_id: selectedZoneId, displayNamesStr: '{\n  "en": "",\n  "ko": "",\n  "vi": ""\n}' } })}>
+                                <button className="add-btn-small" onClick={() => setDeviceModal({ isOpen: true, type: 'new', data: { is_active: true, device_kind: 'sensor', device_type: 'sensor_group', unit_id: zones.find(z => z.id === selectedZoneId)?.default_unit_id || 1, zone_id: selectedZoneId, displayNamesStr: emptyDisplayNamesText() } })}>
                                     <Plus size={12} /> {t('btn.addDevice')}
                                 </button>
                             )}
@@ -684,7 +708,7 @@ export default function FarmDetail() {
                                     <div className="node-head">
                                         <h4>{dev.display_names?.[i18n.language] || dev.display_names?.en || dev.display_names?.ko || dev.display_names?.vi || dev.name || dev.code}</h4>
                                         <div className="node-actions">
-                                            <button onClick={(e) => { e.stopPropagation(); setDeviceModal({ isOpen: true, type: 'edit', data: { ...dev, displayNamesStr: JSON.stringify(dev.display_names || {}, null, 2) } }); }}><Edit2 size={12} /></button>
+                                            <button onClick={(e) => { e.stopPropagation(); setDeviceModal({ isOpen: true, type: 'edit', data: { ...dev, displayNamesStr: displayNamesToText(dev.display_names) } }); }}><Edit2 size={12} /></button>
                                             <button className="del" onClick={(e) => { e.stopPropagation(); deleteDevice(dev.id); }}><Trash2 size={12} /></button>
                                         </div>
                                     </div>
@@ -703,7 +727,7 @@ export default function FarmDetail() {
                         <div className="column-header-row">
                             <h3 className="column-title">{t('detail.registers')}</h3>
                             {selectedDeviceId && (
-                                <button className="add-btn-small" onClick={() => setRegisterModal({ isOpen: true, type: 'new', data: { is_active: true, displayNamesStr: '{\n  "en": "",\n  "ko": "",\n  "vi": ""\n}' }, deviceId: selectedDeviceId })}>
+                                <button className="add-btn-small" onClick={() => setRegisterModal({ isOpen: true, type: 'new', data: { is_active: true, displayNamesStr: emptyDisplayNamesText() }, deviceId: selectedDeviceId })}>
                                     <Plus size={12} /> {t('btn.addRegister')}
                                 </button>
                             )}
@@ -719,13 +743,13 @@ export default function FarmDetail() {
                                     key={reg.id}
                                     ref={el => registerRefs.current[reg.id] = el}
                                     className={`node register-node compact panel ${!reg.is_active ? 'deactivated' : ''}`}
-                                    onDoubleClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: JSON.stringify(reg.display_names || {}, null, 2) }, deviceId: selectedDeviceId })}
+                                    onDoubleClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId })}
                                 >
                                     <div className="node-head">
                                         <h5>{reg.code} <span className="reg-addr">0x{reg.address.toString(16).toUpperCase()}</span></h5>
                                         <div className="node-actions hidden-actions">
                                             <button onClick={(e) => { e.stopPropagation(); toggleRegisterActive(reg); }} className={!reg.is_active ? 'deactivated-btn' : ''} title={reg.is_active ? "Activate" : "Deactivate"}><Power size={12} /></button>
-                                            <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: JSON.stringify(reg.display_names || {}, null, 2) }, deviceId: selectedDeviceId }); }}><Edit2 size={12} /></button>
+                                            <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId }); }}><Edit2 size={12} /></button>
                                             <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
                                         </div>
                                     </div>
@@ -746,6 +770,8 @@ export default function FarmDetail() {
                     {activeTab === 'automations' && <AutomationsTab farmId={id!} />}
 
                     {activeTab === 'presets' && <PresetsPanel farmId={id!} />}
+
+                    {activeTab === 'virtualSensors' && <VirtualSensorsPanel farmId={id!} />}
 
                     {activeTab === 'cameras' && <CamerasTab farmId={id!} zones={zones} onZonesChanged={reloadZones} />}
 

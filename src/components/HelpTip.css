@@ -1,0 +1,122 @@
+/* ── "?" help tip ── */
+.help-tip-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--text-muted);
+    line-height: 0;
+    flex-shrink: 0;
+}
+
+.help-tip-btn:hover,
+.help-tip-btn.active {
+    background: var(--primary-glow);
+    color: var(--primary);
+}
+
+/* Portalled to <body>: above the rule editor (1100) and a nested builder (1300). */
+.help-tip-card {
+    position: fixed;
+    z-index: 1500;
+    box-sizing: border-box;
+    background: #ffffff;
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.14), 0 10px 10px -5px rgba(0, 0, 0, 0.05);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--text-main);
+    /* Never let the card intercept the pointer — otherwise moving onto it would
+       fire mouseleave on the icon and flicker. */
+    pointer-events: none;
+    animation: helpTipIn 0.16s ease-out;
+}
+
+@keyframes helpTipIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.help-tip-card p { margin: 0; }
+
+.help-tip-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.help-tip-title svg { color: var(--primary); flex-shrink: 0; }
+
+/* Worked example */
+.help-tip-example {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.help-tip-example-hdr {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+}
+
+.help-tip-example code {
+    align-self: flex-start;
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: #b45309;
+    background: rgba(217, 119, 6, 0.12);
+    padding: 2px 7px;
+    border-radius: 5px;
+}
+
+.help-tip-example ul {
+    margin: 0;
+    padding-left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.help-tip-example li { color: var(--text-main); }
+
+.help-tip-effect {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border-input);
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.help-tip-effect svg { flex-shrink: 0; margin-top: 2px; }
+
+.help-tip-note { color: var(--text-muted); }
+
+/* Field label with a trailing help tip. */
+.ae-label-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ae-label-row label { margin: 0; }

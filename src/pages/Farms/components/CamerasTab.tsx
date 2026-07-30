@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Loader2, AlertTriangle, RefreshCw, Plus, Pencil, Trash2, Video, VideoOff, Eye, EyeOff, Copy, Check, MapPin } from 'lucide-react';
 import { camerasApi, zonesApi } from '../../../api/services';
 import { Camera, CameraCreate, CameraUpdate, StreamProtocol, Zone } from '../../../types';
+import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../../utils/displayNames';
 import './CamerasTab.css';
 
 interface CamerasTabProps {
@@ -14,28 +15,12 @@ interface CamerasTabProps {
 }
 
 const PROTOCOLS: StreamProtocol[] = ['webrtc', 'hls', 'rtsp'];
-const DEFAULT_DISPLAY_NAMES = '{\n  "en": "",\n  "ko": "",\n  "vi": ""\n}';
 
 // Shared per-farm code slug (zone codes share a namespace with sensor/actuator zones).
 const slug = (s: string) => s.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
 
 // A camera-zone is a shared `zones` row with no modbus unit (default_unit_id == null).
 const isCameraZone = (z: Zone) => z.default_unit_id == null;
-
-// Parse the display_names JSON textarea → cleaned map (blank values dropped) or null.
-// Returns undefined when the text is present but not valid JSON (caller shows an error).
-const parseDisplayNames = (str?: string): Record<string, string> | null | undefined => {
-    if (!str || !str.trim()) return null;
-    try {
-        const parsed = JSON.parse(str);
-        const cleaned = Object.fromEntries(
-            Object.entries(parsed).filter(([, v]) => typeof v === 'string' && (v as string).trim() !== '')
-        ) as Record<string, string>;
-        return Object.keys(cleaned).length ? cleaned : null;
-    } catch {
-        return undefined;
-    }
-};
 
 // Editable shape backing the modal form. display_names is edited as raw JSON text
 // (displayNamesStr) and parsed on save — same convention as the zone/device modals.
@@ -111,7 +96,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
             stream_protocol: 'webrtc',
             display_order: cameras.length,
             zone_id: zoneFilter !== 'all' && zoneFilter !== 'unassigned' ? zoneFilter : null,
-            displayNamesStr: DEFAULT_DISPLAY_NAMES,
+            displayNamesStr: emptyDisplayNamesText(),
         });
         setModalOpen(true);
     };
@@ -119,14 +104,14 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
     const openEdit = (cam: Camera) => {
         setEditId(cam.id);
         setRevealUrl(false);
-        setForm({ ...cam, displayNamesStr: JSON.stringify(cam.display_names || {}, null, 2) });
+        setForm({ ...cam, displayNamesStr: displayNamesToText(cam.display_names) });
         setModalOpen(true);
     };
 
     // Independent camera-zone creation. On success it refreshes the parent zone list
     // (so the picker updates) and auto-selects the new zone in the camera form.
     const openZoneModal = () => {
-        setZoneForm({ displayNamesStr: DEFAULT_DISPLAY_NAMES });
+        setZoneForm({ displayNamesStr: emptyDisplayNamesText() });
         setZoneModalOpen(true);
     };
 
@@ -143,8 +128,9 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
             alert(t('camera.zoneCodeTaken', { code }));
             return;
         }
-        const displayNames = parseDisplayNames(zoneForm.displayNamesStr);
-        if (displayNames === undefined) {
+        // Blank entries of the pre-filled scaffold are dropped; null → no display names.
+        const zoneDn = parseDisplayNamesText(zoneForm.displayNamesStr);
+        if (!zoneDn.ok) {
             alert(t('detail.invalidJson'));
             return;
         }
@@ -154,7 +140,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                 farm_id: farmId,
                 code,
                 name,
-                display_names: displayNames,
+                display_names: zoneDn.value,
                 description: 'Camera zone',
                 default_unit_id: null, // camera-zone marker
                 display_order: 0,
@@ -179,9 +165,10 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
             return;
         }
 
-        // Parse display_names JSON (optional).
-        const displayNames = parseDisplayNames(form.displayNamesStr);
-        if (displayNames === undefined) {
+        // Parse display_names JSON (optional). Blank entries of the pre-filled
+        // scaffold are dropped, so an untouched one clears rather than writing "".
+        const dn = parseDisplayNamesText(form.displayNamesStr);
+        if (!dn.ok) {
             alert(t('detail.invalidJson'));
             return;
         }
@@ -194,7 +181,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                 zone_id: form.zone_id || null,
                 code: form.code.trim(),
                 name: form.name.trim(),
-                display_names: displayNames,
+                display_names: dn.value,
                 description: form.description?.trim() || null,
                 rtsp_url: form.rtsp_url.trim(),
                 stream_key: form.stream_key?.trim() || null,

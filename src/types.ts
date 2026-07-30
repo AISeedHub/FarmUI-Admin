@@ -120,10 +120,20 @@ export interface AutomationScene {
     priority: string; // e.g. "P1", "P5"
     is_enabled: boolean;
     description?: string;
+    display_names?: Record<string, string> | null;
     created_by?: string | null; // user id of creator (resolve via usersApi)
     updated_by?: string | null; // user id of last metadata/full editor; null until first edit
     created_at?: string;
     updated_at?: string;
+    // ── Preset packaging (present on rows returned by /farms/{id}/presets) ──
+    is_preset?: boolean;
+    // true = package container: metadata only, no condition tree of its own.
+    is_group?: boolean;
+    // set on a rule that belongs to a package; points at the container id.
+    preset_group_id?: string | null;
+    // Presets sharing a key inside a farm are mutually exclusive (only one enabled).
+    exclusive_key?: string | null;
+    evaluation_mode?: EvaluationMode;
 }
 
 export interface AutomationActivity {
@@ -170,6 +180,9 @@ export interface AutomationCondition {
     id?: string;
     condition_type: ConditionType;
     register_id?: string | null;
+    // Aggregate source: mutually exclusive with register_id on a register_value
+    // condition. Points at a VirtualSensor (MIN/AVG/MAX over N registers).
+    virtual_sensor_id?: string | null;
     params: Record<string, any>;
     is_negated?: boolean;
     display_order?: number;
@@ -202,8 +215,6 @@ export interface AutomationAction {
 
 // GET /automations/{id} — full nested scene used to hydrate the edit form.
 export interface AutomationDetail extends AutomationScene {
-    display_names?: Record<string, string> | null;
-    evaluation_mode?: EvaluationMode;
     condition_groups: AutomationConditionGroup[];
     actions: AutomationAction[];
     // created_by / updated_by inherited from AutomationScene
@@ -244,6 +255,100 @@ export interface PresetFullPayload {
     is_enabled: boolean;
     condition_groups: AutomationConditionGroup[];
     actions: AutomationAction[];
+    // Only honoured on create (POST). Presets sharing a key in a farm are
+    // mutually exclusive — enabling one disables the others.
+    exclusive_key?: string | null;
+}
+
+// ── Preset packages (a container row + N child rules) ────────────────────
+// POST /farms/{farm_id}/presets accepts two body shapes, discriminated by `rules`:
+//   • single-rule  → PresetFullPayload (unchanged, non-breaking)
+//   • package      → PresetPackagePayload; each rules[] entry has the same shape
+//     as a PUT /automations/{id}/full body, so the rule form builder is reused.
+// A package is created DISABLED unless is_enabled is sent explicitly — members
+// turn it on from their dashboard.
+export interface PresetPackageRule {
+    name: string;
+    display_names?: Record<string, string> | null;
+    description?: string;
+    evaluation_mode: EvaluationMode;
+    priority?: number;
+    is_enabled?: boolean;
+    condition_groups: AutomationConditionGroup[];
+    actions: AutomationAction[];
+}
+
+export interface PresetPackagePayload {
+    name: string;
+    display_names?: Record<string, string> | null;
+    description?: string;
+    exclusive_key?: string | null;
+    is_enabled?: boolean;
+    rules: PresetPackageRule[];
+}
+
+// ── Virtual sensors (farm-scoped MIN/AVG/MAX over N registers) ───────────
+// Conditions reference one by virtual_sensor_id instead of register_id. The
+// admin UI creates/updates them implicitly from the "Aggregate" modifier on a
+// Sensor-reading condition card, and exposes a manager for cleanup.
+export type VirtualSensorAgg = 'min' | 'avg' | 'max';
+
+export interface VirtualSensor {
+    id: string; // uuid
+    farm_id: string; // uuid
+    code: string; // ^[a-z][a-z0-9_]*$, unique per farm across devices too
+    name: string;
+    display_names?: Record<string, string> | null;
+    agg: VirtualSensorAgg;
+    unit?: string | null;
+    is_active: boolean;
+    source_register_ids: string[];
+    created_at?: string;
+    updated_at?: string;
+}
+
+// POST /farms/{farm_id}/virtual-sensors body.
+export interface VirtualSensorCreate {
+    code: string; // immutable afterwards — it is the identifier on the wire
+    name: string;
+    display_names?: Record<string, string> | null;
+    agg: VirtualSensorAgg;
+    unit?: string | null;
+    source_register_ids: string[]; // ≥1; each must be an active sensor `value` register of this farm
+}
+
+// PUT /virtual-sensors/{id} body — partial; source_register_ids replaces the whole set.
+export interface VirtualSensorUpdate {
+    name?: string;
+    display_names?: Record<string, string> | null;
+    agg?: VirtualSensorAgg;
+    unit?: string | null;
+    is_active?: boolean;
+    source_register_ids?: string[];
+}
+
+// 409 detail when deactivating/deleting a virtual sensor still used by conditions.
+export interface VirtualSensorInUse {
+    message?: string;
+    automations: Array<{ id: string; name: string }>;
+}
+
+// 409 detail when deleting a register that still feeds a virtual sensor.
+export interface RegisterInUseByVirtualSensors {
+    message?: string;
+    virtual_sensors: Array<{ id: string; code: string }>;
+}
+
+// GET /farms/{farm_id}/slaves/{slave_id}/sensors — live reading per sensor device
+// of one modbus unit. Used to preview aggregate values in the rule editor.
+export interface SlaveSensorReading {
+    name: string;
+    display_names?: Record<string, string> | null;
+    slave_id: number;
+    device: string; // device.code
+    settings?: { value?: string; unit?: string; status?: string } | null;
+    current_value: number | null;
+    current_status?: number | null;
 }
 
 // A single whitelisted threshold a farm member can tune (from GET .../presets/available).
@@ -268,6 +373,11 @@ export interface PresetAvailable {
     priority?: string | number;
     is_enabled: boolean;
     tunables: PresetTunable[];
+    // Present once a farm uses packages: containers carry is_group, child rules
+    // carry preset_group_id. Both are optional so the older flat shape still maps.
+    is_group?: boolean;
+    preset_group_id?: string | null;
+    exclusive_key?: string | null;
 }
 
 // PUT /farms/{farm_id}/presets/{id}/tune body.

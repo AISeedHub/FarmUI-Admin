@@ -1,10 +1,53 @@
 
 
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetPackagePayload, PresetPackageRule, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate, VirtualSensor, VirtualSensorCreate, VirtualSensorUpdate, SlaveSensorReading } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 // Auth-action endpoints stay under /auth (login, me, me/farms).
 const AUTH_BASE_URL = `${API_BASE_URL}/auth`;
+
+// Error that keeps the HTTP status and the parsed `detail` body around.
+// Several endpoints answer 409 with a structured detail (e.g. the virtual sensors
+// still feeding a register), and callers need those lists to build a useful prompt.
+// `message` stays human-readable so existing `err?.message` call sites are unaffected.
+export class ApiError extends Error {
+    status: number;
+    // Shape depends on the endpoint (string, validation-error list, or a structured
+    // object such as { virtual_sensors: [...] }) — callers narrow it themselves.
+    detail: unknown;
+    constructor(status: number, statusText: string, detail: unknown) {
+        super(ApiError.describe(status, statusText, detail));
+        this.name = 'ApiError';
+        this.status = status;
+        this.detail = detail;
+    }
+
+    private static describe(status: number, statusText: string, detail: unknown): string {
+        const text = ApiError.detailText(detail);
+        return text ? `API Error: ${status} — ${text}` : `API Error: ${status} ${statusText}`;
+    }
+
+    // FastAPI puts either a string, an object, or a list of validation errors in `detail`.
+    static detailText(detail: unknown): string {
+        if (!detail) return '';
+        if (typeof detail === 'string') return detail;
+        if (Array.isArray(detail)) {
+            return detail
+                .map(d => {
+                    if (typeof d === 'string') return d;
+                    const e = d as { loc?: unknown[]; msg?: string };
+                    return [Array.isArray(e?.loc) ? e.loc.join('.') : undefined, e?.msg].filter(Boolean).join(': ');
+                })
+                .filter(Boolean)
+                .join('; ');
+        }
+        if (typeof detail === 'object') {
+            const o = detail as { message?: string; detail?: string };
+            return o.message || o.detail || JSON.stringify(detail);
+        }
+        return String(detail);
+    }
+}
 
 // Helper function to handle fetch responses
 const fetchJson = async (url: string, options?: RequestInit) => {
@@ -25,7 +68,14 @@ const fetchJson = async (url: string, options?: RequestInit) => {
     });
 
     if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        let detail: unknown = null;
+        try {
+            const body = await response.json();
+            detail = body?.detail ?? body;
+        } catch {
+            // Non-JSON error body (proxy HTML, empty 5xx) — status alone has to do.
+        }
+        throw new ApiError(response.status, response.statusText, detail);
     }
 
     return response.json();
@@ -125,6 +175,8 @@ export const registersApi = {
             body: JSON.stringify(data),
         });
     },
+    // 409 with detail.virtual_sensors ([{ id, code }]) when the register still feeds
+    // a virtual sensor — it has to be removed from those aggregates first.
     delete: async (id: string): Promise<boolean> => {
         const result = await fetchJson(`/registers/${id}`, { method: 'DELETE' });
         return result.success ?? true;
@@ -336,15 +388,35 @@ export const presetsApi = {
     getById: (automationId: string): Promise<AutomationDetail> => {
         return fetchJson(`/presets/${automationId}`);
     },
-    // Create a preset in a farm. Body omits farm_id (path) + is_preset (server sets true);
-    // priority is clamped into the preset band server-side.
+    // Create a single-rule preset in a farm. Body omits farm_id (path) + is_preset
+    // (server sets true); priority is clamped into the preset band server-side.
     create: (farmId: string, data: PresetFullPayload): Promise<AutomationDetail> => {
         return fetchJson(`/farms/${farmId}/presets`, {
             method: 'POST',
             body: JSON.stringify(data),
         });
     },
-    // Update metadata only (name/description/priority/is_enabled/...).
+    // Create a preset PACKAGE: one container row + N child rules in a single call.
+    // Same endpoint as create() — the `rules` key is what selects this shape, and
+    // sending a top-level condition tree alongside it is a 422. Returns the
+    // container (is_group=true); re-list to see the children.
+    createPackage: (farmId: string, data: PresetPackagePayload): Promise<AutomationScene> => {
+        return fetchJson(`/farms/${farmId}/presets`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+    // Append one rule to an existing package. `automationId` must be a container
+    // (422 otherwise); a non-preset id 404s. Body is one rules[] entry.
+    addRule: (automationId: string, rule: PresetPackageRule): Promise<AutomationScene> => {
+        return fetchJson(`/presets/${automationId}/rules`, {
+            method: 'POST',
+            body: JSON.stringify(rule),
+        });
+    },
+    // Update metadata only (name/description/priority/is_enabled/...). Works for both
+    // containers and rules. Sending is_enabled=true on a row that has an exclusive_key
+    // disables the farm's other presets with that key in the same transaction.
     updateMeta: (automationId: string, data: Partial<AutomationScene>): Promise<AutomationScene> => {
         return fetchJson(`/presets/${automationId}`, {
             method: 'PUT',
@@ -352,12 +424,15 @@ export const presetsApi = {
         });
     },
     // Full-replace a preset (wipe + rebuild tree + actions; keeps is_preset). Used by editor.
+    // 422 if `automationId` is a package container — those have no condition tree, so edit
+    // their metadata with updateMeta() and their children one rule at a time.
     fullUpdate: (automationId: string, data: PresetFullPayload): Promise<AutomationDetail> => {
         return fetchJson(`/presets/${automationId}/full`, {
             method: 'PUT',
             body: JSON.stringify(data),
         });
     },
+    // Deleting a container cascades: the container, every child rule, and their history.
     delete: async (automationId: string): Promise<boolean> => {
         const result = await fetchJson(`/presets/${automationId}`, { method: 'DELETE' });
         return result?.success ?? true;
@@ -375,6 +450,9 @@ export const presetsApi = {
             description: p.description ?? null,
             priority: p.priority,
             is_enabled: p.is_enabled ?? true,
+            is_group: p.is_group ?? undefined,
+            preset_group_id: p.preset_group_id ?? null,
+            exclusive_key: p.exclusive_key ?? null,
             tunables: (p.tunables ?? p.tunable_thresholds ?? p.thresholds ?? []).map((t: any) => ({
                 condition_id: t.condition_id ?? t.id,
                 register_id: t.register_id ?? null,
@@ -402,6 +480,60 @@ export const presetsApi = {
             method: 'PUT',
             body: JSON.stringify({ values }),
         });
+    },
+};
+
+// ── Virtual sensors (farm-scoped MIN/AVG/MAX over N registers) ────────────
+// Backing store for the "Aggregate" modifier on a Sensor-reading condition: the
+// editor creates/updates one implicitly, and conditions point at it by id. Every
+// write re-compiles and re-publishes the farm's rules bundle server-side.
+export const virtualSensorsApi = {
+    getByFarm: (farmId: string): Promise<VirtualSensor[]> => {
+        return fetchJson(`/farms/${farmId}/virtual-sensors`);
+    },
+    getById: (virtualSensorId: string): Promise<VirtualSensor> => {
+        return fetchJson(`/virtual-sensors/${virtualSensorId}`);
+    },
+    // `code` shares a namespace with device.code inside the farm — a clash is a 422,
+    // as is any source register that is not an active sensor `value` register here.
+    create: (farmId: string, data: VirtualSensorCreate): Promise<VirtualSensor> => {
+        return fetchJson(`/farms/${farmId}/virtual-sensors`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+    // Partial update; `code` is immutable. source_register_ids replaces the whole set.
+    // 409 (detail.automations) when deactivating one that a condition still uses.
+    update: (virtualSensorId: string, data: VirtualSensorUpdate): Promise<VirtualSensor> => {
+        return fetchJson(`/virtual-sensors/${virtualSensorId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    },
+    // 409 (detail.automations) while still referenced by a condition.
+    delete: async (virtualSensorId: string): Promise<boolean> => {
+        const result = await fetchJson(`/virtual-sensors/${virtualSensorId}`, { method: 'DELETE' });
+        return result?.success ?? true;
+    },
+};
+
+// ── Live sensor readings ──────────────────────────────────────────────────
+// Per-unit snapshot keyed by device code. Used to preview what an aggregate
+// condition would evaluate to right now (which sensor decides a MIN/MAX, etc.).
+export const sensorsApi = {
+    getSlaveSensors: async (farmId: string, slaveId: number): Promise<SlaveSensorReading[]> => {
+        const raw = await fetchJson(`/farms/${farmId}/slaves/${slaveId}/sensors`);
+        return Array.isArray(raw) ? raw : (raw?.sensors ?? []);
+    },
+    // Merge the snapshots of several units into one device_code → reading map.
+    // Units that fail (offline gateway, 404) are skipped rather than failing the batch.
+    getLiveByDeviceCode: async (farmId: string, slaveIds: number[]): Promise<Record<string, SlaveSensorReading>> => {
+        const results = await Promise.all(
+            slaveIds.map(id => sensorsApi.getSlaveSensors(farmId, id).catch(() => [] as SlaveSensorReading[]))
+        );
+        const map: Record<string, SlaveSensorReading> = {};
+        results.flat().forEach(r => { if (r?.device) map[r.device] = r; });
+        return map;
     },
 };
 

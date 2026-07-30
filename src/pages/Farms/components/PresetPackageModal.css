@@ -1,0 +1,141 @@
+/* ── Preset package (container) editor ──
+   Reuses the .ae-* modal shell so the package form and the rule form look like one
+   flow; only the rule list below is specific to packages. */
+.pp-modal {
+    width: 720px;
+}
+
+.pp-lock {
+    vertical-align: -2px;
+    margin-right: 2px;
+}
+
+.pp-rules {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+}
+
+.pp-rules-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.pp-count {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+}
+
+.pp-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: #fff;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.pp-note svg { color: #0284c7; flex-shrink: 0; margin-top: 1px; }
+
+.pp-rule-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pp-rule-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid var(--border-input);
+    border-radius: 10px;
+}
+
+.pp-rule-row:hover { border-color: var(--primary); }
+
+.pp-rule-order {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.pp-rule-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pp-rule-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pp-rule-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.pp-rule-mode {
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--primary-glow);
+    color: var(--primary);
+}
+
+.pp-icon-btn {
+    background: transparent;
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    padding: 5px;
+    color: var(--text-muted);
+    display: flex;
+    flex-shrink: 0;
+}
+
+.pp-icon-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+.pp-icon-btn.danger:hover {
+    border-color: var(--color-danger);
+    color: var(--color-danger);
+    background: var(--color-danger-bg);
+}
+
+@media (max-width: 700px) {
+    .pp-rule-row { flex-wrap: wrap; }
+    .pp-rule-info { flex: 1 1 100%; }
+}

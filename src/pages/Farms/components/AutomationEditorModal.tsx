@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next';
 import {
     X, Plus, Trash2, Loader2, AlertTriangle, Wand2, Fan, Copy, ChevronRight,
     Clock, Hourglass, CalendarDays, Sunrise, Gauge, Plug, Bell, Timer, Workflow,
-    ArrowLeft, ArrowRight, Save, Sliders,
+    ArrowLeft, ArrowRight, Save, Sliders, Sigma, Info, RefreshCw,
 } from 'lucide-react';
-import { automationsApi, presetsApi, devicesApi, registersApi, usersApi } from '../../../api/services';
+import { automationsApi, presetsApi, devicesApi, registersApi, usersApi, virtualSensorsApi, sensorsApi, zonesApi } from '../../../api/services';
 import {
     AutomationScene,
     AutomationDetail,
@@ -21,7 +21,14 @@ import {
     EvaluationMode,
     Device,
     Register,
+    Zone,
+    VirtualSensor,
+    VirtualSensorAgg,
+    SlaveSensorReading,
+    PresetPackageRule,
 } from '../../../types';
+import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../../utils/displayNames';
+import { buildDeviceLabels, byLabel } from '../../../utils/deviceLabel';
 import './AutomationEditorModal.css';
 
 // ── Editor-local types: shared model + stable React key + ephemeral picker state ──
@@ -34,6 +41,18 @@ interface ECondition extends AutomationCondition {
     _key: string;
     _deviceId?: string; // device that owns register_id (cascade helper, not serialized)
     _category?: CondCategory; // drives device-list filtering for register_value
+    // ── "Aggregate" modifier (Sensor reading cards only) ──
+    // Off by default: the card, the payload and the runtime behaviour are then
+    // exactly the single-register ones. On, the condition is backed by a virtual
+    // sensor (MIN/AVG/MAX) resolved at save time — register_id stays the first member.
+    _aggOn?: boolean;
+    _agg?: VirtualSensorAgg;
+    _extraRegisterIds?: string[]; // members after the primary (register_id)
+    // Set when hydrating a condition that already points at a virtual sensor.
+    // _vsOpaque = the referenced sensor could not be read, so its definition is
+    // passed through untouched instead of being rebuilt from an unknown member list.
+    _vsCode?: string;
+    _vsOpaque?: boolean;
 }
 interface EGroup {
     _key: string;
@@ -108,22 +127,116 @@ const condCatLabelKey = (type: ConditionType, category?: CondCategory) =>
 
 type Step = 1 | 2 | 3;
 
+// Anything complete enough to hydrate the form: a fetched AutomationDetail, or an
+// in-memory package-rule payload that has never been saved.
+interface HydrationSource {
+    name?: string;
+    description?: string | null;
+    display_names?: Record<string, string> | null;
+    evaluation_mode?: EvaluationMode;
+    priority?: number | string;
+    is_enabled?: boolean;
+    created_by?: string | null;
+    updated_by?: string | null;
+    condition_groups?: AutomationConditionGroup[];
+    actions?: AutomationAction[];
+}
+
+// ── Aggregate ("virtual sensor") helpers ─────────────────────────────────
+const AGGS: VirtualSensorAgg[] = ['min', 'avg', 'max'];
+
+// Members of an aggregate condition: the primary register picked in the card, then the extras.
+const memberIdsOf = (c: ECondition): string[] =>
+    [c.register_id || '', ...(c._extraRegisterIds || [])].filter(Boolean) as string[];
+
+const aggregateOf = (agg: VirtualSensorAgg, values: number[]): number | null => {
+    if (!values.length) return null;
+    if (agg === 'min') return Math.min(...values);
+    if (agg === 'max') return Math.max(...values);
+    return values.reduce((a, b) => a + b, 0) / values.length;
+};
+
+// Which member currently sets a MIN/MAX. AVG has no single decider → null.
+const decidingIndexOf = (agg: VirtualSensorAgg, values: Array<number | null>): number | null => {
+    if (agg === 'avg') return null;
+    let best: number | null = null;
+    values.forEach((v, i) => {
+        if (v === null || Number.isNaN(v)) return;
+        if (best === null) { best = i; return; }
+        const cur = values[best] as number;
+        if (agg === 'min' ? v < cur : v > cur) best = i;
+    });
+    return best;
+};
+
+const compare = (op: string, left: number, right: number): boolean | null => {
+    switch (op) {
+        case '>': return left > right;
+        case '>=': return left >= right;
+        case '<': return left < right;
+        case '<=': return left <= right;
+        case '==': return left === right;
+        case '!=': return left !== right;
+        default: return null;
+    }
+};
+
+// Trim to 4 significant decimals without dragging trailing zeros around.
+const fmtNum = (n: number): string => (Number.isInteger(n) ? String(n) : String(Math.round(n * 10000) / 10000));
+
+const sameMembers = (a: string[], b: string[]): boolean =>
+    a.length === b.length && [...a].sort().join('|') === [...b].sort().join('|');
+
+// Virtual sensor codes are identifiers on the wire: ^[a-z][a-z0-9_]*$, ≤100 chars,
+// and they share the farm's namespace with device codes.
+const slugifyCode = (s: string): string =>
+    s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+
+const makeVsCode = (agg: VirtualSensorAgg, primaryCode: string, taken: Set<string>): string => {
+    const base = `vs_${agg}_${slugifyCode(primaryCode) || 'sensor'}`.slice(0, 96);
+    let code = base;
+    let n = 2;
+    while (taken.has(code)) code = `${base}_${n++}`.slice(0, 100);
+    return code;
+};
+
+const makeVsName = (agg: VirtualSensorAgg, primaryName: string, count: number): string => {
+    const head = `${agg.toUpperCase()} of ${count} sensor${count === 1 ? '' : 's'}`;
+    return primaryName ? `${head} — ${primaryName}` : head;
+};
+
+// Unit two registers must share to be aggregated together (case/space-insensitive).
+const unitKeyOf = (r?: Register | null): string => (r?.unit || '').trim().toLowerCase();
+
 // Preset priority band floor (mirrors backend preset_priority_floor default).
 // Presets always sort above user automations; the value is clamped server-side anyway.
 const PRESET_PRIORITY_FLOOR = 10000;
+
+// Rule-builder mode: the modal builds a rule and hands the payload back instead of
+// persisting it itself. Used to author the rules of a preset package, which are
+// POSTed as one batch (or appended one at a time) by the caller — same form builder.
+export interface RuleBuilderConfig {
+    initial?: PresetPackageRule | null; // hydrate for "edit this rule of the package"
+    onSubmit: (rule: PresetPackageRule) => Promise<void> | void;
+    title?: string;
+    submitLabel?: string;
+}
 
 interface AutomationEditorModalProps {
     farmId: string;
     automationId: string | null; // null = create
     automations: AutomationScene[]; // for copy-from list + run_automation target
     mode?: 'automation' | 'preset'; // 'preset' → expert-authored preset CRUD
+    builder?: RuleBuilderConfig; // set → don't save, return the payload
+    nested?: boolean; // stack above another modal (preset package editor)
     onClose: () => void;
     onSaved: () => void;
 }
 
-export default function AutomationEditorModal({ farmId, automationId, automations, mode = 'automation', onClose, onSaved }: AutomationEditorModalProps) {
-    const { t } = useTranslation();
-    const isEdit = !!automationId;
+export default function AutomationEditorModal({ farmId, automationId, automations, mode = 'automation', builder, nested, onClose, onSaved }: AutomationEditorModalProps) {
+    const { t, i18n } = useTranslation();
+    const isBuilder = !!builder;
+    const isEdit = isBuilder ? !!builder?.initial : !!automationId;
     const isPreset = mode === 'preset';
     // Route detail reads to the right resource (presets live under /presets/*).
     const fetchDetail = (id: string): Promise<AutomationDetail> =>
@@ -139,8 +252,17 @@ export default function AutomationEditorModal({ farmId, automationId, automation
 
     // Reference data
     const [devices, setDevices] = useState<Device[]>([]);
+    // Zones only feed the device labels: a farm repeats device names per sensor group,
+    // so "Temperature Sensor" alone is ambiguous in every picker.
+    const [zones, setZones] = useState<Zone[]>([]);
     const [registersByDevice, setRegistersByDevice] = useState<Record<string, Register[]>>({});
     const [users, setUsers] = useState<Record<string, UserResponse>>({});
+    // Virtual sensors of the farm — the store behind the Aggregate modifier.
+    const [virtualSensors, setVirtualSensors] = useState<VirtualSensor[]>([]);
+    const [vsUnavailable, setVsUnavailable] = useState(false);
+    // Live readings keyed by device code, for the aggregate preview helper.
+    const [live, setLive] = useState<Record<string, SlaveSensorReading>>({});
+    const [liveLoading, setLiveLoading] = useState(false);
 
     // Audit (edit mode): who created / last updated this scene
     const [audit, setAudit] = useState<{ created_by?: string | null; updated_by?: string | null }>({});
@@ -148,7 +270,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
     // Metadata
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [displayNamesStr, setDisplayNamesStr] = useState('');
+    const [displayNamesStr, setDisplayNamesStr] = useState(emptyDisplayNamesText);
     const [evaluationMode, setEvaluationMode] = useState<EvaluationMode>('edge');
     const [priority, setPriority] = useState(isPreset ? PRESET_PRIORITY_FLOOR : 1);
     const [isEnabled, setIsEnabled] = useState(true);
@@ -176,6 +298,26 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         Object.values(registersByDevice).flat().forEach(r => { m[r.id] = r; });
         return m;
     }, [registersByDevice]);
+    const vsById = useMemo(() => Object.fromEntries(virtualSensors.map(v => [v.id, v])) as Record<string, VirtualSensor>, [virtualSensors]);
+    // deviceId → "<zone> · <device>", with the device code appended if that still collides.
+    const deviceLabels = useMemo(
+        () => buildDeviceLabels(devices, zones, i18n.language, t('detail.unassigned')),
+        [devices, zones, i18n.language, t],
+    );
+    const labelOfDevice = (deviceId?: string | null) => (deviceId && deviceLabels[deviceId]) || '';
+
+    // Every register that may take part in an aggregate: the `value` register of an
+    // active sensor device anywhere in the farm (what the BE accepts as a source).
+    const aggCandidates = useMemo(() => {
+        const out: Array<{ register: Register; device: Device }> = [];
+        devices
+            .filter(d => d.device_kind === 'sensor' && d.is_active)
+            .forEach(d => (registersByDevice[d.id] || [])
+                .filter(r => r.role === 'value' && r.is_active)
+                .forEach(r => out.push({ register: r, device: d })));
+        // Sort by the zone-qualified label so the picker groups sensors by zone.
+        return out.sort((a, b) => (deviceLabels[a.device.id] || '').localeCompare(deviceLabels[b.device.id] || ''));
+    }, [devices, registersByDevice, deviceLabels]);
 
     useEffect(() => {
         let cancelled = false;
@@ -195,28 +337,60 @@ export default function AutomationEditorModal({ farmId, automationId, automation
             setLoadError(null);
             try {
                 const devs = await devicesApi.getByFarm(farmId);
-                const [regMap, usersList] = await Promise.all([
+                // Virtual sensors are needed before hydration (an aggregate condition
+                // stores only its id). A farm without the endpoint yet degrades to
+                // "aggregate read-only" rather than blocking the whole editor.
+                const [regMap, usersList, zoneList, vsList] = await Promise.all([
                     buildRegisterMap(devs),
                     usersApi.getAll().catch(() => [] as UserResponse[]),
+                    // Only used to qualify device names — an empty list just means the
+                    // labels fall back to the bare device name.
+                    zonesApi.getByFarm(farmId).catch(err => {
+                        console.warn('Failed to load zones:', err);
+                        return [] as Zone[];
+                    }),
+                    virtualSensorsApi.getByFarm(farmId).catch(err => {
+                        console.warn('Failed to load virtual sensors:', err);
+                        return null;
+                    }),
                 ]);
                 if (cancelled) return;
                 setDevices(devs);
+                setZones(zoneList);
                 setRegistersByDevice(regMap);
                 const umap: Record<string, UserResponse> = {};
                 usersList.forEach(u => { umap[u.id] = u; });
                 setUsers(umap);
+                setVirtualSensors(vsList ?? []);
+                setVsUnavailable(vsList === null);
 
                 const regToDev: Record<string, string> = {};
                 Object.entries(regMap).forEach(([devId, regs]) => regs.forEach(r => { regToDev[r.id] = devId; }));
+                const vsMap = Object.fromEntries((vsList ?? []).map(v => [v.id, v])) as Record<string, VirtualSensor>;
+                const devMap = Object.fromEntries(devs.map(d => [d.id, d])) as Record<string, Device>;
 
-                if (automationId) {
+                if (builder) {
+                    // Rule-builder: hydrate from the in-memory payload, never from the API.
+                    if (builder.initial) applyDetail(builder.initial, regToDev, devMap, vsMap);
+                    setView('wizard');
+                } else if (automationId) {
                     const detail = await fetchDetail(automationId);
                     if (cancelled) return;
-                    const devMap = Object.fromEntries(devs.map(d => [d.id, d])) as Record<string, Device>;
-                    applyDetail(detail, regToDev, devMap);
+                    applyDetail(detail, regToDev, devMap, vsMap);
                     setView('wizard');
                 } else {
                     setView('entry');
+                }
+
+                // Live readings are only for the aggregate preview — fetch after the
+                // form is usable and let failures pass silently.
+                const sensorUnits = Array.from(new Set(
+                    devs.filter(d => d.device_kind === 'sensor').map(d => d.unit_id).filter(u => u != null)
+                )) as number[];
+                if (sensorUnits.length) {
+                    sensorsApi.getLiveByDeviceCode(farmId, sensorUnits)
+                        .then(map => { if (!cancelled) setLive(map); })
+                        .catch(() => { });
                 }
             } catch (err: any) {
                 if (!cancelled) setLoadError(err?.message || 'Failed to load');
@@ -227,20 +401,68 @@ export default function AutomationEditorModal({ farmId, automationId, automation
 
         load();
         return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [farmId, automationId]);
 
+    // Re-poll the live snapshot behind the aggregate helper.
+    const refreshLive = async () => {
+        const sensorUnits = Array.from(new Set(
+            devices.filter(d => d.device_kind === 'sensor').map(d => d.unit_id).filter(u => u != null)
+        )) as number[];
+        if (!sensorUnits.length) return;
+        setLiveLoading(true);
+        try {
+            setLive(await sensorsApi.getLiveByDeviceCode(farmId, sensorUnits));
+        } catch {
+            // Keep the previous snapshot; the helper labels it as unavailable if empty.
+        } finally {
+            setLiveLoading(false);
+        }
+    };
+
     // Hydrate the form from a fetched scene. `copy` = duplicate into a brand-new automation.
-    const applyDetail = (detail: AutomationDetail, regToDev: Record<string, string>, devMap: Record<string, Device>, copy = false) => {
+    const applyDetail = (
+        detail: HydrationSource,
+        regToDev: Record<string, string>,
+        devMap: Record<string, Device>,
+        vsMap: Record<string, VirtualSensor>,
+        copy = false,
+    ) => {
         // A copy is a brand-new scene → no creator/editor yet.
         setAudit(copy ? {} : { created_by: detail.created_by, updated_by: detail.updated_by });
         setName(copy ? `${detail.name} (copy)` : (detail.name || ''));
         setDescription(detail.description || '');
-        setDisplayNamesStr(detail.display_names ? JSON.stringify(detail.display_names, null, 2) : '');
+        setDisplayNamesStr(displayNamesToText(detail.display_names));
         setEvaluationMode(detail.evaluation_mode || 'edge');
         setPriority(Number(detail.priority) || (isPreset ? PRESET_PRIORITY_FLOOR : 1));
         setIsEnabled(detail.is_enabled ?? true);
 
         const mapCondition = (c: AutomationCondition): ECondition => {
+            // Aggregate condition: the tree stores only virtual_sensor_id, so the card's
+            // primary register + extra members come from the virtual sensor's source list.
+            if (c.condition_type === 'register_value' && c.virtual_sensor_id) {
+                const vs = vsMap[c.virtual_sensor_id];
+                const members = vs?.source_register_ids || [];
+                const primary = members[0] || '';
+                return {
+                    _key: newKey(),
+                    condition_type: c.condition_type,
+                    register_id: primary,
+                    virtual_sensor_id: c.virtual_sensor_id,
+                    params: c.params || defaultParams(c.condition_type),
+                    is_negated: !!c.is_negated,
+                    is_tunable: !!c.is_tunable,
+                    tunable_min: c.tunable_min ?? null,
+                    tunable_max: c.tunable_max ?? null,
+                    _deviceId: primary ? regToDev[primary] : undefined,
+                    _category: 'sensor',
+                    _aggOn: true,
+                    _agg: vs?.agg || 'min',
+                    _extraRegisterIds: members.slice(1),
+                    _vsCode: vs?.code,
+                    _vsOpaque: !vs,
+                };
+            }
             const devId = c.register_id ? regToDev[c.register_id] : undefined;
             const dev = devId ? devMap[devId] : undefined;
             return {
@@ -290,7 +512,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
     };
 
     const startFromScratch = () => {
-        setName(''); setDescription(''); setDisplayNamesStr('');
+        setName(''); setDescription(''); setDisplayNamesStr(emptyDisplayNamesText());
         setEvaluationMode('edge'); setPriority(isPreset ? PRESET_PRIORITY_FLOOR : 1); setIsEnabled(true);
         setRootGroup(makeGroup('AND')); setActions([]); setAudit({});
         setStep(1); setView('wizard');
@@ -300,7 +522,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         setLoading(true);
         try {
             const detail = previewCache[rule.id] || await fetchDetail(rule.id);
-            applyDetail(detail, registerToDevice, deviceById, true);
+            applyDetail(detail, registerToDevice, deviceById, vsById, true);
             setStep(1); setView('wizard');
         } catch (err: any) {
             alert(t('auto.saveFailed', { error: err?.message || 'Unknown error' }));
@@ -339,12 +561,19 @@ export default function AutomationEditorModal({ farmId, automationId, automation
     const removeAction = (key: string) => setActions(prev => prev.filter(x => x._key !== key));
 
     // ── Serialization ──
-    const serializeGroup = (g: EGroup): AutomationConditionGroup => ({
+    // `vsIds` maps a condition's editor key → the virtual sensor id resolved for it by
+    // resolveAggregates(). An aggregate condition sends virtual_sensor_id INSTEAD of
+    // register_id; a plain one is byte-for-byte what it always was.
+    const serializeGroup = (g: EGroup, vsIds: Record<string, string>): AutomationConditionGroup => ({
         logical_op: g.logical_op,
         display_order: 0,
         conditions: g.conditions.map((c, i) => ({
             condition_type: c.condition_type,
-            ...(c.condition_type === 'register_value' ? { register_id: c.register_id || undefined } : {}),
+            ...(c.condition_type === 'register_value'
+                ? (c._aggOn
+                    ? { virtual_sensor_id: vsIds[c._key] || c.virtual_sensor_id || undefined }
+                    : { register_id: c.register_id || undefined })
+                : {}),
             params: c.params,
             is_negated: !!c.is_negated,
             display_order: i,
@@ -391,6 +620,21 @@ export default function AutomationEditorModal({ farmId, automationId, automation
 
         rootGroup.conditions.forEach(c => {
             if (c.condition_type === 'register_value' && !c.register_id) { errs.push(t('auto.vRegister')); flag(1); }
+            // Aggregate members must all be sensor `value` registers sharing one unit —
+            // the pickers enforce it for added members, this catches the primary and
+            // anything hydrated from an older/hand-made definition.
+            if (c.condition_type === 'register_value' && c._aggOn && !c._vsOpaque) {
+                const members = memberIdsOf(c);
+                if (!members.length) { errs.push(t('auto.agg.vMembers')); flag(1); }
+                const regs = members.map(id => registerById[id]).filter(Boolean);
+                const primaryDev = c.register_id ? deviceById[registerToDevice[c.register_id] || ''] : undefined;
+                if (c.register_id && registerById[c.register_id] && (registerById[c.register_id].role !== 'value' || primaryDev?.device_kind !== 'sensor')) {
+                    errs.push(t('auto.agg.vPrimary')); flag(1);
+                }
+                if (regs.length === members.length && new Set(regs.map(unitKeyOf)).size > 1) {
+                    errs.push(t('auto.agg.vUnit')); flag(1);
+                }
+            }
             // Preset tunable bounds: if both bounds are set, min must be ≤ max and the
             // current threshold value must fall inside the band (else members can't tune it).
             if (isPreset && c.condition_type === 'register_value' && c.is_tunable) {
@@ -427,6 +671,48 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         return { msgs: Array.from(new Set(errs)), step: firstStep };
     };
 
+    // Turn every "Aggregate"-ticked condition into a virtual sensor id.
+    // An existing virtual sensor with the same function + member set is reused, so two
+    // rules of a package sharing MIN(temp) share one row and saving twice creates nothing.
+    // Existing virtual sensors are never mutated here — other rules may point at them;
+    // renaming/retiring them is the Virtual sensors tab's job.
+    const resolveAggregates = async (): Promise<Record<string, string>> => {
+        const out: Record<string, string> = {};
+        const aggConds = rootGroup.conditions.filter(c => c.condition_type === 'register_value' && c._aggOn);
+        if (!aggConds.length) return out;
+
+        const pool = [...virtualSensors];
+        const taken = new Set<string>([...pool.map(v => v.code), ...devices.map(d => d.code)]);
+        const created: VirtualSensor[] = [];
+
+        for (const c of aggConds) {
+            // Definition we could not read → pass the reference through untouched.
+            if (c._vsOpaque && c.virtual_sensor_id) { out[c._key] = c.virtual_sensor_id; continue; }
+
+            const members = memberIdsOf(c);
+            const agg = c._agg || 'min';
+            const match = pool.find(v => v.agg === agg && sameMembers(v.source_register_ids || [], members));
+            if (match) { out[c._key] = match.id; continue; }
+
+            const primaryReg = registerById[members[0]];
+            const primaryDev = deviceById[registerToDevice[members[0]] || ''];
+            const vs = await virtualSensorsApi.create(farmId, {
+                code: makeVsCode(agg, primaryDev?.code || 'sensor', taken),
+                name: makeVsName(agg, primaryDev?.name || '', members.length),
+                agg,
+                unit: primaryReg?.unit || null,
+                source_register_ids: members,
+            });
+            taken.add(vs.code);
+            pool.push(vs);
+            created.push(vs);
+            out[c._key] = vs.id;
+        }
+
+        if (created.length) setVirtualSensors(prev => [...prev, ...created]);
+        return out;
+    };
+
     const handleSave = async () => {
         const { msgs, step: badStep } = collectErrors();
         if (msgs.length > 0) {
@@ -435,32 +721,46 @@ export default function AutomationEditorModal({ farmId, automationId, automation
             return;
         }
 
-        let display_names: Record<string, string> | undefined;
-        const dnStr = displayNamesStr.trim();
-        if (dnStr) {
-            try {
-                const parsed = JSON.parse(dnStr);
-                display_names = parsed && Object.keys(parsed).length ? parsed : undefined;
-            } catch {
-                setStep(3);
-                alert(t('detail.invalidJson'));
-                return;
-            }
+        // Blank entries of the pre-filled scaffold are dropped, so an untouched
+        // { "en": "", "ko": "" } sends nothing at all.
+        const dn = parseDisplayNamesText(displayNamesStr);
+        if (!dn.ok) {
+            setStep(3);
+            alert(t('detail.invalidJson'));
+            return;
         }
-
-        const body = {
-            name: name.trim(),
-            description: description.trim() || undefined,
-            display_names,
-            evaluation_mode: evaluationMode,
-            priority: Number(priority) || 0,
-            is_enabled: isEnabled,
-            condition_groups: [serializeGroup(rootGroup)],
-            actions: actions.map(serializeAction),
-        };
+        const display_names = dn.value ?? undefined;
 
         setSaving(true);
         try {
+            let vsIds: Record<string, string>;
+            try {
+                vsIds = await resolveAggregates();
+            } catch (err: any) {
+                setStep(1);
+                alert(t('auto.agg.saveFailed', { error: err?.message || 'Unknown error' }));
+                return;
+            }
+
+            const body = {
+                name: name.trim(),
+                description: description.trim() || undefined,
+                display_names,
+                evaluation_mode: evaluationMode,
+                priority: Number(priority) || 0,
+                // Rules of a package are gated by the package's own switch.
+                is_enabled: isBuilder ? true : isEnabled,
+                condition_groups: [serializeGroup(rootGroup, vsIds)],
+                actions: actions.map(serializeAction),
+            };
+
+            if (builder) {
+                // Hand the payload back — the caller decides whether it is POSTed as
+                // part of a new package or appended to an existing one.
+                await builder.onSubmit(body as PresetPackageRule);
+                return;
+            }
+
             if (isPreset) {
                 // Preset body omits farm_id (path) + is_preset (server). priority is clamped server-side.
                 if (isEdit && automationId) {
@@ -486,9 +786,23 @@ export default function AutomationEditorModal({ farmId, automationId, automation
     };
 
     // ── Summaries ──
-    const summarizeCondition = (c: AutomationCondition): string => {
+    // Accepts both an in-progress ECondition (aggregate state in _agg/_extraRegisterIds)
+    // and a raw one straight off the API (aggregate state behind virtual_sensor_id).
+    const summarizeCondition = (c: AutomationCondition & Partial<Pick<ECondition, '_aggOn' | '_agg' | '_extraRegisterIds'>>): string => {
         const neg = c.is_negated ? 'NOT ' : '';
         const p = c.params || {};
+        if (c.condition_type === 'register_value' && (c._aggOn || c.virtual_sensor_id)) {
+            const vs = c.virtual_sensor_id ? vsById[c.virtual_sensor_id] : undefined;
+            const agg = (c._agg || vs?.agg || 'min').toUpperCase();
+            const count = c._aggOn
+                ? memberIdsOf(c as ECondition).length
+                : (vs?.source_register_ids?.length ?? 0);
+            const primaryId = c.register_id || vs?.source_register_ids?.[0];
+            const devId = primaryId ? registerToDevice[primaryId] : undefined;
+            const label = labelOfDevice(devId) || vs?.name || t('auto.cat.sensor');
+            const more = count > 1 ? ` +${count - 1}` : '';
+            return `${neg}${agg}(${label}${more}) ${p.operator ?? '>'} ${p.value ?? '?'}`;
+        }
         switch (c.condition_type) {
             case 'time_of_day': return `${neg}@ ${p.time ?? '--:--'}`;
             case 'time_range': return `${neg}${p.start ?? '--:--'}–${p.end ?? '--:--'}`;
@@ -496,7 +810,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
             case 'sun_event': return `${neg}${p.event ?? 'sunrise'} ${(p.offset_minutes ?? 0) >= 0 ? '+' : ''}${p.offset_minutes ?? 0}m`;
             case 'register_value': {
                 const devId = c.register_id ? registerToDevice[c.register_id] : undefined;
-                const label = (devId && deviceById[devId]?.name) || (c.register_id && registerById[c.register_id]?.code) || t('auto.cat.sensor');
+                const label = labelOfDevice(devId) || (c.register_id && registerById[c.register_id]?.code) || t('auto.cat.sensor');
                 return `${neg}${label} ${p.operator ?? '>'} ${p.value ?? '?'}`;
             }
             default: return c.condition_type;
@@ -507,7 +821,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         switch (a.action_type) {
             case 'set_register_value': {
                 let target = '?';
-                if (a.target_device_id) target = deviceById[a.target_device_id]?.name || t('auto.a.device');
+                if (a.target_device_id) target = labelOfDevice(a.target_device_id) || t('auto.a.device');
                 else if (a.target_register_id) target = registerById[a.target_register_id]?.code || t('auto.a.register');
                 return `${t('auto.sum.set', { target })} = ${a.value ?? '?'}`;
             }
@@ -531,15 +845,30 @@ export default function AutomationEditorModal({ farmId, automationId, automation
     const editorUser = audit.updated_by ? users[audit.updated_by] : undefined;
     const roleLabelOf = (u: UserResponse) => (u.global_role === 'super_admin' ? t('auto.roleAdmin') : t('auto.roleUser'));
     const roleClassOf = (u: UserResponse) => (u.global_role === 'super_admin' ? 'admin' : 'user');
-    const headerTitle = isPreset
-        ? (isEdit ? t('preset.editTitle') : t('preset.createTitle'))
-        : (isEdit ? t('auto.editRuleTitle') : t('auto.createRuleTitle'));
+    const headerTitle = builder?.title
+        ? builder.title
+        : isPreset
+            ? (isEdit ? t('preset.editTitle') : t('preset.createTitle'))
+            : (isEdit ? t('auto.editRuleTitle') : t('auto.createRuleTitle'));
+
+    // Everything the Aggregate modifier on a Sensor-reading card needs.
+    const aggCtx: AggContext = {
+        candidates: aggCandidates,
+        registerById,
+        deviceById,
+        registerToDevice,
+        deviceLabels,
+        live,
+        liveLoading,
+        refreshLive,
+        readOnly: vsUnavailable,
+    };
 
     // Portal to <body> so the fixed overlay's containing block is always the viewport,
     // never an ancestor's scroll/overflow/transform context (which caused the modal to
     // jitter between two positions when rendered inside the scrollable Presets tab).
     return createPortal(
-        <div className="ae-overlay" onClick={onClose}>
+        <div className={`ae-overlay ${nested ? 'ae-nested' : ''}`} onClick={onClose}>
             <div className="ae-modal panel" onClick={(e) => e.stopPropagation()}>
                 <div className="ae-header">
                     <h3><Wand2 size={18} className="ae-wand" /> {headerTitle}</h3>
@@ -646,6 +975,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
                                                     devices={devices}
                                                     registersByDevice={registersByDevice}
                                                     isPreset={isPreset}
+                                                    agg={aggCtx}
                                                     onChange={updateCondition}
                                                     onRemove={() => removeCondition(c._key)}
                                                 />
@@ -693,6 +1023,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
                                                     index={idx}
                                                     devices={devices}
                                                     registersByDevice={registersByDevice}
+                                                    deviceLabels={deviceLabels}
                                                     automations={automations.filter(r => r.id !== automationId)}
                                                     onChange={updateAction}
                                                     onRemove={() => removeAction(a._key)}
@@ -770,10 +1101,16 @@ export default function AutomationEditorModal({ farmId, automationId, automation
                                         />
                                         <span className="ae-hint">{t('auto.f.displayNamesHint')}</span>
                                     </div>
-                                    <label className="ae-check">
-                                        <input type="checkbox" checked={isEnabled} onChange={e => setIsEnabled(e.target.checked)} />
-                                        {t('auto.f.enableNow')}
-                                    </label>
+                                    {isBuilder ? (
+                                        // A package rule has no switch of its own — members turn the
+                                        // whole package on or off from their dashboard.
+                                        <span className="ae-hint">{t('preset.pkg.ruleEnabledHint')}</span>
+                                    ) : (
+                                        <label className="ae-check">
+                                            <input type="checkbox" checked={isEnabled} onChange={e => setIsEnabled(e.target.checked)} />
+                                            {t('auto.f.enableNow')}
+                                        </label>
+                                    )}
 
                                     <div className="ae-summary">
                                         <div className="ae-summary-title">{t('auto.sum.title')}</div>
@@ -797,7 +1134,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
                                     <button type="button" className="primary" onClick={() => setStep((step + 1) as Step)}>{t('auto.btn.continue')} <ArrowRight size={15} /></button>
                                 ) : (
                                     <button type="button" className="primary" onClick={handleSave} disabled={saving}>
-                                        {saving ? <Loader2 className="spinner" size={14} /> : <Save size={15} />} {saving ? t('auto.saving') : t('auto.btn.save')}
+                                        {saving ? <Loader2 className="spinner" size={14} /> : <Save size={15} />} {saving ? t('auto.saving') : (builder?.submitLabel || t('auto.btn.save'))}
                                     </button>
                                 )}
                             </div>
@@ -832,16 +1169,30 @@ function SummaryView({ logicalOp, conditions, actions }: { logicalOp: LogicalOp;
 }
 
 // ── Single condition card ──
+// Everything the Aggregate modifier needs, bundled so the card keeps a short signature.
+interface AggContext {
+    candidates: Array<{ register: Register; device: Device }>; // farm-wide sensor `value` registers
+    registerById: Record<string, Register>;
+    deviceById: Record<string, Device>;
+    registerToDevice: Record<string, string>;
+    deviceLabels: Record<string, string>; // deviceId → "<zone> · <device>"
+    live: Record<string, SlaveSensorReading>; // keyed by device code
+    liveLoading: boolean;
+    refreshLive: () => void;
+    readOnly?: boolean; // virtual-sensor endpoint unavailable → show, don't edit
+}
+
 interface ConditionEditorProps {
     condition: ECondition;
     devices: Device[];
     registersByDevice: Record<string, Register[]>;
     isPreset?: boolean; // preset mode → show "tunable threshold" controls
+    agg: AggContext;
     onChange: (c: ECondition) => void;
     onRemove: () => void;
 }
 
-function ConditionEditor({ condition, devices, registersByDevice, isPreset, onChange, onRemove }: ConditionEditorProps) {
+function ConditionEditor({ condition, devices, registersByDevice, isPreset, agg, onChange, onRemove }: ConditionEditorProps) {
     const { t } = useTranslation();
     const c = condition;
     const setParam = (key: string, value: any) => onChange({ ...c, params: { ...c.params, [key]: value } });
@@ -857,9 +1208,65 @@ function ConditionEditor({ condition, devices, registersByDevice, isPreset, onCh
         : c._category === 'device'
             ? devices.filter(d => d.device_kind === 'actuator')
             : devices;
-    const condDevices = filtered.length ? filtered : devices;
-    const deviceRegisters = c._deviceId ? (registersByDevice[c._deviceId] || []) : [];
-    const selectedReg = c.register_id ? deviceRegisters.find(r => r.id === c.register_id) : undefined;
+    // Zone-qualified labels, sorted so the picker groups devices by zone.
+    const condDevices = [...(filtered.length ? filtered : devices)].sort(byLabel(agg.deviceLabels));
+    const labelOfDevice = (d: Device) => agg.deviceLabels[d.id] || d.name;
+    const allDeviceRegisters = c._deviceId ? (registersByDevice[c._deviceId] || []) : [];
+    // An aggregate only spans `value` registers, so the picker narrows to those once it is on.
+    const deviceRegisters = c._aggOn ? allDeviceRegisters.filter(r => r.role === 'value') : allDeviceRegisters;
+    const selectedReg = c.register_id ? allDeviceRegisters.find(r => r.id === c.register_id) : undefined;
+
+    // ── Aggregate modifier state (Sensor reading cards only) ──
+    const showAggregate = c.condition_type === 'register_value' && c._category === 'sensor';
+    const aggFn: VirtualSensorAgg = c._agg || 'min';
+    const members = memberIdsOf(c);
+    const memberSet = new Set(members);
+    const primaryUnitKey = unitKeyOf(selectedReg);
+    // "+ Add sensor" offers every other farm sensor measuring the same thing (same unit).
+    // A register with no unit configured can't be matched, so nothing is filtered out.
+    const addable = agg.candidates.filter(x =>
+        !memberSet.has(x.register.id) && (!primaryUnitKey || unitKeyOf(x.register) === primaryUnitKey));
+
+    const labelOfRegister = (rid: string): string => {
+        const devId = agg.registerToDevice[rid] || '';
+        return agg.deviceLabels[devId] || agg.deviceById[devId]?.name || agg.registerById[rid]?.code || rid.slice(0, 8);
+    };
+    const liveOfRegister = (rid: string): number | null => {
+        const dev = agg.deviceById[agg.registerToDevice[rid] || ''];
+        const v = dev ? agg.live[dev.code]?.current_value : undefined;
+        return typeof v === 'number' && !Number.isNaN(v) ? v : null;
+    };
+
+    const memberValues = members.map(liveOfRegister);
+    const knownValues = memberValues.filter((v): v is number => v !== null);
+    const aggValue = aggregateOf(aggFn, knownValues);
+    const decidingIdx = decidingIndexOf(aggFn, memberValues);
+    const aggUnit = selectedReg?.unit || '';
+    const threshold = Number(c.params?.value);
+    // What the condition would evaluate to right now, negation included.
+    const rawState = aggValue !== null && !Number.isNaN(threshold)
+        ? compare(c.params?.operator || '>', aggValue, threshold)
+        : null;
+    const condState = rawState === null ? null : (c.is_negated ? !rawState : rawState);
+
+    const toggleAggregate = (on: boolean) => {
+        if (!on) { onChange({ ...c, _aggOn: false }); return; }
+        // Aggregates run over `value` registers; if the card points at a status
+        // register, move to this device's value register so the members stay valid.
+        let register_id = c.register_id || '';
+        const cur = register_id ? agg.registerById[register_id] : undefined;
+        if (!cur || cur.role !== 'value') {
+            register_id = allDeviceRegisters.find(r => r.role === 'value' && r.is_active)?.id || '';
+        }
+        onChange({ ...c, _aggOn: true, _agg: aggFn, register_id, _extraRegisterIds: c._extraRegisterIds || [] });
+    };
+    const addMember = (rid: string) => {
+        if (!rid || memberSet.has(rid)) return;
+        onChange({ ...c, _extraRegisterIds: [...(c._extraRegisterIds || []), rid] });
+    };
+    const removeMember = (rid: string) => {
+        onChange({ ...c, _extraRegisterIds: (c._extraRegisterIds || []).filter(x => x !== rid) });
+    };
 
     return (
         <div className="ae-cond">
@@ -879,7 +1286,7 @@ function ConditionEditor({ condition, devices, registersByDevice, isPreset, onCh
                             <label>{t('auto.c.device')}</label>
                             <select value={c._deviceId || ''} onChange={e => onChange({ ...c, _deviceId: e.target.value, register_id: '' })}>
                                 <option value="">{t('auto.a.selectDevice')}</option>
-                                {condDevices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                {condDevices.map(d => <option key={d.id} value={d.id}>{labelOfDevice(d)}</option>)}
                             </select>
                         </div>
                         <div className="ae-pfield">
@@ -899,6 +1306,139 @@ function ConditionEditor({ condition, devices, registersByDevice, isPreset, onCh
                             <label>{t('auto.c.value')}</label>
                             <input type="number" step="any" value={c.params.value ?? 0} onChange={e => setParam('value', e.target.value === '' ? '' : Number(e.target.value))} />
                         </div>
+
+                        {/* Aggregate: a modifier on this same card, not a new condition type.
+                            Unticked, the card and the payload are the plain single-register ones. */}
+                        {showAggregate && (
+                            <div className="ae-pfield full ae-aggregate">
+                                <label className={`ae-agg-toggle ${agg.readOnly ? 'disabled' : ''}`}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!c._aggOn}
+                                        disabled={agg.readOnly}
+                                        onChange={e => toggleAggregate(e.target.checked)}
+                                    />
+                                    <Sigma size={13} />
+                                    <span>{t('auto.agg.label')}</span>
+                                </label>
+                                <span className="ae-hint">{agg.readOnly ? t('auto.agg.unavailable') : t('auto.agg.hint')}</span>
+
+                                {c._aggOn && (
+                                    <div className="ae-agg-body">
+                                        {c._vsOpaque ? (
+                                            <div className="ae-agg-opaque">
+                                                <AlertTriangle size={13} />
+                                                <span>{t('auto.agg.opaque')}</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="ae-agg-row">
+                                                    <span className="ae-agg-caption">{t('auto.agg.function')}</span>
+                                                    <div className="ae-logic-toggle">
+                                                        {AGGS.map(a => (
+                                                            <button
+                                                                type="button"
+                                                                key={a}
+                                                                className={aggFn === a ? 'active' : ''}
+                                                                onClick={() => onChange({ ...c, _agg: a })}
+                                                            >
+                                                                {t(`auto.agg.${a}`)}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div className="ae-agg-row">
+                                                    <span className="ae-agg-caption">{t('auto.agg.members', { count: members.length })}</span>
+                                                    <div className="ae-agg-chips">
+                                                        {members.map((rid, idx) => {
+                                                            const v = memberValues[idx];
+                                                            const deciding = decidingIdx === idx && members.length > 1;
+                                                            return (
+                                                                <span
+                                                                    className={`ae-agg-chip ${idx === 0 ? 'primary' : ''} ${deciding ? 'deciding' : ''}`}
+                                                                    key={rid}
+                                                                    title={agg.registerById[rid]?.code || rid}
+                                                                >
+                                                                    {idx === 0 && <span className="ae-agg-chip-tag">{t('auto.agg.primary')}</span>}
+                                                                    <span className="ae-agg-chip-name">{labelOfRegister(rid)}</span>
+                                                                    <span className="ae-agg-chip-val">
+                                                                        {v === null ? '—' : `${fmtNum(v)}${aggUnit ? ` ${aggUnit}` : ''}`}
+                                                                    </span>
+                                                                    {idx > 0 && (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="ae-agg-chip-x"
+                                                                            title={t('auto.agg.removeSensor')}
+                                                                            onClick={() => removeMember(rid)}
+                                                                        >
+                                                                            <X size={11} />
+                                                                        </button>
+                                                                    )}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                        <select
+                                                            className="ae-agg-add"
+                                                            value=""
+                                                            disabled={!addable.length}
+                                                            onChange={e => { addMember(e.target.value); e.currentTarget.value = ''; }}
+                                                        >
+                                                            <option value="">
+                                                                {addable.length ? `+ ${t('auto.agg.addSensor')}` : t('auto.agg.noMoreSensors')}
+                                                            </option>
+                                                            {addable.map(x => (
+                                                                <option key={x.register.id} value={x.register.id}>
+                                                                    {labelOfDevice(x.device)}{x.register.unit ? ` (${x.register.unit})` : ''}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                <div className="ae-agg-helper">
+                                                    <Info size={12} />
+                                                    <div className="ae-agg-helper-text">
+                                                        {aggValue === null ? (
+                                                            <span className="muted">{t('auto.agg.noLive')}</span>
+                                                        ) : (
+                                                            <>
+                                                                <span className="ae-agg-current">
+                                                                    {t(`auto.agg.${aggFn}`)} = <strong>{fmtNum(aggValue)}</strong>{aggUnit ? ` ${aggUnit}` : ''}
+                                                                </span>
+                                                                {members.length > 1 && (
+                                                                    aggFn === 'avg'
+                                                                        ? <span className="ae-agg-note">{t('auto.agg.avgOf', { count: knownValues.length })}</span>
+                                                                        : decidingIdx !== null && <span className="ae-agg-note">{t('auto.agg.decidedBy', { name: labelOfRegister(members[decidingIdx]) })}</span>
+                                                                )}
+                                                                {knownValues.length < members.length && (
+                                                                    <span className="ae-agg-note warn">{t('auto.agg.partial', { count: members.length - knownValues.length })}</span>
+                                                                )}
+                                                                {condState !== null && (
+                                                                    <span className={`ae-agg-state ${condState ? 'on' : 'off'}`}>
+                                                                        {t(condState ? 'auto.agg.stateTrue' : 'auto.agg.stateFalse')}
+                                                                        <code>{`${c.is_negated ? 'NOT ' : ''}${fmtNum(aggValue)} ${c.params?.operator || '>'} ${c.params?.value ?? '?'}`}</code>
+                                                                    </span>
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="ae-agg-refresh"
+                                                        onClick={agg.refreshLive}
+                                                        disabled={agg.liveLoading}
+                                                        title={t('auto.agg.refresh')}
+                                                    >
+                                                        {agg.liveLoading ? <Loader2 className="spinner" size={12} /> : <RefreshCw size={12} />}
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {isPreset && (
                             <div className="ae-pfield full ae-tunable">
@@ -986,17 +1526,21 @@ interface ActionEditorProps {
     index: number;
     devices: Device[];
     registersByDevice: Record<string, Register[]>;
+    deviceLabels: Record<string, string>; // deviceId → "<zone> · <device>"
     automations: AutomationScene[];
     onChange: (a: EAction) => void;
     onRemove: () => void;
 }
 
-function ActionEditor({ action, index, devices, registersByDevice, automations, onChange, onRemove }: ActionEditorProps) {
+function ActionEditor({ action, index, devices, registersByDevice, deviceLabels, automations, onChange, onRemove }: ActionEditorProps) {
     const { t } = useTranslation();
     const a = action;
     const setParam = (key: string, value: any) => onChange({ ...a, params: { ...a.params, [key]: value } });
 
-    const actuators = devices.filter(d => d.device_type === 'switch' || d.device_type === 'open_close');
+    // Zone-qualified labels, sorted so both pickers group devices by zone.
+    const labelOfDevice = (d: Device) => deviceLabels[d.id] || d.name;
+    const sortedDevices = [...devices].sort(byLabel(deviceLabels));
+    const actuators = sortedDevices.filter(d => d.device_type === 'switch' || d.device_type === 'open_close');
     const selectedDevice = devices.find(d => d.id === a.target_device_id);
     const writableRegisters = a._deviceId ? (registersByDevice[a._deviceId] || []).filter(r => r.writable) : [];
 
@@ -1022,7 +1566,7 @@ function ActionEditor({ action, index, devices, registersByDevice, automations, 
                                     <label>{t('auto.a.device')}</label>
                                     <select value={a.target_device_id || ''} onChange={e => onChange({ ...a, target_device_id: e.target.value, value: 0 })}>
                                         <option value="">{t('auto.a.selectDevice')}</option>
-                                        {actuators.map(d => <option key={d.id} value={d.id}>{d.name} · {d.device_type}</option>)}
+                                        {actuators.map(d => <option key={d.id} value={d.id}>{labelOfDevice(d)} · {d.device_type}</option>)}
                                     </select>
                                 </div>
                                 <div className="ae-pfield short">
@@ -1043,7 +1587,7 @@ function ActionEditor({ action, index, devices, registersByDevice, automations, 
                                     <label>{t('auto.a.device')}</label>
                                     <select value={a._deviceId || ''} onChange={e => onChange({ ...a, _deviceId: e.target.value, target_register_id: '' })}>
                                         <option value="">{t('auto.a.selectDevice')}</option>
-                                        {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                        {sortedDevices.map(d => <option key={d.id} value={d.id}>{labelOfDevice(d)}</option>)}
                                     </select>
                                 </div>
                                 <div className="ae-pfield">

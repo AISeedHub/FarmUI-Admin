@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Layers, Plus, Pencil, Trash2, Sliders, Loader2, AlertTriangle, RefreshCw,
-    ChevronDown, Check, X,
+    ChevronDown, ChevronRight, Check, X, Package, FileText, Link2,
 } from 'lucide-react';
 import { presetsApi } from '../../../api/services';
 import { AutomationScene, PresetTunable, PresetTuneValue } from '../../../types';
 import AutomationEditorModal from './AutomationEditorModal';
+import PresetPackageModal from './PresetPackageModal';
 import './PresetsPanel.css';
 
 interface PresetsPanelProps {
@@ -20,6 +21,15 @@ const tuneBounds = (tn: PresetTunable): { min: number | null; max: number | null
     max: tn.tunable_max ?? tn.register_max ?? null,
 });
 
+// A row in the panel: either a package (container + its child rules) or a
+// standalone single-rule preset. GET /farms/{id}/presets returns one flat list —
+// containers carry is_group, their rules carry preset_group_id.
+interface PresetEntry {
+    row: AutomationScene;
+    children: AutomationScene[];
+    isPackage: boolean;
+}
+
 export default function PresetsPanel({ farmId }: PresetsPanelProps) {
     const { t } = useTranslation();
 
@@ -28,9 +38,19 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Editor (null editId = create)
+    // Rule editor (null editId = create). `editParent` marks a rule that belongs to a package.
     const [editorOpen, setEditorOpen] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
+
+    // Package editor: 'new' = create, or the container being edited.
+    const [packageModal, setPackageModal] = useState<{ container: AutomationScene | null } | null>(null);
+    // "New preset" split menu (package vs single rule).
+    const [showNewMenu, setShowNewMenu] = useState(false);
+    // Appending a rule to an existing package.
+    const [appendTo, setAppendTo] = useState<AutomationScene | null>(null);
+
+    // Which packages are expanded to show their rules.
+    const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
     // Inline tune panel: which preset is expanded + draft values keyed by condition_id.
     const [tuneId, setTuneId] = useState<string | null>(null);
@@ -72,14 +92,73 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
         }
     };
 
-    const openCreate = () => { setEditId(null); setEditorOpen(true); };
-    const openEdit = (p: AutomationScene) => { setEditId(p.id); setEditorOpen(true); };
+    // Group the flat list into packages + standalone presets, preserving server order.
+    const entries = useMemo<PresetEntry[]>(() => {
+        const childrenOf: Record<string, AutomationScene[]> = {};
+        presets.forEach(p => {
+            if (p.preset_group_id) {
+                (childrenOf[p.preset_group_id] ||= []).push(p);
+            }
+        });
+        return presets
+            .filter(p => !p.preset_group_id)
+            .map(row => ({
+                row,
+                children: childrenOf[row.id] || [],
+                // A container is flagged by the server; treat a row that has children as
+                // one too, so an older payload without is_group still renders correctly.
+                isPackage: !!row.is_group || (childrenOf[row.id]?.length ?? 0) > 0,
+            }));
+    }, [presets]);
+
+    // Tunables of a package = its own plus every child rule's, whichever shape the
+    // member view returns them in.
+    const tunablesFor = (entry: PresetEntry): PresetTunable[] => {
+        const own = tunablesById[entry.row.id] || [];
+        if (!entry.isPackage) return own;
+        const seen = new Set(own.map(t => t.condition_id));
+        const merged = [...own];
+        entry.children.forEach(child => (tunablesById[child.id] || []).forEach(tn => {
+            if (!seen.has(tn.condition_id)) { seen.add(tn.condition_id); merged.push(tn); }
+        }));
+        return merged;
+    };
+
+    // Which preset row owns a given tunable — the tune endpoint is per-preset, so a
+    // package's thresholds have to be applied against the child rule that holds them.
+    const ownerOfTunable = (entry: PresetEntry, conditionId: string): string => {
+        if ((tunablesById[entry.row.id] || []).some(tn => tn.condition_id === conditionId)) return entry.row.id;
+        const child = entry.children.find(c => (tunablesById[c.id] || []).some(tn => tn.condition_id === conditionId));
+        return child?.id || entry.row.id;
+    };
+
+    const openCreateSingle = () => { setShowNewMenu(false); setEditId(null); setEditorOpen(true); };
+    const openCreatePackage = () => { setShowNewMenu(false); setPackageModal({ container: null }); };
+    const openEditRule = (p: AutomationScene) => { setEditId(p.id); setEditorOpen(true); };
     const handleEditorSaved = () => { setEditorOpen(false); loadData(); };
 
-    const handleDelete = async (p: AutomationScene) => {
-        if (!window.confirm(t('preset.deleteConfirm'))) return;
+    const handleDelete = async (entry: PresetEntry) => {
+        const { row, children, isPackage } = entry;
+        if (isPackage) {
+            // Deleting a container cascades to every rule inside it — confirm twice and
+            // say how many rules are about to go.
+            if (!window.confirm(t('preset.pkg.deleteConfirm1', { name: row.name, count: children.length }))) return;
+            if (!window.confirm(t('preset.pkg.deleteConfirm2', { count: children.length }))) return;
+        } else if (!window.confirm(t('preset.deleteConfirm'))) {
+            return;
+        }
         try {
-            await presetsApi.delete(p.id);
+            await presetsApi.delete(row.id);
+            loadData();
+        } catch (err: any) {
+            alert(t('preset.actionFailed', { error: err?.message || 'Unknown error' }));
+        }
+    };
+
+    const handleDeleteChild = async (child: AutomationScene) => {
+        if (!window.confirm(t('preset.pkg.deleteRuleConfirm', { name: child.name }))) return;
+        try {
+            await presetsApi.delete(child.id);
             loadData();
         } catch (err: any) {
             alert(t('preset.actionFailed', { error: err?.message || 'Unknown error' }));
@@ -87,12 +166,15 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
     };
 
     // Enable/disable via the dedicated member endpoint (optimistic; revert on failure).
+    // For a row with an exclusive_key the server also switches off the farm's other
+    // presets sharing that key, so the list is reloaded to pick those up.
     const handleToggle = async (p: AutomationScene) => {
         const next = !p.is_enabled;
         setTogglingId(p.id);
         setPresets(prev => prev.map(x => x.id === p.id ? { ...x, is_enabled: next } : x));
         try {
             await presetsApi.setEnabled(farmId, p.id, next);
+            if (next && p.exclusive_key) await loadData();
         } catch (err: any) {
             setPresets(prev => prev.map(x => x.id === p.id ? { ...x, is_enabled: p.is_enabled } : x));
             alert(t('preset.actionFailed', { error: err?.message || 'Unknown error' }));
@@ -101,20 +183,20 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
         }
     };
 
-    const openTune = (p: AutomationScene) => {
-        if (tuneId === p.id) { setTuneId(null); return; }
+    const openTune = (entry: PresetEntry) => {
+        if (tuneId === entry.row.id) { setTuneId(null); return; }
         const draft: Record<string, number> = {};
-        (tunablesById[p.id] || []).forEach(tn => { draft[tn.condition_id] = tn.current_value; });
+        tunablesFor(entry).forEach(tn => { draft[tn.condition_id] = tn.current_value; });
         setTuneDraft(draft);
-        setTuneId(p.id);
+        setTuneId(entry.row.id);
     };
 
     const setDraftValue = (conditionId: string, value: number) => {
         setTuneDraft(prev => ({ ...prev, [conditionId]: value }));
     };
 
-    const handleApplyTune = async (p: AutomationScene) => {
-        const tunables = tunablesById[p.id] || [];
+    const handleApplyTune = async (entry: PresetEntry) => {
+        const tunables = tunablesFor(entry);
         // Client-side bound check mirrors the backend so we fail fast with a clear message.
         for (const tn of tunables) {
             const v = Number(tuneDraft[tn.condition_id]);
@@ -125,16 +207,23 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                 return;
             }
         }
-        // Only send values that actually changed.
-        const values: PresetTuneValue[] = tunables
+        // Only send values that actually changed, grouped by the preset row that owns them.
+        const byOwner: Record<string, PresetTuneValue[]> = {};
+        tunables
             .filter(tn => Number(tuneDraft[tn.condition_id]) !== tn.current_value)
-            .map(tn => ({ condition_id: tn.condition_id, value: Number(tuneDraft[tn.condition_id]) }));
+            .forEach(tn => {
+                const owner = ownerOfTunable(entry, tn.condition_id);
+                (byOwner[owner] ||= []).push({ condition_id: tn.condition_id, value: Number(tuneDraft[tn.condition_id]) });
+            });
 
-        if (values.length === 0) { setTuneId(null); return; }
+        const owners = Object.keys(byOwner);
+        if (owners.length === 0) { setTuneId(null); return; }
 
         setSavingTune(true);
         try {
-            await presetsApi.tune(farmId, p.id, values);
+            for (const owner of owners) {
+                await presetsApi.tune(farmId, owner, byOwner[owner]);
+            }
             setTuneId(null);
             await loadData();
         } catch (err: any) {
@@ -177,34 +266,75 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                     <h3><Layers size={16} className="presets-title-icon" /> {t('preset.title')}</h3>
                     <p>{t('preset.desc')}</p>
                 </div>
-                <div className="actions">
-                    <button className="primary-btn flex-center" onClick={openCreate}>
+                <div className="actions preset-new-wrap">
+                    <button className="primary-btn flex-center" onClick={() => setShowNewMenu(v => !v)}>
                         <Plus size={14} /> {t('preset.newPreset')}
+                        <ChevronDown size={13} className={`chev ${showNewMenu ? 'open' : ''}`} />
                     </button>
+                    {showNewMenu && (
+                        <div className="preset-new-menu">
+                            <button onClick={openCreatePackage}>
+                                <Package size={15} />
+                                <span>
+                                    <strong>{t('preset.pkg.newPackage')}</strong>
+                                    <small>{t('preset.pkg.newPackageDesc')}</small>
+                                </span>
+                            </button>
+                            <button onClick={openCreateSingle}>
+                                <FileText size={15} />
+                                <span>
+                                    <strong>{t('preset.newSingle')}</strong>
+                                    <small>{t('preset.newSingleDesc')}</small>
+                                </span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {presets.length === 0 ? (
+            {entries.length === 0 ? (
                 <div className="presets-empty">
                     <Layers size={26} />
                     <p>{t('preset.empty')}</p>
-                    <button className="secondary-btn flex-center" onClick={openCreate}>
-                        <Plus size={14} /> {t('preset.newPreset')}
+                    <button className="secondary-btn flex-center" onClick={openCreatePackage}>
+                        <Plus size={14} /> {t('preset.pkg.newPackage')}
                     </button>
                 </div>
             ) : (
                 <div className="presets-list">
-                    {presets.map(p => {
-                        const tunables = tunablesById[p.id] || [];
+                    {entries.map(entry => {
+                        const p = entry.row;
+                        const tunables = tunablesFor(entry);
                         const isTuneOpen = tuneId === p.id;
+                        const isOpen = !!expanded[p.id];
                         return (
-                            <div className="preset-card" key={p.id}>
+                            <div className={`preset-card ${entry.isPackage ? 'is-package' : ''}`} key={p.id}>
                                 <div className="preset-main">
                                     <div className="preset-info">
                                         <div className="preset-name-row">
-                                            <span className={`dot ${p.is_enabled ? 'active' : 'inactive'}`}></span>
+                                            {entry.isPackage ? (
+                                                <button
+                                                    className="preset-expand"
+                                                    onClick={() => setExpanded(prev => ({ ...prev, [p.id]: !prev[p.id] }))}
+                                                    title={t(isOpen ? 'preset.pkg.collapse' : 'preset.pkg.expand')}
+                                                >
+                                                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                </button>
+                                            ) : (
+                                                <span className={`dot ${p.is_enabled ? 'active' : 'inactive'}`}></span>
+                                            )}
                                             <span className="preset-name">{p.name}</span>
-                                            <span className="priority-tag managed" title={t('preset.priorityBandTip')}>P{p.priority}</span>
+                                            {entry.isPackage && (
+                                                <span className="package-tag" title={t('preset.pkg.tagTip')}>
+                                                    <Package size={11} /> {t('preset.pkg.ruleCount', { count: entry.children.length })}
+                                                </span>
+                                            )}
+                                            {!entry.isPackage && <span className="priority-tag managed" title={t('preset.priorityBandTip')}>P{p.priority}</span>}
+                                            {p.exclusive_key && (
+                                                <span className="exclusive-tag" title={t('preset.pkg.exclusiveTip', { key: p.exclusive_key })}>
+                                                    <Link2 size={11} /> {p.exclusive_key}
+                                                </span>
+                                            )}
                                             {tunables.length > 0 && (
                                                 <span className="tunable-tag">
                                                     <Sliders size={11} /> {t('preset.tunableCount', { count: tunables.length })}
@@ -220,14 +350,14 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                         <div
                                             className={`toggle ${p.is_enabled ? 'on' : 'off'} ${togglingId === p.id ? 'busy' : ''}`}
                                             onClick={() => togglingId === p.id ? undefined : handleToggle(p)}
-                                            title={t('preset.toggleTip')}
+                                            title={entry.isPackage ? t('preset.pkg.toggleTip') : t('preset.toggleTip')}
                                         >
                                             <div className="knob"></div>
                                         </div>
                                         {tunables.length > 0 && (
                                             <button
                                                 className={`history-btn ${isTuneOpen ? 'active' : ''}`}
-                                                onClick={() => openTune(p)}
+                                                onClick={() => openTune(entry)}
                                                 title={t('preset.tuneTip')}
                                             >
                                                 <Sliders size={12} />
@@ -235,14 +365,54 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                                 <ChevronDown size={12} className={`chev ${isTuneOpen ? 'open' : ''}`} />
                                             </button>
                                         )}
-                                        <button className="history-btn icon-only" title={t('preset.editTip')} onClick={() => openEdit(p)}>
+                                        {entry.isPackage && (
+                                            <button className="history-btn" title={t('preset.pkg.addRuleTip')} onClick={() => setAppendTo(p)}>
+                                                <Plus size={12} />
+                                                <span>{t('preset.pkg.rule')}</span>
+                                            </button>
+                                        )}
+                                        <button
+                                            className="history-btn icon-only"
+                                            title={entry.isPackage ? t('preset.pkg.editTip') : t('preset.editTip')}
+                                            onClick={() => entry.isPackage ? setPackageModal({ container: p }) : openEditRule(p)}
+                                        >
                                             <Pencil size={12} />
                                         </button>
-                                        <button className="history-btn icon-only danger" title={t('preset.deleteTip')} onClick={() => handleDelete(p)}>
+                                        <button
+                                            className="history-btn icon-only danger"
+                                            title={entry.isPackage ? t('preset.pkg.deleteTip') : t('preset.deleteTip')}
+                                            onClick={() => handleDelete(entry)}
+                                        >
                                             <Trash2 size={12} />
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* Child rules of a package. The container has no condition tree of
+                                    its own — each rule is edited (and deleted) individually. */}
+                                {entry.isPackage && isOpen && (
+                                    <div className="preset-rules">
+                                        {entry.children.length === 0 ? (
+                                            <div className="preset-rules-empty">{t('preset.pkg.noRulesYet')}</div>
+                                        ) : entry.children.map((child, idx) => (
+                                            <div className="preset-rule-row" key={child.id}>
+                                                <span className="preset-rule-order">{idx + 1}</span>
+                                                <span className={`dot ${child.is_enabled ? 'active' : 'inactive'}`} title={t('preset.pkg.ruleStateTip')}></span>
+                                                <div className="preset-rule-info">
+                                                    <span className="preset-rule-name">{child.name}</span>
+                                                    {child.description && <span className="preset-rule-desc">{child.description}</span>}
+                                                </div>
+                                                <span className="priority-tag managed">P{child.priority}</span>
+                                                <button className="history-btn icon-only" title={t('preset.editTip')} onClick={() => openEditRule(child)}>
+                                                    <Pencil size={12} />
+                                                </button>
+                                                <button className="history-btn icon-only danger" title={t('preset.pkg.deleteRuleTip')} onClick={() => handleDeleteChild(child)}>
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
 
                                 {isTuneOpen && (
                                     <div className="preset-tune-panel">
@@ -281,7 +451,7 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                             <button className="secondary-btn flex-center" onClick={() => setTuneId(null)} disabled={savingTune}>
                                                 <X size={13} /> {t('preset.cancel')}
                                             </button>
-                                            <button className="primary-btn flex-center" onClick={() => handleApplyTune(p)} disabled={savingTune}>
+                                            <button className="primary-btn flex-center" onClick={() => handleApplyTune(entry)} disabled={savingTune}>
                                                 {savingTune ? <Loader2 className="spinner" size={13} /> : <Check size={13} />}
                                                 {t('preset.applyTune')}
                                             </button>
@@ -298,10 +468,46 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                 <AutomationEditorModal
                     farmId={farmId}
                     automationId={editId}
-                    automations={presets}
+                    // Copy-from list: only standalone presets and package rules have a tree.
+                    automations={presets.filter(p => !p.is_group)}
                     mode="preset"
                     onClose={() => setEditorOpen(false)}
                     onSaved={handleEditorSaved}
+                />
+            )}
+
+            {packageModal && (
+                <PresetPackageModal
+                    farmId={farmId}
+                    container={packageModal.container}
+                    ruleCount={packageModal.container
+                        ? entries.find(e => e.row.id === packageModal.container!.id)?.children.length ?? 0
+                        : 0}
+                    onClose={() => setPackageModal(null)}
+                    onSaved={() => { setPackageModal(null); loadData(); }}
+                />
+            )}
+
+            {/* Append one rule to an existing package: same builder, POSTed to
+                /presets/{container}/rules instead of being kept in a draft list. */}
+            {appendTo && (
+                <AutomationEditorModal
+                    farmId={farmId}
+                    automationId={null}
+                    automations={[]}
+                    mode="preset"
+                    builder={{
+                        title: t('preset.pkg.addRuleTo', { name: appendTo.name }),
+                        submitLabel: t('preset.pkg.appendRule'),
+                        onSubmit: async rule => {
+                            await presetsApi.addRule(appendTo.id, rule);
+                            setExpanded(prev => ({ ...prev, [appendTo.id]: true }));
+                            setAppendTo(null);
+                            await loadData();
+                        },
+                    }}
+                    onClose={() => setAppendTo(null)}
+                    onSaved={() => setAppendTo(null)}
                 />
             )}
         </div>

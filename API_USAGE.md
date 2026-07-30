@@ -172,6 +172,84 @@ Tài liệu này liệt kê chi tiết toàn bộ các API endpoint backend mà 
 
 ---
 
+### K. Preset & Package Preset (`presetsApi`)
+
+> Tiêu thụ bởi tab **Presets** ([`src/pages/Farms/components/PresetsPanel.tsx`](file:///c:/Users/Andrew/Documents/Project/FarmUI-Admin/src/pages/Farms/components/PresetsPanel.tsx)). Preset là automation có `is_preset=true`, do super_admin soạn trong 1 farm, nằm ở dải priority cao. Một **package** gồm 1 row *container* (`is_group=true`, không có condition tree) + N *rule con* (`preset_group_id` = id container). `GET /farms/{id}/presets` trả về danh sách **phẳng** chứa cả container và rule con — FE tự gom nhóm.
+
+| Tên phương thức | HTTP | Endpoint | Request Body | Response Type | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `presetsApi.getByFarm` | `GET` | `/farms/{farmId}/presets` | — | `AutomationScene[]` | Danh sách phẳng: container (`is_group`) + rule con (`preset_group_id`) + preset đơn. |
+| `presetsApi.getById` | `GET` | `/presets/{automationId}` | — | `AutomationDetail` | Tree đầy đủ (kèm cờ tunable) để hydrate editor. |
+| `presetsApi.create` | `POST` | `/farms/{farmId}/presets` | `PresetFullPayload` | `AutomationDetail` | Dạng **single-rule** (không có `rules`) — giữ nguyên như trước, không breaking. |
+| `presetsApi.createPackage` | `POST` | `/farms/{farmId}/presets` | `PresetPackagePayload` | `AutomationScene` (container) | Dạng **package**: phân biệt bằng khoá `rules`. Gửi kèm `condition_groups`/`actions` top-level → **422**. Mặc định `is_enabled=false` nếu không gửi tường minh. |
+| `presetsApi.addRule` | `POST` | `/presets/{automationId}/rules` | 1 phần tử của `rules[]` | `AutomationScene` (rule mới) | Thêm rule vào package có sẵn. **422** nếu id không phải container, **404** nếu không phải preset. |
+| `presetsApi.updateMeta` | `PUT` | `/presets/{automationId}` | `Partial<AutomationScene>` | `AutomationScene` | Metadata (container hoặc rule). Gửi `is_enabled=true` trên row có `exclusive_key` → các preset cùng key trong farm bị tắt trong cùng transaction. |
+| `presetsApi.fullUpdate` | `PUT` | `/presets/{automationId}/full` | `PresetFullPayload` | `AutomationDetail` | Thay toàn bộ tree của **1 rule**. **422** nếu id là container (container không có tree). |
+| `presetsApi.delete` | `DELETE` | `/presets/{automationId}` | — | `boolean` | Xoá container → **cascade** cả rule con + history. FE confirm 2 bước, hiển thị số rule sẽ mất. |
+| `presetsApi.getAvailable` | `GET` | `/farms/{farmId}/presets/available` | — | `PresetAvailable[]` | View cho member: preset + ngưỡng được phép tinh chỉnh. |
+| `presetsApi.setEnabled` | `PUT` | `/farms/{farmId}/presets/{automationId}/enabled` | `{ is_enabled }` | `{ success? }` | Bật/tắt (re-publish bundle). Cùng side-effect `exclusive_key` như `updateMeta`. |
+| `presetsApi.tune` | `PUT` | `/farms/{farmId}/presets/{automationId}/tune` | `{ values: PresetTuneValue[] }` | `{ success? }` | Tinh chỉnh ngưỡng whitelist (validate toàn bộ trước khi ghi). Ngưỡng của package nằm trên rule con → gửi theo từng rule sở hữu. |
+
+**Body dạng package:**
+
+```jsonc
+// POST /farms/{farm_id}/presets
+{ "name": "Bộ rule mùa Đông (R1)",
+  "display_names": { "vi": "Bộ Đông", "ko": "겨울 세트" },
+  "description": "Sưởi + màn nhiệt cho vụ đông",
+  "exclusive_key": "season",          // ≤50 ký tự, CHỈ set được lúc tạo
+  "is_enabled": false,                // mặc định TẮT — member tự bật từ Dashboard
+  "rules": [                          // mỗi phần tử = body của PUT /automations/{id}/full
+    { "name": "R1-01 Heating ON (temp ≤ 2)",
+      "evaluation_mode": "edge", "priority": 10000,
+      "condition_groups": [ { "logical_op": "AND", "display_order": 0, "conditions": [ /* … */ ] } ],
+      "actions": [ { "action_type": "set_register_value", "target_device_id": "…", "value": 1, "execution_order": 0 } ] }
+  ] }
+```
+
+---
+
+### L. Virtual Sensor & Giá trị cảm biến trực tiếp (`virtualSensorsApi`, `sensorsApi`)
+
+> Virtual sensor = phép gộp **MIN / AVG / MAX** trên N register, phạm vi 1 farm. Condition trỏ tới nó bằng `virtual_sensor_id` **thay cho** `register_id`. Trong rule editor đây chỉ là checkbox **Aggregate** trên card *Sensor reading* — FE tự tạo/tái dùng virtual sensor khi lưu, người dùng không phải học khái niệm mới. Tab **Virtual sensors** ([`VirtualSensorsPanel.tsx`](file:///c:/Users/Andrew/Documents/Project/FarmUI-Admin/src/pages/Farms/components/VirtualSensorsPanel.tsx)) dùng để đổi tên / ngừng dùng / xoá.
+
+| Tên phương thức | HTTP | Endpoint | Request Body | Response Type | Ghi chú |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `virtualSensorsApi.getByFarm` | `GET` | `/farms/{farmId}/virtual-sensors` | — | `VirtualSensor[]` | Cần để hydrate condition dạng aggregate (tree chỉ lưu id). FE degrade thành "aggregate read-only" nếu lỗi. |
+| `virtualSensorsApi.getById` | `GET` | `/virtual-sensors/{id}` | — | `VirtualSensor` | Chi tiết 1 virtual sensor. |
+| `virtualSensorsApi.create` | `POST` | `/farms/{farmId}/virtual-sensors` | `VirtualSensorCreate` | `VirtualSensor` | `code`: `^[a-z][a-z0-9_]*$`, ≤100, **chung namespace với `device.code`** trong farm. `source_register_ids` ≥1, mỗi register phải thuộc farm này, `role="value"`, thiết bị là sensor và đang active — sai thì **422** liệt kê đủ. |
+| `virtualSensorsApi.update` | `PUT` | `/virtual-sensors/{id}` | `VirtualSensorUpdate` | `VirtualSensor` | Partial; `code` **bất biến**. `source_register_ids` gửi lên là thay cả bộ. **409** khi `is_active=false` mà còn condition dùng (`detail.automations`). BE tự re-compile + republish. |
+| `virtualSensorsApi.delete` | `DELETE` | `/virtual-sensors/{id}` | — | `boolean` | **409** cùng format nếu còn được tham chiếu; xoá được thì tự republish. |
+| `registersApi.delete` | `DELETE` | `/registers/{registerId}` | — | `boolean` | **Hành vi mới:** 409 nếu register đang là nguồn của virtual sensor → `detail.virtual_sensors: [{ id, code }]`. FE hiển thị danh sách và hướng dẫn gỡ trước. |
+| `sensorsApi.getSlaveSensors` | `GET` | `/farms/{farmId}/slaves/{slaveId}/sensors` | — | `SlaveSensorReading[]` | Giá trị hiện tại theo `device` (= `device.code`) của 1 modbus unit. Dùng cho helper preview trong rule editor. |
+| `sensorsApi.getLiveByDeviceCode` | — | (gộp nhiều `slaveId`) | — | `Record<device_code, SlaveSensorReading>` | Helper client-side: unit nào lỗi thì bỏ qua, không làm fail cả batch. |
+
+```jsonc
+// POST /farms/{farm_id}/virtual-sensors
+{ "code": "vs_internal_temp_min", "name": "Nhiệt độ trong nhà (min)",
+  "display_names": { "vi": "Nhiệt trong nhà min" },
+  "agg": "min", "unit": "°C",
+  "source_register_ids": ["<register-uuid-1>", "<register-uuid-2>"] }
+
+// 409 khi xoá / deactivate virtual sensor còn được dùng
+{ "detail": { "message": "…", "automations": [ { "id": "…", "name": "R1-01 Heating ON" } ] } }
+
+// 409 khi xoá register đang nuôi virtual sensor
+{ "detail": { "message": "…", "virtual_sensors": [ { "id": "…", "code": "vs_internal_temp_min" } ] } }
+```
+
+**Điều kiện dạng aggregate trong tree:** gửi `virtual_sensor_id` và **không** gửi `register_id`.
+
+```jsonc
+{ "condition_type": "register_value",
+  "virtual_sensor_id": "<vs-uuid>",
+  "params": { "operator": "<=", "value": 2.0 },
+  "is_tunable": true, "tunable_min": 0, "tunable_max": 6,
+  "display_order": 0 }
+```
+
+---
+
 ## 3. Cấu trúc Dữ liệu Chi tiết (Request/Response Models)
 
 Được định nghĩa chi tiết tại [`src/types.ts`](file:///c:/Users/Andrew/Documents/Project/FarmUI-Admin/src/types.ts).
