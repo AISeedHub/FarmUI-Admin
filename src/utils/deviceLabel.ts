@@ -1,24 +1,10 @@
 import { Device, Zone } from '../types';
+import { localizedName } from './displayNames';
 
 // ── Human labels for devices ─────────────────────────────────────────────
 // A farm repeats device names on purpose: every sensor group owns a "Temperature
 // Sensor", "Humidity Sensor", … so a bare `device.name` is ambiguous in any picker.
 // Devices carry zone_id and zones carry a name, so the zone is what disambiguates.
-
-type Named = { display_names?: Record<string, string> | null; name?: string; code?: string };
-
-// Label of a record that carries display_names, in the active UI language.
-// Falls back: exact language → base language ("ko-KR" → "ko") → English → name → code.
-export const localizedName = (rec: Named | undefined | null, lang: string): string => {
-    if (!rec) return '';
-    const dn = rec.display_names || undefined;
-    return dn?.[lang]
-        || dn?.[lang.split('-')[0]]
-        || dn?.en
-        || rec.name
-        || rec.code
-        || '';
-};
 
 // Build deviceId → "<zone> · <device>" for a whole farm at once.
 // Devices with no zone fall back to `unassignedLabel`. If two devices still end up

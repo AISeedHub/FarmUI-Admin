@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { presetsApi } from '../../../api/services';
 import { AutomationScene, PresetTunable, PresetTuneValue } from '../../../types';
+import { localizedName } from '../../../utils/displayNames';
 import AutomationEditorModal from './AutomationEditorModal';
 import PresetPackageModal from './PresetPackageModal';
 import './PresetsPanel.css';
@@ -31,7 +32,10 @@ interface PresetEntry {
 }
 
 export default function PresetsPanel({ farmId }: PresetsPanelProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    // Read-only labels come from display_names so switching language switches them;
+    // the raw `name` stays the canonical value edited in the forms.
+    const nameOf = (p: AutomationScene) => localizedName(p, i18n.language);
 
     const [presets, setPresets] = useState<AutomationScene[]>([]);
     const [tunablesById, setTunablesById] = useState<Record<string, PresetTunable[]>>({});
@@ -142,7 +146,7 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
         if (isPackage) {
             // Deleting a container cascades to every rule inside it — confirm twice and
             // say how many rules are about to go.
-            if (!window.confirm(t('preset.pkg.deleteConfirm1', { name: row.name, count: children.length }))) return;
+            if (!window.confirm(t('preset.pkg.deleteConfirm1', { name: nameOf(row), count: children.length }))) return;
             if (!window.confirm(t('preset.pkg.deleteConfirm2', { count: children.length }))) return;
         } else if (!window.confirm(t('preset.deleteConfirm'))) {
             return;
@@ -156,7 +160,7 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
     };
 
     const handleDeleteChild = async (child: AutomationScene) => {
-        if (!window.confirm(t('preset.pkg.deleteRuleConfirm', { name: child.name }))) return;
+        if (!window.confirm(t('preset.pkg.deleteRuleConfirm', { name: nameOf(child) }))) return;
         try {
             await presetsApi.delete(child.id);
             loadData();
@@ -323,7 +327,7 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                             ) : (
                                                 <span className={`dot ${p.is_enabled ? 'active' : 'inactive'}`}></span>
                                             )}
-                                            <span className="preset-name">{p.name}</span>
+                                            <span className="preset-name" title={p.name}>{nameOf(p)}</span>
                                             {entry.isPackage && (
                                                 <span className="package-tag" title={t('preset.pkg.tagTip')}>
                                                     <Package size={11} /> {t('preset.pkg.ruleCount', { count: entry.children.length })}
@@ -399,7 +403,7 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                                 <span className="preset-rule-order">{idx + 1}</span>
                                                 <span className={`dot ${child.is_enabled ? 'active' : 'inactive'}`} title={t('preset.pkg.ruleStateTip')}></span>
                                                 <div className="preset-rule-info">
-                                                    <span className="preset-rule-name">{child.name}</span>
+                                                    <span className="preset-rule-name" title={child.name}>{nameOf(child)}</span>
                                                     {child.description && <span className="preset-rule-desc">{child.description}</span>}
                                                 </div>
                                                 <span className="priority-tag managed">P{child.priority}</span>
@@ -497,7 +501,7 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                     automations={[]}
                     mode="preset"
                     builder={{
-                        title: t('preset.pkg.addRuleTo', { name: appendTo.name }),
+                        title: t('preset.pkg.addRuleTo', { name: nameOf(appendTo) }),
                         submitLabel: t('preset.pkg.appendRule'),
                         onSubmit: async rule => {
                             await presetsApi.addRule(appendTo.id, rule);

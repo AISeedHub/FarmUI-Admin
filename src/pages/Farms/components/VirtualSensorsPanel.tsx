@@ -9,7 +9,7 @@ import {
     VirtualSensor, VirtualSensorAgg, VirtualSensorCreate, VirtualSensorUpdate,
     VirtualSensorInUse, Device, Register, Zone,
 } from '../../../types';
-import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../../utils/displayNames';
+import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText, localizedName } from '../../../utils/displayNames';
 import { buildDeviceLabels } from '../../../utils/deviceLabel';
 // The editor modal reuses the .ae-* shell, so pull that stylesheet in explicitly
 // rather than relying on another component having been imported first.
@@ -234,7 +234,7 @@ export default function VirtualSensorsPanel({ farmId }: VirtualSensorsPanelProps
     };
 
     const handleDelete = async (vs: VirtualSensor) => {
-        if (!window.confirm(t('vs.deleteConfirm', { name: vs.name }))) return;
+        if (!window.confirm(t('vs.deleteConfirm', { name: localizedName(vs, i18n.language) }))) return;
         setBusyId(vs.id);
         try {
             await virtualSensorsApi.delete(vs.id);
@@ -312,7 +312,7 @@ export default function VirtualSensorsPanel({ farmId }: VirtualSensorsPanelProps
                                         <div className="vs-info">
                                             <div className="vs-name-row">
                                                 <span className={`dot ${vs.is_active ? 'active' : 'inactive'}`}></span>
-                                                <span className="vs-name">{vs.name}</span>
+                                                <span className="vs-name" title={vs.name}>{localizedName(vs, i18n.language)}</span>
                                                 <span className={`vs-agg ${vs.agg}`}>{t(`auto.agg.${vs.agg}`)}</span>
                                                 <code className="vs-code">{vs.code}</code>
                                                 {vs.unit && <span className="vs-unit">{vs.unit}</span>}

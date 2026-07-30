@@ -6,6 +6,23 @@
 // Locales the admin UI itself ships (see src/i18n.ts). These keys are always offered.
 export const DISPLAY_NAME_LANGS = ['en', 'ko'] as const;
 
+// Anything that carries a display_names map plus a canonical name.
+export type Named = { display_names?: Record<string, string> | null; name?: string; code?: string };
+
+// What to SHOW for such a record, in the active UI language — always prefer this over
+// the raw `name` in read-only surfaces so switching language switches the labels too.
+// Falls back: exact language → base language ("ko-KR" → "ko") → English → name → code.
+export const localizedName = (rec: Named | undefined | null, lang: string): string => {
+    if (!rec) return '';
+    const dn = rec.display_names || undefined;
+    return dn?.[lang]
+        || dn?.[lang.split('-')[0]]
+        || dn?.en
+        || rec.name
+        || rec.code
+        || '';
+};
+
 // Text to seed a textarea with. Values a record already has are kept — including
 // languages outside DISPLAY_NAME_LANGS (e.g. an existing "vi") — and the shipped
 // locales are always present, so a missing translation is visible rather than

@@ -27,7 +27,7 @@ import {
     SlaveSensorReading,
     PresetPackageRule,
 } from '../../../types';
-import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../../utils/displayNames';
+import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText, localizedName } from '../../../utils/displayNames';
 import { buildDeviceLabels, byLabel } from '../../../utils/deviceLabel';
 import './AutomationEditorModal.css';
 
@@ -305,6 +305,8 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         [devices, zones, i18n.language, t],
     );
     const labelOfDevice = (deviceId?: string | null) => (deviceId && deviceLabels[deviceId]) || '';
+    // Read-only scene labels follow display_names; the editable `name` field stays raw.
+    const nameOfScene = (s?: AutomationScene | null) => localizedName(s, i18n.language);
 
     // Every register that may take part in an aggregate: the `value` register of an
     // active sensor device anywhere in the farm (what the BE accepts as a source).
@@ -829,7 +831,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
             case 'delay': return `${t('auto.acat.delay')} ${a.params?.seconds ?? 0}s`;
             case 'run_automation': {
                 const r = automations.find(x => x.id === a.params?.automation_id);
-                return `${t('auto.acat.run_automation')}: ${r?.name || '—'}`;
+                return `${t('auto.acat.run_automation')}: ${nameOfScene(r) || '—'}`;
             }
             default: return a.action_type;
         }
@@ -904,7 +906,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
                                                 onMouseLeave={() => setHover(null)}
                                             >
                                                 <span className="ae-copy-icon"><Fan size={16} /></span>
-                                                <span className="ae-copy-name">{rule.name}</span>
+                                                <span className="ae-copy-name" title={rule.name}>{nameOfScene(rule)}</span>
                                                 <button type="button" className="ae-copy-btn" onClick={() => copyFrom(rule)}>
                                                     <Copy size={14} /> {t('auto.entry.copy')}
                                                 </button>
@@ -920,7 +922,7 @@ export default function AutomationEditorModal({ farmId, automationId, automation
 
                         {hover && (
                             <div className="ae-preview" style={{ top: hover.top, left: hover.left }}>
-                                <div className="ae-preview-title"><Fan size={14} /> {automations.find(a => a.id === hover.id)?.name}</div>
+                                <div className="ae-preview-title"><Fan size={14} /> {nameOfScene(automations.find(a => a.id === hover.id))}</div>
                                 {previewCache[hover.id] ? (() => {
                                     const d = previewCache[hover.id];
                                     const root = d.condition_groups?.[0];
@@ -1533,7 +1535,7 @@ interface ActionEditorProps {
 }
 
 function ActionEditor({ action, index, devices, registersByDevice, deviceLabels, automations, onChange, onRemove }: ActionEditorProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const a = action;
     const setParam = (key: string, value: any) => onChange({ ...a, params: { ...a.params, [key]: value } });
 
@@ -1625,7 +1627,7 @@ function ActionEditor({ action, index, devices, registersByDevice, deviceLabels,
                         <label>{t('auto.a.targetAutomation')}</label>
                         <select value={a.params?.automation_id || ''} onChange={e => setParam('automation_id', e.target.value)}>
                             <option value="">{t('auto.a.selectAutomation')}</option>
-                            {automations.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                            {automations.map(r => <option key={r.id} value={r.id}>{localizedName(r, i18n.language)}</option>)}
                         </select>
                     </div>
                 )}

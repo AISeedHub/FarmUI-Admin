@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Loader2, AlertTriangle, RefreshCw, Plus, Pencil, Trash2, Video, VideoOff, Eye, EyeOff, Copy, Check, MapPin } from 'lucide-react';
 import { camerasApi, zonesApi } from '../../../api/services';
 import { Camera, CameraCreate, CameraUpdate, StreamProtocol, Zone } from '../../../types';
-import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../../utils/displayNames';
+import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText, localizedName } from '../../../utils/displayNames';
 import './CamerasTab.css';
 
 interface CamerasTabProps {
@@ -76,11 +76,10 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
         if (!zoneId) return t('detail.unassigned');
         const z = zones.find(zz => zz.id === zoneId);
         if (!z) return t('detail.unassigned');
-        return z.display_names?.[i18n.language] || z.name || z.code;
+        return localizedName(z, i18n.language);
     };
 
-    const localizedName = (cam: Camera) =>
-        cam.display_names?.[i18n.language] || cam.display_names?.en || cam.name || cam.code;
+    const cameraName = (cam: Camera) => localizedName(cam, i18n.language);
 
     const maskUrl = (url: string) => {
         // Hide credentials and host; keep the scheme so it still reads as an RTSP source.
@@ -218,7 +217,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
     };
 
     const handleDelete = async (cam: Camera) => {
-        if (!window.confirm(t('camera.deleteConfirm', { name: localizedName(cam) }))) return;
+        if (!window.confirm(t('camera.deleteConfirm', { name: cameraName(cam) }))) return;
         try {
             await camerasApi.delete(cam.id);
             loadData();
@@ -305,7 +304,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                             <option value="all">{t('camera.allZones')}</option>
                             {cameraZones.map(z => (
                                 <option key={z.id} value={z.id}>
-                                    {z.display_names?.[i18n.language] || z.name || z.code}
+                                    {localizedName(z, i18n.language)}
                                 </option>
                             ))}
                             {cameras.some(c => !c.zone_id) && (
@@ -340,7 +339,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
 
                                 <div className="camera-body">
                                     <div className="camera-title-row">
-                                        <h4 title={localizedName(cam)}>{localizedName(cam)}</h4>
+                                        <h4 title={cameraName(cam)}>{cameraName(cam)}</h4>
                                         <code className="camera-code">{cam.code}</code>
                                     </div>
 
@@ -491,7 +490,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                                         <option value="">-- {t('detail.unassigned')} --</option>
                                         {cameraZones.map(z => (
                                             <option key={z.id} value={z.id}>
-                                                {(z.display_names?.[i18n.language] || z.name || z.code)} ({z.code})
+                                                {localizedName(z, i18n.language)} ({z.code})
                                             </option>
                                         ))}
                                     </select>
