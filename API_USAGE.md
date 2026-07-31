@@ -189,6 +189,9 @@ Tài liệu này liệt kê chi tiết toàn bộ các API endpoint backend mà 
 | `presetsApi.getAvailable` | `GET` | `/farms/{farmId}/presets/available` | — | `PresetAvailable[]` | View cho member: preset + ngưỡng được phép tinh chỉnh. |
 | `presetsApi.setEnabled` | `PUT` | `/farms/{farmId}/presets/{automationId}/enabled` | `{ is_enabled }` | `{ success? }` | Bật/tắt (re-publish bundle). Cùng side-effect `exclusive_key` như `updateMeta`. |
 | `presetsApi.tune` | `PUT` | `/farms/{farmId}/presets/{automationId}/tune` | `{ values: PresetTuneValue[] }` | `{ success? }` | Tinh chỉnh ngưỡng whitelist (validate toàn bộ trước khi ghi). Ngưỡng của package nằm trên rule con → gửi theo từng rule sở hữu. |
+| `automationsApi.getExecutions` | `GET` | `/automations/{automationId}/executions/detailed` | `?limit=20` | `ExecutionHistoryRow[]` | **Lịch sử chạy của preset** — không có endpoint riêng, preset là automation nên dùng chung endpoint này. Container **không** tự chạy: nút *History* của package gọi song song theo từng rule con rồi FE trộn lại theo thời gian. Xem [`PresetHistoryModal.tsx`](file:///c:/Users/Andrew/Documents/Project/FarmUI-Admin/src/pages/Farms/components/PresetHistoryModal.tsx). |
+
+**Lưu ý về `actions` trong lịch sử chạy:** `AutomationExecutionDetailResponse.actions[]` là row `actuator_commands` thô — chỉ có `device_id` / `register_id` (UUID), `value`, `status`, chứ **không** có tên device. FE muốn hiện tên phải tự resolve (`PresetHistoryModal` gọi `devicesApi.getByFarm` + `zonesApi.getByFarm` một lần, chỉ khi thực sự có action, rồi dùng [`buildDeviceLabels`](file:///c:/Users/Andrew/Documents/Project/FarmUI-Admin/src/utils/deviceLabel.ts)); device đã bị xoá thì fallback về 8 ký tự đầu của id. Type `ExecutionHistoryRow` cũng khai báo `actuator_writes?` (dạng đã resolve sẵn) và ưu tiên nó nếu backend trả về.
 
 **Body dạng package:**
 
@@ -444,13 +447,27 @@ export interface ActuatorWrite {
     error_message?: string | null;
 }
 
+// Row actuator_commands thô mà 1 lần chạy sinh ra (field `actions` của
+// GET /automations/{id}/executions/detailed): chỉ có id, không có tên device.
+export interface ActuatorCommand {
+    id: string;
+    device_id: string;
+    register_id: string;
+    value: number;
+    status: 'pending' | 'sent' | 'failed' | string;
+    error_message?: string | null;
+    requested_at?: string;
+    executed_at?: string | null;
+}
+
 export interface ExecutionHistoryRow {
     id: string;
     automation_id: string;
     triggered_at: string;
     status: 'success' | 'failed' | 'partial';
     error_message?: string | null;
-    actuator_writes?: ActuatorWrite[];
+    actions?: ActuatorCommand[];        // dạng backend trả về hiện tại
+    actuator_writes?: ActuatorWrite[];  // dạng đã resolve sẵn tên device
     trigger_source?: 'schedule' | 'sensor' | 'manual' | string;
     trigger_snapshot?: Record<string, any> | null;
     occurred_at?: string;

@@ -313,6 +313,10 @@
 .preset-controls {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    /* Tune / +Rule / History / edit / delete: wrap rather than overflow the card
+       when a package shows every control at once on a narrow window. */
+    flex-wrap: wrap;
     gap: 10px;
     flex-shrink: 0;
 }

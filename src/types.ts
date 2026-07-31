@@ -157,12 +157,29 @@ export interface ActuatorWrite {
     error_message?: string | null;
 }
 
+// The raw actuator_commands row an execution produced, as GET
+// /automations/{id}/executions/detailed returns it under `actions`: ids only, so
+// the device name has to be resolved client-side.
+export interface ActuatorCommand {
+    id: string;
+    device_id: string;
+    register_id: string;
+    value: number;
+    status: 'pending' | 'sent' | 'failed' | string;
+    error_message?: string | null;
+    requested_at?: string;
+    executed_at?: string | null;
+}
+
 export interface ExecutionHistoryRow {
     id: string;
     automation_id: string;
     triggered_at: string;
     status: 'success' | 'failed' | 'partial';
     error_message?: string | null;
+    // Two shapes for the same thing: `actions` is what the detailed endpoint
+    // returns today, `actuator_writes` is the pre-resolved variant.
+    actions?: ActuatorCommand[];
     actuator_writes?: ActuatorWrite[];
     trigger_source?: 'schedule' | 'sensor' | 'manual' | string;
     trigger_snapshot?: Record<string, any> | null;
