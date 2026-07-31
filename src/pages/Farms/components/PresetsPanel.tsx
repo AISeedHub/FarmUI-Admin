@@ -388,7 +388,10 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="preset-description">{p.description || t('preset.noDescription')}</div>
+                                        {/* Clamped to two lines in CSS — the tooltip keeps the rest reachable. */}
+                                        <div className="preset-description" title={p.description || undefined}>
+                                            {p.description || t('preset.noDescription')}
+                                        </div>
                                     </div>
                                     <div className="preset-controls">
                                         <span className={`status-badge ${p.is_enabled ? 'enabled' : 'disabled'}`}>
@@ -455,7 +458,9 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                                 <span className={`dot ${child.is_enabled ? 'active' : 'inactive'}`} title={t('preset.pkg.ruleStateTip')}></span>
                                                 <div className="preset-rule-info">
                                                     <span className="preset-rule-name" title={child.name}>{nameOf(child)}</span>
-                                                    {child.description && <span className="preset-rule-desc">{child.description}</span>}
+                                                    {child.description && (
+                                                        <span className="preset-rule-desc" title={child.description}>{child.description}</span>
+                                                    )}
                                                 </div>
                                                 <span className="priority-tag managed">P{child.priority}</span>
                                                 <button className="history-btn icon-only" title={t('preset.historyTip')} onClick={() => openRuleHistory(child)}>

@@ -79,8 +79,17 @@
     border: 1px solid var(--border-input);
     border-radius: 12px;
     background: #ffffff;
+    /* Clips the nested rule list to the rounded corners — but `overflow: hidden`
+       also cancels a flex item's automatic minimum size, so without the explicit
+       flex-shrink below every card would be squeezed to fit .presets-list instead
+       of the list scrolling, clipping names and descriptions mid-line. */
     overflow: hidden;
-    transition: var(--transition-smooth);
+    flex-shrink: 0;
+    /* Never `all`: the card's height changes whenever a package is expanded or the
+       list reflows, and animating that drags every other card through clipped
+       intermediate heights. */
+    transition: border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .preset-card:hover {
@@ -169,11 +178,19 @@
     color: #7c3aed;
 }
 
+/* Rulebook descriptions run to whole paragraphs. Cap them at two lines so one
+   verbose package cannot own the whole viewport; the full text is in `title`. */
 .preset-description {
     font-size: 12px;
+    line-height: 1.45;
     color: var(--text-muted);
     margin-top: 5px;
     padding-left: 14px;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
 }
 
 /* Package container: expander + nested rule list */
