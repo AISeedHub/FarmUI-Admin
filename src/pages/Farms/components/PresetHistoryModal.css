@@ -1,0 +1,498 @@
+/* ── Preset execution history ──────────────────────────────────────────────
+   Self-contained (.ph-* namespace, own keyframes) so it does not inherit the
+   Automations tab's modal styles. Opened from the presets list; nothing else is
+   on screen, so z-index only has to clear the "New preset" menu. */
+
+.ph-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(8px);
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: phFade 0.2s ease-out forwards;
+}
+
+.ph-modal {
+    width: 760px;
+    max-width: 96%;
+    height: 82vh;
+    max-height: 720px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-input);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    animation: phRise 0.25s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+}
+
+/* Header */
+.ph-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border-input);
+    background: var(--bg-color);
+}
+
+.ph-head-text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ph-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.ph-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.ph-title-row h3 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 420px;
+}
+
+.ph-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    text-transform: uppercase;
+}
+
+.ph-badge.on {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.ph-badge.off {
+    background: #F3F4F6;
+    color: #6B7280;
+}
+
+.ph-badge.rules {
+    background: rgba(14, 165, 233, 0.1);
+    color: #0284c7;
+    text-transform: none;
+}
+
+.ph-desc {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.ph-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.ph-icon-btn {
+    background: transparent;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 6px;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-smooth);
+}
+
+.ph-icon-btn:hover:not(:disabled) {
+    background: var(--panel-bg);
+    color: var(--text-main);
+    border-color: var(--text-muted);
+}
+
+.ph-icon-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
+
+/* Body */
+.ph-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: #FAFAFA;
+}
+
+.ph-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-muted);
+    font-size: 13px;
+    text-align: center;
+    padding: 24px;
+}
+
+.ph-error-text {
+    color: var(--color-danger);
+}
+
+.ph-note {
+    padding: 10px 20px;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-bottom: 1px dashed var(--border-input);
+    background: var(--panel-bg);
+}
+
+.ph-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px 20px 24px;
+}
+
+/* Day group */
+.ph-day + .ph-day {
+    margin-top: 18px;
+}
+
+.ph-day-head {
+    /* Sticky offsets are measured from the scrollport edge, which includes
+       .ph-scroll's padding — so 0 parks it flush at the top of the visible area. */
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 6px 0 8px;
+    background: #FAFAFA;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+/* Timeline */
+.ph-timeline {
+    position: relative;
+    margin-left: 9px;
+    padding-left: 20px;
+    border-left: 2px solid var(--border-input);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ph-item {
+    position: relative;
+}
+
+.ph-dot {
+    position: absolute;
+    left: -29px;
+    top: 9px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--panel-bg);
+    border: 2px solid var(--text-muted);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ph-item.success .ph-dot {
+    border-color: var(--color-success);
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.ph-item.failed .ph-dot {
+    border-color: var(--color-danger);
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+}
+
+.ph-item.partial .ph-dot {
+    border-color: var(--color-warning);
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.ph-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ph-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ph-time {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+}
+
+.ph-source {
+    font-size: 9px;
+    font-weight: 700;
+    background: #E2E8F0;
+    color: #475569;
+    padding: 1px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.ph-rule {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-main);
+    background: var(--bg-color);
+    border: 1px solid var(--border-input);
+    padding: 1px 7px;
+    border-radius: 9999px;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ph-status {
+    margin-left: auto;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono), monospace;
+    background: #F3F4F6;
+    color: #6B7280;
+}
+
+.ph-status.success {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.ph-status.failed {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+}
+
+.ph-status.partial {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+/* Trigger snapshot */
+.ph-snapshot {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #FAFAFA;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 9px 11px;
+}
+
+.ph-snapshot-title,
+.ph-writes-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.ph-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.ph-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-size: 12px;
+}
+
+.ph-chip .k {
+    color: var(--text-muted);
+}
+
+.ph-chip .v {
+    color: var(--text-main);
+    font-weight: 600;
+    font-family: var(--font-mono), monospace;
+}
+
+.ph-error {
+    font-size: 12px;
+    color: var(--color-danger);
+    background: var(--color-danger-bg);
+    border: 1px dashed rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-family: var(--font-mono), monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* Actuator writes */
+.ph-writes {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    border-top: 1px solid var(--border-input);
+    padding-top: 10px;
+}
+
+.ph-writes ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.ph-writes li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-main);
+    background: #FAFAFA;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+
+.ph-write-target {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.ph-write-target svg {
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.ph-write-target strong {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ph-eq {
+    color: var(--text-muted);
+}
+
+.ph-write-target code {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+}
+
+.ph-write-status {
+    flex-shrink: 0;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #F3F4F6;
+    color: #6B7280;
+}
+
+.ph-write-status.sent {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.ph-write-status.failed {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+}
+
+.ph-write-status.pending {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.ph-spin {
+    animation: phSpin 1s linear infinite;
+    color: var(--primary);
+}
+
+@keyframes phSpin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes phFade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes phRise {
+    from { opacity: 0; transform: translateY(10px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (max-width: 640px) {
+    .ph-title-row h3 { max-width: 100%; white-space: normal; }
+    .ph-status { margin-left: 0; }
+}

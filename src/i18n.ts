@@ -407,6 +407,16 @@ const resources = {
             "preset.newSingle": "Single rule",
             "preset.newSingleDesc": "One standalone preset rule, as before.",
 
+            // Execution history
+            "preset.history": "History",
+            "preset.historyTip": "Execution history of this preset",
+            "preset.historyEyebrow": "Execution history",
+            "preset.historyPerRule": "Latest {{limit}} runs per rule, newest first",
+            "preset.historyCapped": "capped at {{max}} entries",
+            "preset.historyRefresh": "Reload",
+            "preset.historyFailed": "Could not load the history: {{error}}",
+            "preset.historyRuleTip": "The rule that fired",
+
             // Preset packages (one container + N rules)
             "preset.pkg.newPackage": "Rule package",
             "preset.pkg.newPackageDesc": "A named set of rules members switch on as one — e.g. a winter package.",
@@ -461,6 +471,7 @@ const resources = {
             "preset.pkg.deleteRuleConfirm": "Remove the rule \"{{name}}\" from this package?",
             "preset.pkg.deleteTip": "Delete package and all its rules",
             "preset.pkg.editTip": "Edit package details",
+            "preset.pkg.historyTip": "Merged execution history of every rule in this package",
             "preset.pkg.deleteRuleTip": "Delete this rule",
             "preset.pkg.expand": "Show rules",
             "preset.pkg.collapse": "Hide rules",
@@ -1164,6 +1175,16 @@ const resources = {
             "preset.newSingle": "단일 규칙",
             "preset.newSingleDesc": "기존과 같은 독립 프리셋 규칙 1개입니다.",
 
+            // Execution history
+            "preset.history": "실행 이력",
+            "preset.historyTip": "이 프리셋의 실행 이력 보기",
+            "preset.historyEyebrow": "실행 이력",
+            "preset.historyPerRule": "규칙별 최근 {{limit}}회 실행, 최신순",
+            "preset.historyCapped": "최대 {{max}}건까지 표시",
+            "preset.historyRefresh": "새로 고침",
+            "preset.historyFailed": "실행 이력을 불러오지 못했습니다: {{error}}",
+            "preset.historyRuleTip": "실행된 규칙",
+
             // Preset packages (one container + N rules)
             "preset.pkg.newPackage": "규칙 패키지",
             "preset.pkg.newPackageDesc": "멤버가 한 번에 켜는 규칙 묶음입니다 — 예: 겨울 세트.",
@@ -1218,6 +1239,7 @@ const resources = {
             "preset.pkg.deleteRuleConfirm": "이 패키지에서 규칙 \"{{name}}\"을(를) 삭제하시겠습니까?",
             "preset.pkg.deleteTip": "패키지와 모든 규칙 삭제",
             "preset.pkg.editTip": "패키지 정보 편집",
+            "preset.pkg.historyTip": "이 패키지에 속한 모든 규칙의 실행 이력을 시간순으로 보기",
             "preset.pkg.deleteRuleTip": "이 규칙 삭제",
             "preset.pkg.expand": "규칙 보기",
             "preset.pkg.collapse": "규칙 숨기기",

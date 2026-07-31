@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Layers, Plus, Pencil, Trash2, Sliders, Loader2, AlertTriangle, RefreshCw,
-    ChevronDown, ChevronRight, Check, X, Package, FileText, Link2,
+    ChevronDown, ChevronRight, Check, X, Package, FileText, Link2, History,
 } from 'lucide-react';
 import { presetsApi } from '../../../api/services';
 import { AutomationScene, PresetTunable, PresetTuneValue } from '../../../types';
 import { localizedName } from '../../../utils/displayNames';
 import AutomationEditorModal from './AutomationEditorModal';
 import PresetPackageModal from './PresetPackageModal';
+import PresetHistoryModal, { HistorySource } from './PresetHistoryModal';
 import './PresetsPanel.css';
 
 interface PresetsPanelProps {
@@ -29,6 +30,17 @@ interface PresetEntry {
     row: AutomationScene;
     children: AutomationScene[];
     isPackage: boolean;
+}
+
+// What the history modal is showing. Resolved at click time so the modal never
+// has to know about packages: it just merges the rules it is handed.
+interface HistoryTarget {
+    key: string;
+    title: string;
+    description?: string | null;
+    isEnabled: boolean;
+    sources: HistorySource[];
+    showRuleTag: boolean;
 }
 
 export default function PresetsPanel({ farmId }: PresetsPanelProps) {
@@ -56,6 +68,9 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
 
     // Which packages are expanded to show their rules.
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+    // Execution history modal (null = closed).
+    const [historyFor, setHistoryFor] = useState<HistoryTarget | null>(null);
 
     // Inline tune panel: which preset is expanded + draft values keyed by condition_id.
     const [tuneId, setTuneId] = useState<string | null>(null);
@@ -140,6 +155,29 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
         const child = entry.children.find(c => (tunablesById[c.id] || []).some(tn => tn.condition_id === conditionId));
         return child?.id || entry.row.id;
     };
+
+    // History of a whole row. A container never fires — its child rules do — so a
+    // package merges every rule's executions into one time-ordered stream.
+    const openHistory = (entry: PresetEntry) => setHistoryFor({
+        key: entry.row.id,
+        title: nameOf(entry.row),
+        description: entry.row.description,
+        isEnabled: entry.row.is_enabled,
+        sources: entry.isPackage
+            ? entry.children.map(c => ({ id: c.id, name: nameOf(c) }))
+            : [{ id: entry.row.id, name: nameOf(entry.row) }],
+        showRuleTag: entry.isPackage,
+    });
+
+    // History of one rule inside a package.
+    const openRuleHistory = (child: AutomationScene) => setHistoryFor({
+        key: child.id,
+        title: nameOf(child),
+        description: child.description,
+        isEnabled: child.is_enabled,
+        sources: [{ id: child.id, name: nameOf(child) }],
+        showRuleTag: false,
+    });
 
     const openCreateSingle = () => { setShowNewMenu(false); setEditId(null); setEditorOpen(true); };
     const openCreatePackage = () => { setShowNewMenu(false); setPackageModal({ container: null }); };
@@ -381,6 +419,14 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                             </button>
                                         )}
                                         <button
+                                            className="history-btn"
+                                            title={entry.isPackage ? t('preset.pkg.historyTip') : t('preset.historyTip')}
+                                            onClick={() => openHistory(entry)}
+                                        >
+                                            <History size={12} />
+                                            <span>{t('preset.history')}</span>
+                                        </button>
+                                        <button
                                             className="history-btn icon-only"
                                             title={entry.isPackage ? t('preset.pkg.editTip') : t('preset.editTip')}
                                             onClick={() => entry.isPackage ? setPackageModal({ container: p }) : openEditRule(p)}
@@ -412,6 +458,9 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                                     {child.description && <span className="preset-rule-desc">{child.description}</span>}
                                                 </div>
                                                 <span className="priority-tag managed">P{child.priority}</span>
+                                                <button className="history-btn icon-only" title={t('preset.historyTip')} onClick={() => openRuleHistory(child)}>
+                                                    <History size={12} />
+                                                </button>
                                                 <button className="history-btn icon-only" title={t('preset.editTip')} onClick={() => openEditRule(child)}>
                                                     <Pencil size={12} />
                                                 </button>
@@ -471,6 +520,21 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                         );
                     })}
                 </div>
+            )}
+
+            {/* Execution history. `key` remounts it when another preset is picked, so
+                the fetch stays a mount-time concern. */}
+            {historyFor && (
+                <PresetHistoryModal
+                    key={historyFor.key}
+                    farmId={farmId}
+                    title={historyFor.title}
+                    description={historyFor.description}
+                    isEnabled={historyFor.isEnabled}
+                    sources={historyFor.sources}
+                    showRuleTag={historyFor.showRuleTag}
+                    onClose={() => setHistoryFor(null)}
+                />
             )}
 
             {editorOpen && (
