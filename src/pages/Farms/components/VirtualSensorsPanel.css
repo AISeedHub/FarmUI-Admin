@@ -75,8 +75,13 @@
     border: 1px solid var(--border-input);
     border-radius: 12px;
     background: #ffffff;
+    /* Same pairing as .preset-card: `overflow: hidden` drops the flex item's
+       automatic minimum size, so the shrink has to be turned off explicitly or a
+       long list squeezes its cards instead of scrolling. */
     overflow: hidden;
-    transition: var(--transition-smooth);
+    flex-shrink: 0;
+    transition: border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .vs-card:hover {
