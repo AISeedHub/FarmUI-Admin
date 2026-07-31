@@ -215,11 +215,25 @@ const PRESET_PRIORITY_FLOOR = 10000;
 // Rule-builder mode: the modal builds a rule and hands the payload back instead of
 // persisting it itself. Used to author the rules of a preset package, which are
 // POSTed as one batch (or appended one at a time) by the caller — same form builder.
+// One entry of the "copy from an existing rule" list on the entry screen.
+// Either already in memory (`rule` — a draft of a package that is not saved yet) or
+// fetched on demand by id (`id` — a saved preset / automation).
+export interface CopyCandidate {
+    key: string;                // stable list key
+    name: string;               // label to show (already localized by the caller)
+    id?: string;
+    rule?: PresetPackageRule;
+    group?: string;             // optional section header, e.g. "In this package"
+}
+
 export interface RuleBuilderConfig {
     initial?: PresetPackageRule | null; // hydrate for "edit this rule of the package"
     onSubmit: (rule: PresetPackageRule) => Promise<void> | void;
     title?: string;
     submitLabel?: string;
+    // Offered on the entry screen when adding a NEW rule. Empty/omitted → straight to
+    // the wizard, since there would be nothing to choose from.
+    copySources?: CopyCandidate[];
 }
 
 interface AutomationEditorModalProps {
@@ -283,8 +297,9 @@ export default function AutomationEditorModal({ farmId, automationId, automation
     const [showCondPicker, setShowCondPicker] = useState(false);
     const [showActionPicker, setShowActionPicker] = useState(false);
 
-    // Copy-from preview popover
-    const [hover, setHover] = useState<{ id: string; top: number; left: number } | null>(null);
+    // Copy-from preview popover (keyed by CopyCandidate.key, not by scene id — a draft
+    // of an unsaved package has no id).
+    const [hover, setHover] = useState<{ key: string; top: number; left: number } | null>(null);
     const [previewCache, setPreviewCache] = useState<Record<string, AutomationDetail>>({});
 
     const deviceById = useMemo(() => Object.fromEntries(devices.map(d => [d.id, d])) as Record<string, Device>, [devices]);
@@ -373,8 +388,14 @@ export default function AutomationEditorModal({ farmId, automationId, automation
 
                 if (builder) {
                     // Rule-builder: hydrate from the in-memory payload, never from the API.
-                    if (builder.initial) applyDetail(builder.initial, regToDev, devMap, vsMap);
-                    setView('wizard');
+                    if (builder.initial) {
+                        applyDetail(builder.initial, regToDev, devMap, vsMap);
+                        setView('wizard');
+                    } else {
+                        // Adding a rule → offer "start fresh or clone one", exactly like a
+                        // single rule does, but only when there is something to clone.
+                        setView(builder.copySources?.length ? 'entry' : 'wizard');
+                    }
                 } else if (automationId) {
                     const detail = await fetchDetail(automationId);
                     if (cancelled) return;
@@ -520,10 +541,38 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         setStep(1); setView('wizard');
     };
 
-    const copyFrom = async (rule: AutomationScene) => {
+    // What the entry screen can clone: the caller's list in builder mode, otherwise the
+    // scenes/presets passed in as `automations`.
+    const copyCandidates: CopyCandidate[] = builder
+        ? (builder.copySources ?? [])
+        : automations.map(a => ({ key: a.id, id: a.id, name: nameOfScene(a) }));
+
+    // Preserve the caller's order while splitting into labelled sections.
+    const copyGroups = (() => {
+        const order: string[] = [];
+        const byGroup: Record<string, CopyCandidate[]> = {};
+        copyCandidates.forEach(c => {
+            const g = c.group || '';
+            if (!byGroup[g]) { byGroup[g] = []; order.push(g); }
+            byGroup[g].push(c);
+        });
+        return order.map(g => ({ group: g, items: byGroup[g] }));
+    })();
+
+    // Drafts are already in memory; saved rules are fetched (and cached by the preview).
+    const detailOfCandidate = (c?: CopyCandidate): HydrationSource | undefined =>
+        c?.rule ?? (c?.id ? previewCache[c.id] : undefined);
+
+    const copyFrom = async (c: CopyCandidate) => {
+        if (c.rule) {
+            applyDetail(c.rule, registerToDevice, deviceById, vsById, true);
+            setStep(1); setView('wizard');
+            return;
+        }
+        if (!c.id) return;
         setLoading(true);
         try {
-            const detail = previewCache[rule.id] || await fetchDetail(rule.id);
+            const detail = previewCache[c.id] || await fetchDetail(c.id);
             applyDetail(detail, registerToDevice, deviceById, vsById, true);
             setStep(1); setView('wizard');
         } catch (err: any) {
@@ -533,15 +582,16 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         }
     };
 
-    const onRowHover = (rule: AutomationScene, e: React.MouseEvent) => {
+    const onRowHover = (c: CopyCandidate, e: React.MouseEvent) => {
         const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
         const width = 320;
         let left = r.right + 12;
         if (left + width > window.innerWidth - 12) left = Math.max(12, r.left - width - 12);
-        setHover({ id: rule.id, top: r.top, left });
-        if (!previewCache[rule.id]) {
-            fetchDetail(rule.id)
-                .then(d => setPreviewCache(p => ({ ...p, [rule.id]: d })))
+        setHover({ key: c.key, top: r.top, left });
+        if (c.id && !previewCache[c.id]) {
+            const id = c.id;
+            fetchDetail(id)
+                .then(d => setPreviewCache(p => ({ ...p, [id]: d })))
                 .catch(() => { });
         }
     };
@@ -660,6 +710,8 @@ export default function AutomationEditorModal({ farmId, automationId, automation
                     } else {
                         const dev = devices.find(d => d.id === a.target_device_id);
                         if (dev?.device_type === 'switch' && Number(a.value) !== 0 && Number(a.value) !== 1) { errs.push(t('auto.vSwitchValue')); flag(2); }
+                        // Open degree is a percentage — the slider clamps it, hydrated data may not be.
+                        if (dev?.device_type === 'open_close' && (Number(a.value) < 0 || Number(a.value) > 100)) { errs.push(t('auto.vOpenDegree')); flag(2); }
                     }
                 } else if (!a.target_register_id || a.value === null || a.value === undefined || (a.value as any) === '') {
                     errs.push(t('auto.vActionRegister')); flag(2);
@@ -894,25 +946,28 @@ export default function AutomationEditorModal({ farmId, automationId, automation
                                 </span>
                             </button>
 
-                            {automations.length > 0 && (
+                            {copyCandidates.length > 0 && (
                                 <>
                                     <div className="ae-divider"><span>{t('auto.entry.copyDivider')}</span></div>
-                                    <div className="ae-copy-list">
-                                        {automations.map(rule => (
-                                            <div
-                                                key={rule.id}
-                                                className="ae-copy-row"
-                                                onMouseEnter={(e) => onRowHover(rule, e)}
-                                                onMouseLeave={() => setHover(null)}
-                                            >
-                                                <span className="ae-copy-icon"><Fan size={16} /></span>
-                                                <span className="ae-copy-name" title={rule.name}>{nameOfScene(rule)}</span>
-                                                <button type="button" className="ae-copy-btn" onClick={() => copyFrom(rule)}>
-                                                    <Copy size={14} /> {t('auto.entry.copy')}
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    {copyGroups.map(({ group, items }) => (
+                                        <div className="ae-copy-list" key={group || '_'}>
+                                            {group && <span className="ae-copy-group">{group}</span>}
+                                            {items.map(c => (
+                                                <div
+                                                    key={c.key}
+                                                    className="ae-copy-row"
+                                                    onMouseEnter={(e) => onRowHover(c, e)}
+                                                    onMouseLeave={() => setHover(null)}
+                                                >
+                                                    <span className="ae-copy-icon"><Fan size={16} /></span>
+                                                    <span className="ae-copy-name" title={c.name}>{c.name}</span>
+                                                    <button type="button" className="ae-copy-btn" onClick={() => copyFrom(c)}>
+                                                        <Copy size={14} /> {t('auto.entry.copy')}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
                                 </>
                             )}
                         </div>
@@ -920,20 +975,23 @@ export default function AutomationEditorModal({ farmId, automationId, automation
                             <button type="button" className="ae-cancel" onClick={onClose}>{t('btn.cancel')}</button>
                         </div>
 
-                        {hover && (
-                            <div className="ae-preview" style={{ top: hover.top, left: hover.left }}>
-                                <div className="ae-preview-title"><Fan size={14} /> {nameOfScene(automations.find(a => a.id === hover.id))}</div>
-                                {previewCache[hover.id] ? (() => {
-                                    const d = previewCache[hover.id];
-                                    const root = d.condition_groups?.[0];
-                                    const conds = root ? flattenRaw(root).map(summarizeCondition) : [];
-                                    const acts = (d.actions || []).map(summarizeAction);
-                                    return <SummaryView logicalOp={root?.logical_op || 'AND'} conditions={conds} actions={acts} />;
-                                })() : (
-                                    <div className="ae-preview-loading"><Loader2 className="spinner" size={16} /></div>
-                                )}
-                            </div>
-                        )}
+                        {hover && (() => {
+                            const hovered = copyCandidates.find(c => c.key === hover.key);
+                            const d = detailOfCandidate(hovered);
+                            return (
+                                <div className="ae-preview" style={{ top: hover.top, left: hover.left }}>
+                                    <div className="ae-preview-title"><Fan size={14} /> {hovered?.name}</div>
+                                    {d ? (() => {
+                                        const root = d.condition_groups?.[0];
+                                        const conds = root ? flattenRaw(root).map(summarizeCondition) : [];
+                                        const acts = (d.actions || []).map(summarizeAction);
+                                        return <SummaryView logicalOp={root?.logical_op || 'AND'} conditions={conds} actions={acts} />;
+                                    })() : (
+                                        <div className="ae-preview-loading"><Loader2 className="spinner" size={16} /></div>
+                                    )}
+                                </div>
+                            );
+                        })()}
                     </>
                 ) : (
                     // ── Wizard ──
@@ -1522,6 +1580,47 @@ function ConditionEditor({ condition, devices, registersByDevice, isPreset, agg,
     );
 }
 
+// ── Open degree (0–100 %) ──
+// open_close actuators take a percentage, so a slider is quicker and safer to set than
+// a free-typed number; the box next to it keeps exact values one keystroke away.
+function OpenDegreeField({ value, onChange }: { value?: number | null; onChange: (v: number) => void }) {
+    const { t } = useTranslation();
+    const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+    const current = clamp(Number(value) || 0);
+
+    return (
+        <div className="ae-pfield full ae-degree">
+            <label>{t('auto.a.openDegree')}</label>
+            <div className="ae-degree-row">
+                <input
+                    type="range"
+                    className="ae-degree-slider"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={current}
+                    onChange={e => onChange(clamp(Number(e.target.value)))}
+                />
+                <div className="ae-degree-num">
+                    <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={current}
+                        onChange={e => onChange(e.target.value === '' ? 0 : clamp(Number(e.target.value)))}
+                    />
+                    <span>%</span>
+                </div>
+            </div>
+            <div className="ae-degree-marks">
+                <span>{t('auto.a.degreeClosed')}</span>
+                <span>{t('auto.a.degreeOpen')}</span>
+            </div>
+        </div>
+    );
+}
+
 // ── Single action card ──
 interface ActionEditorProps {
     action: EAction;
@@ -1545,6 +1644,7 @@ function ActionEditor({ action, index, devices, registersByDevice, deviceLabels,
     const actuators = sortedDevices.filter(d => d.device_type === 'switch' || d.device_type === 'open_close');
     const selectedDevice = devices.find(d => d.id === a.target_device_id);
     const writableRegisters = a._deviceId ? (registersByDevice[a._deviceId] || []).filter(r => r.writable) : [];
+    const selectedRegister = a.target_register_id ? writableRegisters.find(r => r.id === a.target_register_id) : undefined;
 
     return (
         <div className="ae-action">
@@ -1571,17 +1671,23 @@ function ActionEditor({ action, index, devices, registersByDevice, deviceLabels,
                                         {actuators.map(d => <option key={d.id} value={d.id}>{labelOfDevice(d)} · {d.device_type}</option>)}
                                     </select>
                                 </div>
-                                <div className="ae-pfield short">
-                                    <label>{t('auto.a.value')}</label>
-                                    {selectedDevice?.device_type === 'switch' ? (
+                                {selectedDevice?.device_type === 'switch' ? (
+                                    <div className="ae-pfield short">
+                                        <label>{t('auto.a.value')}</label>
                                         <div className="ae-onoff">
                                             <button type="button" className={Number(a.value) === 1 ? 'active' : ''} onClick={() => onChange({ ...a, value: 1 })}>{t('auto.a.on')}</button>
                                             <button type="button" className={Number(a.value) === 0 ? 'active' : ''} onClick={() => onChange({ ...a, value: 0 })}>{t('auto.a.off')}</button>
                                         </div>
-                                    ) : (
-                                        <input type="number" min={0} max={selectedDevice?.device_type === 'open_close' ? 100 : undefined} value={a.value ?? 0} onChange={e => onChange({ ...a, value: e.target.value === '' ? 0 : Number(e.target.value) })} />
-                                    )}
-                                </div>
+                                    </div>
+                                ) : selectedDevice?.device_type === 'open_close' ? (
+                                    // An open degree is a percentage — dragging beats typing.
+                                    <OpenDegreeField value={a.value} onChange={v => onChange({ ...a, value: v })} />
+                                ) : (
+                                    <div className="ae-pfield short">
+                                        <label>{t('auto.a.value')}</label>
+                                        <input type="number" min={0} value={a.value ?? 0} onChange={e => onChange({ ...a, value: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="ae-action-row">
@@ -1599,10 +1705,15 @@ function ActionEditor({ action, index, devices, registersByDevice, deviceLabels,
                                         {writableRegisters.map(r => <option key={r.id} value={r.id}>{r.code} ({r.role})</option>)}
                                     </select>
                                 </div>
-                                <div className="ae-pfield short">
-                                    <label>{t('auto.a.value')}</label>
-                                    <input type="number" step="any" value={a.value ?? 0} onChange={e => onChange({ ...a, value: e.target.value === '' ? 0 : Number(e.target.value) })} />
-                                </div>
+                                {selectedRegister?.role === 'open_degree' ? (
+                                    // Same control as the device mode: this register IS an open degree.
+                                    <OpenDegreeField value={a.value} onChange={v => onChange({ ...a, value: v })} />
+                                ) : (
+                                    <div className="ae-pfield short">
+                                        <label>{t('auto.a.value')}</label>
+                                        <input type="number" step="any" value={a.value ?? 0} onChange={e => onChange({ ...a, value: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>

@@ -7,8 +7,8 @@ import {
 import HelpTip from '../../../components/HelpTip';
 import { presetsApi } from '../../../api/services';
 import { AutomationScene, PresetPackagePayload, PresetPackageRule } from '../../../types';
-import { displayNamesToText, parseDisplayNamesText } from '../../../utils/displayNames';
-import AutomationEditorModal from './AutomationEditorModal';
+import { displayNamesToText, parseDisplayNamesText, localizedName } from '../../../utils/displayNames';
+import AutomationEditorModal, { CopyCandidate } from './AutomationEditorModal';
 import './PresetPackageModal.css';
 
 // Editor-local wrapper so a rule keeps a stable React key while it is being reordered/edited.
@@ -24,12 +24,15 @@ interface PresetPackageModalProps {
     // has no condition tree of its own (PUT /presets/{id}/full 422s on it).
     container?: AutomationScene | null;
     ruleCount?: number; // rules the container already holds (edit mode, display only)
+    // Saved preset rules of this farm (no containers) — offered as clone sources when
+    // authoring a rule, alongside the drafts of this package.
+    copyableRules?: AutomationScene[];
     onClose: () => void;
     onSaved: () => void;
 }
 
-export default function PresetPackageModal({ farmId, container, ruleCount = 0, onClose, onSaved }: PresetPackageModalProps) {
-    const { t } = useTranslation();
+export default function PresetPackageModal({ farmId, container, ruleCount = 0, copyableRules = [], onClose, onSaved }: PresetPackageModalProps) {
+    const { t, i18n } = useTranslation();
     const isEdit = !!container;
 
     const [name, setName] = useState(container?.name || '');
@@ -103,6 +106,25 @@ export default function PresetPackageModal({ farmId, container, ruleCount = 0, o
     };
 
     const editingDraft = builderFor?.key ? drafts.find(d => d._key === builderFor.key) : undefined;
+
+    // Clone sources for a new rule: the sibling drafts first (the common case — an ON
+    // rule and its mirrored OFF rule), then any saved preset rule of the farm.
+    const copySources: CopyCandidate[] = [
+        ...drafts
+            .filter(d => d._key !== builderFor?.key) // never offer the rule being edited
+            .map((d, i) => ({
+                key: d._key,
+                name: d.rule.name || t('preset.pkg.ruleNo', { n: i + 1 }),
+                rule: d.rule,
+                group: t('preset.pkg.copyFromDrafts'),
+            })),
+        ...copyableRules.map(r => ({
+            key: r.id,
+            id: r.id,
+            name: localizedName(r, i18n.language),
+            group: t('preset.pkg.copyFromSaved'),
+        })),
+    ];
 
     return createPortal(
         <>
@@ -248,7 +270,8 @@ export default function PresetPackageModal({ farmId, container, ruleCount = 0, o
                 <AutomationEditorModal
                     farmId={farmId}
                     automationId={null}
-                    automations={[]}
+                    // Targets for a "Run another automation" action.
+                    automations={copyableRules}
                     mode="preset"
                     nested
                     builder={{
@@ -256,6 +279,7 @@ export default function PresetPackageModal({ farmId, container, ruleCount = 0, o
                         onSubmit: handleRuleSubmit,
                         title: editingDraft ? t('preset.pkg.editRuleTitle') : t('preset.pkg.newRuleTitle'),
                         submitLabel: t('preset.pkg.keepRule'),
+                        copySources,
                     }}
                     onClose={() => setBuilderFor(null)}
                     onSaved={() => setBuilderFor(null)}

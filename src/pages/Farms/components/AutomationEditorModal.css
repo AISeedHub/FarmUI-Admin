@@ -568,6 +568,70 @@
 /* Nested rule builder sits above the preset-package modal that opened it. */
 .ae-overlay.ae-nested { z-index: 1300; }
 
+/* Open degree slider (open_close actuators / open_degree registers) */
+.ae-degree {
+    gap: 8px;
+}
+
+.ae-degree-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+/* Strip the global input chrome (border/padding/white box) — a range needs none of it. */
+.ae-degree-slider {
+    flex: 1;
+    width: auto; /* the global `input { width: 100% }` would fight flex sizing */
+    min-width: 120px;
+    height: 22px;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.ae-degree-slider:focus {
+    box-shadow: none; /* the global input glow would float around a borderless track */
+}
+
+.ae-degree-slider:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+}
+
+.ae-degree-num {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.ae-degree-num input {
+    width: 62px;
+    padding: 6px 8px;
+    text-align: right;
+    /* Monospace so the readout does not jiggle while dragging. */
+    font-family: var(--font-mono), monospace;
+    font-weight: 600;
+}
+
+.ae-degree-num span {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.ae-degree-marks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
 /* Days picker */
 .ae-days {
     display: flex;
@@ -1065,6 +1129,16 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+/* Section header when the clone sources come from more than one place
+   (this package's own rules vs. the rest of the farm). */
+.ae-copy-group {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
 }
 
 .ae-copy-row {

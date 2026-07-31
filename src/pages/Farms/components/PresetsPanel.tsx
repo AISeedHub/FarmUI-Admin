@@ -50,8 +50,9 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
     const [packageModal, setPackageModal] = useState<{ container: AutomationScene | null } | null>(null);
     // "New preset" split menu (package vs single rule).
     const [showNewMenu, setShowNewMenu] = useState(false);
-    // Appending a rule to an existing package.
-    const [appendTo, setAppendTo] = useState<AutomationScene | null>(null);
+    // Appending a rule to an existing package (the whole entry, so its sibling rules
+    // can be offered as clone sources).
+    const [appendTo, setAppendTo] = useState<PresetEntry | null>(null);
 
     // Which packages are expanded to show their rules.
     const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -114,6 +115,10 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                 isPackage: !!row.is_group || (childrenOf[row.id]?.length ?? 0) > 0,
             }));
     }, [presets]);
+
+    // Every preset row that actually has a condition tree: standalone presets and the
+    // rules inside packages. Containers are excluded — there is nothing to clone or run.
+    const copyableRules = useMemo(() => presets.filter(p => !p.is_group), [presets]);
 
     // Tunables of a package = its own plus every child rule's, whichever shape the
     // member view returns them in.
@@ -370,7 +375,7 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                                             </button>
                                         )}
                                         {entry.isPackage && (
-                                            <button className="history-btn" title={t('preset.pkg.addRuleTip')} onClick={() => setAppendTo(p)}>
+                                            <button className="history-btn" title={t('preset.pkg.addRuleTip')} onClick={() => setAppendTo(entry)}>
                                                 <Plus size={12} />
                                                 <span>{t('preset.pkg.rule')}</span>
                                             </button>
@@ -473,7 +478,7 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                     farmId={farmId}
                     automationId={editId}
                     // Copy-from list: only standalone presets and package rules have a tree.
-                    automations={presets.filter(p => !p.is_group)}
+                    automations={copyableRules}
                     mode="preset"
                     onClose={() => setEditorOpen(false)}
                     onSaved={handleEditorSaved}
@@ -487,6 +492,7 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                     ruleCount={packageModal.container
                         ? entries.find(e => e.row.id === packageModal.container!.id)?.children.length ?? 0
                         : 0}
+                    copyableRules={copyableRules}
                     onClose={() => setPackageModal(null)}
                     onSaved={() => { setPackageModal(null); loadData(); }}
                 />
@@ -498,14 +504,28 @@ export default function PresetsPanel({ farmId }: PresetsPanelProps) {
                 <AutomationEditorModal
                     farmId={farmId}
                     automationId={null}
-                    automations={[]}
+                    // Targets for a "Run another automation" action.
+                    automations={copyableRules}
                     mode="preset"
                     builder={{
-                        title: t('preset.pkg.addRuleTo', { name: nameOf(appendTo) }),
+                        title: t('preset.pkg.addRuleTo', { name: nameOf(appendTo.row) }),
                         submitLabel: t('preset.pkg.appendRule'),
+                        // Sibling rules of this package first — cloning an ON rule into its
+                        // mirrored OFF rule is the common case — then the rest of the farm.
+                        copySources: [
+                            ...appendTo.children.map(r => ({
+                                key: r.id, id: r.id, name: nameOf(r), group: t('preset.pkg.copyFromPackage'),
+                            })),
+                            ...copyableRules
+                                .filter(r => r.preset_group_id !== appendTo.row.id)
+                                .map(r => ({
+                                    key: r.id, id: r.id, name: nameOf(r), group: t('preset.pkg.copyFromSaved'),
+                                })),
+                        ],
                         onSubmit: async rule => {
-                            await presetsApi.addRule(appendTo.id, rule);
-                            setExpanded(prev => ({ ...prev, [appendTo.id]: true }));
+                            const containerId = appendTo.row.id;
+                            await presetsApi.addRule(containerId, rule);
+                            setExpanded(prev => ({ ...prev, [containerId]: true }));
                             setAppendTo(null);
                             await loadData();
                         },
