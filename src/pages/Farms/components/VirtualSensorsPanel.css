@@ -1,0 +1,303 @@
+/* ── Virtual sensors tab ──
+   Same shell as the Presets tab: the tab itself does not scroll (keeps the modal's
+   backdrop-filter off a composited scroll layer); scrolling lives on .vs-list. */
+.vs-tab {
+    flex: 1;
+    min-height: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.vs-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    flex: 1;
+    min-height: 0;
+}
+
+.vs-panel.loading-state,
+.vs-panel.error-state {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: var(--text-muted);
+    padding: 40px;
+}
+
+.vs-panel.loading-state .spinner {
+    animation: spin 1s linear infinite;
+    color: var(--primary);
+}
+
+.vs-panel.error-state svg { color: var(--color-danger); }
+
+.vs-title-icon {
+    color: var(--primary);
+    vertical-align: -3px;
+    margin-right: 4px;
+}
+
+.vs-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    background: #f8fafc;
+    border: 1px dashed var(--border-input);
+    border-radius: 12px;
+}
+
+.vs-empty svg { color: var(--border); opacity: 0.7; }
+.vs-empty p { margin: 0; font-size: 13px; }
+.vs-empty-hint { font-size: 12px; max-width: 460px; line-height: 1.5; }
+
+.vs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.vs-card {
+    border: 1px solid var(--border-input);
+    border-radius: 12px;
+    background: #ffffff;
+    overflow: hidden;
+    transition: var(--transition-smooth);
+}
+
+.vs-card:hover {
+    border-color: var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.vs-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+}
+
+.vs-info { min-width: 0; flex: 1; }
+
+.vs-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.vs-name-row .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.vs-name-row .dot.active {
+    background: var(--color-success);
+    box-shadow: 0 0 0 2px var(--color-success-bg);
+}
+
+.vs-name-row .dot.inactive { background: #d1d5db; }
+
+.vs-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-main);
+}
+
+.vs-agg {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 1px 7px;
+    border-radius: 9999px;
+    background: var(--primary-glow);
+    color: var(--primary);
+}
+
+.vs-code {
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-color);
+    border: 1px solid var(--border-input);
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+.vs-unit {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: var(--font-mono), monospace;
+}
+
+.vs-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 7px;
+    padding-left: 14px;
+}
+
+.vs-source {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: #f1f5f9;
+    border-radius: 9999px;
+    padding: 2px 9px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vs-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.vs-controls .toggle.busy { opacity: 0.5; pointer-events: none; }
+
+/* 409: still referenced by automation conditions */
+.vs-inuse {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-top: 1px solid var(--border-input);
+    background: #fffbeb;
+    padding: 12px 18px;
+    font-size: 12px;
+    color: #92400e;
+}
+
+.vs-inuse > svg { flex-shrink: 0; margin-top: 1px; }
+.vs-inuse > div { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.vs-inuse strong { font-size: 12px; }
+
+.vs-inuse-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 4px;
+}
+
+.vs-inuse-item {
+    background: rgba(146, 64, 14, 0.1);
+    border-radius: 6px;
+    padding: 2px 8px;
+    font-weight: 600;
+}
+
+.vs-inuse-x {
+    background: transparent;
+    border: none;
+    color: #92400e;
+    padding: 2px;
+    display: flex;
+    flex-shrink: 0;
+}
+
+/* ── Editor modal extras (shell comes from AutomationEditorModal.css) ── */
+.vs-modal { width: 680px; }
+
+.vs-lock { vertical-align: -2px; margin-right: 2px; }
+
+.vs-source-picker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    background: #fff;
+    min-height: 42px;
+}
+
+.vs-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 10px;
+    border: 1px solid var(--border-input);
+    border-radius: 9999px;
+    background: #f8fafc;
+    font-size: 12px;
+}
+
+.vs-chip-name {
+    font-weight: 600;
+    color: var(--text-main);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vs-chip-unit {
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.vs-chip-x {
+    background: transparent;
+    border: none;
+    padding: 2px;
+    border-radius: 50%;
+    color: var(--text-muted);
+    display: flex;
+}
+
+.vs-chip-x:hover { background: var(--color-danger-bg); color: var(--color-danger); }
+
+.vs-chip-add {
+    max-width: 240px;
+    padding: 5px 8px;
+    font-size: 12px;
+    border: 1px dashed var(--border-input);
+    border-radius: 9999px;
+    background: #fff;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.vs-chip-add:disabled { color: var(--text-muted); font-weight: 500; }
+
+.vs-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--bg-color);
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.vs-note svg { color: #0284c7; flex-shrink: 0; margin-top: 1px; }
+
+@media (max-width: 720px) {
+    .vs-main { flex-direction: column; align-items: stretch; }
+    .vs-controls { justify-content: flex-end; }
+}

@@ -352,6 +352,286 @@
     font-style: italic;
 }
 
+/* Aggregate modifier (Sensor reading cards) — a row that grows out of the same
+   card, so an unticked checkbox leaves the original layout untouched. */
+.ae-aggregate {
+    border-top: 1px dashed var(--border-input);
+    padding-top: 10px;
+    margin-top: 2px;
+    gap: 6px;
+}
+
+.ae-agg-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-main);
+    cursor: pointer;
+}
+
+.ae-agg-toggle.disabled { opacity: 0.55; cursor: not-allowed; }
+
+.ae-agg-toggle input {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.ae-agg-toggle svg { color: var(--primary); }
+
+.ae-agg-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    animation: aePickerIn 0.18s ease-out;
+}
+
+.ae-agg-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.ae-agg-caption {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    flex: 0 0 92px;
+}
+
+.ae-agg-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.ae-agg-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 9px;
+    border: 1px solid var(--border-input);
+    border-radius: 9999px;
+    background: #f8fafc;
+    font-size: 12px;
+    max-width: 100%;
+}
+
+.ae-agg-chip.primary { border-color: var(--primary); background: var(--primary-glow); }
+
+/* The member that currently sets a MIN/MAX. */
+.ae-agg-chip.deciding {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.12);
+}
+
+.ae-agg-chip-tag {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--primary);
+}
+
+.ae-agg-chip-name {
+    font-weight: 600;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+}
+
+.ae-agg-chip-val {
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.ae-agg-chip-x {
+    background: transparent;
+    border: none;
+    padding: 2px;
+    border-radius: 50%;
+    color: var(--text-muted);
+    display: flex;
+}
+
+.ae-agg-chip-x:hover { background: var(--color-danger-bg); color: var(--color-danger); }
+
+.ae-agg-add {
+    max-width: 220px;
+    padding: 5px 8px;
+    font-size: 12px;
+    border: 1px dashed var(--border-input);
+    border-radius: 9999px;
+    background: #fff;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.ae-agg-add:disabled { color: var(--text-muted); font-weight: 500; }
+
+.ae-agg-helper {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    background: var(--bg-color);
+    border: 1px solid var(--border-input);
+}
+
+.ae-agg-helper > svg { color: #0284c7; flex-shrink: 0; margin-top: 2px; }
+
+.ae-agg-helper-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    font-size: 12px;
+    color: var(--text-main);
+}
+
+.ae-agg-helper-text .muted { color: var(--text-muted); font-style: italic; }
+
+.ae-agg-current { font-family: var(--font-mono), monospace; }
+.ae-agg-current strong { font-size: 13px; }
+
+.ae-agg-note { color: var(--text-muted); }
+.ae-agg-note.warn { color: #b45309; }
+
+.ae-agg-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+
+.ae-agg-state.on { background: var(--color-success-bg); color: var(--color-success); }
+.ae-agg-state.off { background: rgba(100, 116, 139, 0.12); color: #475569; }
+
+.ae-agg-state code {
+    font-family: var(--font-mono), monospace;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.85;
+}
+
+.ae-agg-refresh {
+    background: transparent;
+    border: 1px solid var(--border-input);
+    border-radius: 6px;
+    padding: 4px;
+    color: var(--text-muted);
+    display: flex;
+    flex-shrink: 0;
+}
+
+.ae-agg-refresh:hover:not(:disabled) { color: var(--primary); border-color: var(--primary); }
+.ae-agg-refresh:disabled { opacity: 0.5; }
+
+.ae-agg-opaque {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #b45309;
+}
+
+.ae-agg-opaque svg { flex-shrink: 0; }
+
+/* Nested rule builder sits above the preset-package modal that opened it. */
+.ae-overlay.ae-nested { z-index: 1300; }
+
+/* Open degree slider (open_close actuators / open_degree registers) */
+.ae-degree {
+    gap: 8px;
+}
+
+.ae-degree-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+/* Strip the global input chrome (border/padding/white box) — a range needs none of it. */
+.ae-degree-slider {
+    flex: 1;
+    width: auto; /* the global `input { width: 100% }` would fight flex sizing */
+    min-width: 120px;
+    height: 22px;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.ae-degree-slider:focus {
+    box-shadow: none; /* the global input glow would float around a borderless track */
+}
+
+.ae-degree-slider:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+}
+
+.ae-degree-num {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.ae-degree-num input {
+    width: 62px;
+    padding: 6px 8px;
+    text-align: right;
+    /* Monospace so the readout does not jiggle while dragging. */
+    font-family: var(--font-mono), monospace;
+    font-weight: 600;
+}
+
+.ae-degree-num span {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.ae-degree-marks {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
 /* Days picker */
 .ae-days {
     display: flex;
@@ -849,6 +1129,16 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+}
+
+/* Section header when the clone sources come from more than one place
+   (this package's own rules vs. the rest of the farm). */
+.ae-copy-group {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
 }
 
 .ae-copy-row {
