@@ -518,254 +518,254 @@ export default function FarmDetail() {
             <div className="farm-detail-content">
                 <div className="tab-content-container">
 
-            {activeTab === 'config' && (
-                <>
-                    <div className="config-tab-header">
-                        <div className="config-header-text">
-                            <h3>{t('detail.configTitle')}</h3>
-                            <p>{t('detail.configDesc')}</p>
-                        </div>
-                        <button
-                            className="export-btn flex-center"
-                            onClick={handleExport}
-                            disabled={exporting}
-                        >
-                            {exporting ? t('btn.exporting') : 'Export JSON'}
-                        </button>
-                    </div>
-                    <div className="blueprint-canvas new-horizontal-layout">
-                <div className="canvas-inner">
-                    {/* Dynamic SVG Connections Overlay */}
-                    <svg ref={svgRef} className="connections-svg">
-                        {/* 1. Core to Zone Connections */}
-                        {zoneConnections.map(conn => {
-                            const isSelected = conn.id === selectedZoneId;
-                            const cp1X = conn.startX + (conn.endX - conn.startX) * 0.5;
-                            const cp1Y = conn.startY;
-                            const cp2X = conn.endX - (conn.endX - conn.startX) * 0.5;
-                            const cp2Y = conn.endY;
-                            const pathD = `M ${conn.startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
-
-                            const badgeX = conn.endX + 230 + 15;
-                            const badgeY = conn.endY;
-
-                            const deviceCount = conn.id === 'unassigned'
-                                ? devices.filter(d => !d.zone_id).length
-                                : devices.filter(d => d.zone_id === conn.id).length;
-
-                            const color = isSelected ? '#0ea5e9' : 'rgba(14, 165, 233, 0.4)';
-                            const strokeWidth = isSelected ? '2' : '1';
-
-                            return (
-                                <g key={`zone-conn-${conn.id}`}>
-                                    <path d={pathD} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray={isSelected ? undefined : '3,3'} />
-                                    <circle cx={conn.startX} cy={conn.startY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
-                                    <circle cx={conn.endX} cy={conn.endY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
-                                    {isSelected && (
-                                        <g transform={`rotate(-90 ${badgeX} ${badgeY})`}>
-                                            <rect x={badgeX - 38} y={badgeY - 10} width="76" height="20" rx="10" fill="#ffffff" stroke="#0ea5e9" strokeWidth="1" />
-                                            <text x={badgeX} y={badgeY + 1} fill="#0284c7" fontSize="9" fontFamily="monospace" textAnchor="middle" dominantBaseline="middle" fontWeight="600">
-                                                {deviceCount} {deviceCount === 1 ? t('detail.device') : t('detail.devices_plural')}
-                                            </text>
-                                        </g>
-                                    )}
-                                </g>
-                            );
-                        })}
-
-                        {/* 2. Selected Zone to its Devices */}
-                        {deviceConnections.map(conn => {
-                            const isSelected = conn.id === selectedDeviceId;
-                            const startX = conn.startX + 28; // Start from right of 5 Devices badge
-                            const cp1X = startX + (conn.endX - startX) * 0.5;
-                            const cp1Y = conn.startY;
-                            const cp2X = conn.endX - (conn.endX - startX) * 0.5;
-                            const cp2Y = conn.endY;
-                            const pathD = `M ${startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
-
-                            const badgeX = conn.endX + 230 + 15;
-                            const badgeY = conn.endY;
-
-                            const regCount = registers[conn.id]?.length || 0;
-                            const color = isSelected ? '#0d9488' : 'rgba(13, 148, 136, 0.4)';
-                            const strokeWidth = isSelected ? '2' : '1';
-
-                            return (
-                                <g key={`dev-conn-${conn.id}`}>
-                                    <path d={pathD} fill="none" stroke={color} strokeWidth={strokeWidth} />
-                                    <circle cx={startX} cy={conn.startY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
-                                    <circle cx={conn.endX} cy={conn.endY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
-                                    {isSelected && (
-                                        <g transform={`rotate(-90 ${badgeX} ${badgeY})`}>
-                                            <rect x={badgeX - 42} y={badgeY - 10} width="84" height="20" rx="10" fill="#ffffff" stroke="#0d9488" strokeWidth="1" />
-                                            <text x={badgeX} y={badgeY + 1} fill="#0d9488" fontSize="9" fontFamily="monospace" textAnchor="middle" dominantBaseline="middle" fontWeight="600">
-                                                {regCount} {regCount === 1 ? t('detail.register') : t('detail.registers_plural')}
-                                            </text>
-                                        </g>
-                                    )}
-                                </g>
-                            );
-                        })}
-
-                        {/* 3. Selected Device to its Registers */}
-                        {registerConnections.map(conn => {
-                            const startX = conn.startX + 28; // Start from right of 2 Registers badge
-                            const cp1X = startX + (conn.endX - startX) * 0.5;
-                            const cp1Y = conn.startY;
-                            const cp2X = conn.endX - (conn.endX - startX) * 0.5;
-                            const cp2Y = conn.endY;
-                            const pathD = `M ${startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
-
-                            const color = '#10b981';
-
-                            return (
-                                <g key={`reg-conn-${conn.id}`}>
-                                    <path d={pathD} fill="none" stroke={color} strokeWidth="1.5" />
-                                    <circle cx={startX} cy={conn.startY} r="3" fill="#ffffff" stroke={color} strokeWidth="1.5" />
-                                    <circle cx={conn.endX} cy={conn.endY} r="3" fill="#ffffff" stroke={color} strokeWidth="1.5" />
-                                </g>
-                            );
-                        })}
-                    </svg>
-
-                    {/* Column 1: Core - Fixed on left */}
-                    <div className="core-column">
-                        <div ref={coreRef} className="node farm-node active-glow">
-                            <Activity size={32} />
-                            <h3>{t('detail.core')}</h3>
-                            <p>{farm.name}</p>
-                        </div>
-                    </div>
-
-                    {/* Column 2: Zones */}
-                    <div className="zones-column">
-                        <div className="column-header-row">
-                            <h3 className="column-title">{t('detail.zones')}</h3>
-                            <button className="add-btn-small" onClick={() => setZoneModal({ isOpen: true, type: 'new', data: { is_active: true, display_order: zones.length + 1, default_unit_id: 1, displayNamesStr: emptyDisplayNamesText() } })}>
-                                <Plus size={12} /> {t('btn.addZone')}
-                            </button>
-                        </div>
-                        {modbusZones.map((zone) => (
-                            <div
-                                key={zone.id}
-                                ref={el => zoneRefs.current[zone.id] = el}
-                                className={`node zone-node panel ${selectedZoneId === zone.id ? 'selected' : ''}`}
-                                onClick={() => handleZoneClick(zone.id)}
-                            >
-                                <div className="node-head">
-                                    <h4>{zone.display_names?.[i18n.language] || zone.display_names?.en || zone.display_names?.ko || zone.display_names?.vi || zone.name || zone.code}</h4>
-                                    <div className="node-actions">
-                                        <button onClick={(e) => { e.stopPropagation(); setZoneModal({ isOpen: true, type: 'edit', data: { ...zone, displayNamesStr: displayNamesToText(zone.display_names) } }); }}><Edit2 size={12} /></button>
-                                        <button className="del" onClick={(e) => { e.stopPropagation(); deleteZone(zone.id); }}><Trash2 size={12} /></button>
-                                    </div>
+                    {activeTab === 'config' && (
+                        <>
+                            <div className="config-tab-header">
+                                <div className="config-header-text">
+                                    <h3>{t('detail.configTitle')}</h3>
+                                    <p>{t('detail.configDesc')}</p>
                                 </div>
-                                <p className="node-desc">{zone.description || t('detail.noDescription')}</p>
-                                <div className="zone-meta">
-                                    <span>{t('detail.unitId')}: {zone.default_unit_id ?? '—'}</span>
-                                    <span>{t('detail.order')}: {zone.display_order}</span>
-                                </div>
-                            </div>
-                        ))}
-
-                        {/* Unassigned Zone Option */}
-                        {devices.some(d => !d.zone_id) && (
-                            <div
-                                ref={el => zoneRefs.current['unassigned'] = el}
-                                className={`node zone-node panel unassigned-node ${selectedZoneId === 'unassigned' ? 'selected' : ''}`}
-                                onClick={() => handleZoneClick('unassigned')}
-                            >
-                                <div className="node-head">
-                                    <h4>{t('detail.unassigned')} <span className="zone-code">[SYSTEM]</span></h4>
-                                </div>
-                                <p className="node-desc">Devices not assigned to any specific zone.</p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Column 3: Devices */}
-                    <div className="devices-column">
-                        <div className="column-header-row">
-                            <h3 className="column-title">{t('detail.devices')}</h3>
-                            {selectedZoneId && selectedZoneId !== 'unassigned' && (
-                                <button className="add-btn-small" onClick={() => setDeviceModal({ isOpen: true, type: 'new', data: { is_active: true, device_kind: 'sensor', device_type: 'sensor_group', unit_id: zones.find(z => z.id === selectedZoneId)?.default_unit_id || 1, zone_id: selectedZoneId, displayNamesStr: emptyDisplayNamesText() } })}>
-                                    <Plus size={12} /> {t('btn.addDevice')}
-                                </button>
-                            )}
-                        </div>
-
-                        {!selectedZoneId ? (
-                            <div className="empty-column-placeholder">{t('detail.selectZone')}</div>
-                        ) : currentZoneDevices.length === 0 ? (
-                            <div className="empty-column-placeholder">{t('detail.noDevices')}</div>
-                        ) : (
-                            currentZoneDevices.map((dev) => (
-                                <div
-                                    key={dev.id}
-                                    ref={el => deviceRefs.current[dev.id] = el}
-                                    className={`node module-node panel ${selectedDeviceId === dev.id ? 'selected' : ''}`}
-                                    onClick={() => handleDeviceClick(dev.id)}
+                                <button
+                                    className="export-btn flex-center"
+                                    onClick={handleExport}
+                                    disabled={exporting}
                                 >
-                                    <div className="node-head">
-                                        <h4>{dev.display_names?.[i18n.language] || dev.display_names?.en || dev.display_names?.ko || dev.display_names?.vi || dev.name || dev.code}</h4>
-                                        <div className="node-actions">
-                                            <button onClick={(e) => { e.stopPropagation(); setDeviceModal({ isOpen: true, type: 'edit', data: { ...dev, displayNamesStr: displayNamesToText(dev.display_names) } }); }}><Edit2 size={12} /></button>
-                                            <button className="del" onClick={(e) => { e.stopPropagation(); deleteDevice(dev.id); }}><Trash2 size={12} /></button>
+                                    {exporting ? t('btn.exporting') : 'Export Configuration'}
+                                </button>
+                            </div>
+                            <div className="blueprint-canvas new-horizontal-layout">
+                                <div className="canvas-inner">
+                                    {/* Dynamic SVG Connections Overlay */}
+                                    <svg ref={svgRef} className="connections-svg">
+                                        {/* 1. Core to Zone Connections */}
+                                        {zoneConnections.map(conn => {
+                                            const isSelected = conn.id === selectedZoneId;
+                                            const cp1X = conn.startX + (conn.endX - conn.startX) * 0.5;
+                                            const cp1Y = conn.startY;
+                                            const cp2X = conn.endX - (conn.endX - conn.startX) * 0.5;
+                                            const cp2Y = conn.endY;
+                                            const pathD = `M ${conn.startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
+
+                                            const badgeX = conn.endX + 230 + 15;
+                                            const badgeY = conn.endY;
+
+                                            const deviceCount = conn.id === 'unassigned'
+                                                ? devices.filter(d => !d.zone_id).length
+                                                : devices.filter(d => d.zone_id === conn.id).length;
+
+                                            const color = isSelected ? '#0ea5e9' : 'rgba(14, 165, 233, 0.4)';
+                                            const strokeWidth = isSelected ? '2' : '1';
+
+                                            return (
+                                                <g key={`zone-conn-${conn.id}`}>
+                                                    <path d={pathD} fill="none" stroke={color} strokeWidth={strokeWidth} strokeDasharray={isSelected ? undefined : '3,3'} />
+                                                    <circle cx={conn.startX} cy={conn.startY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
+                                                    <circle cx={conn.endX} cy={conn.endY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
+                                                    {isSelected && (
+                                                        <g transform={`rotate(-90 ${badgeX} ${badgeY})`}>
+                                                            <rect x={badgeX - 38} y={badgeY - 10} width="76" height="20" rx="10" fill="#ffffff" stroke="#0ea5e9" strokeWidth="1" />
+                                                            <text x={badgeX} y={badgeY + 1} fill="#0284c7" fontSize="9" fontFamily="monospace" textAnchor="middle" dominantBaseline="middle" fontWeight="600">
+                                                                {deviceCount} {deviceCount === 1 ? t('detail.device') : t('detail.devices_plural')}
+                                                            </text>
+                                                        </g>
+                                                    )}
+                                                </g>
+                                            );
+                                        })}
+
+                                        {/* 2. Selected Zone to its Devices */}
+                                        {deviceConnections.map(conn => {
+                                            const isSelected = conn.id === selectedDeviceId;
+                                            const startX = conn.startX + 28; // Start from right of 5 Devices badge
+                                            const cp1X = startX + (conn.endX - startX) * 0.5;
+                                            const cp1Y = conn.startY;
+                                            const cp2X = conn.endX - (conn.endX - startX) * 0.5;
+                                            const cp2Y = conn.endY;
+                                            const pathD = `M ${startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
+
+                                            const badgeX = conn.endX + 230 + 15;
+                                            const badgeY = conn.endY;
+
+                                            const regCount = registers[conn.id]?.length || 0;
+                                            const color = isSelected ? '#0d9488' : 'rgba(13, 148, 136, 0.4)';
+                                            const strokeWidth = isSelected ? '2' : '1';
+
+                                            return (
+                                                <g key={`dev-conn-${conn.id}`}>
+                                                    <path d={pathD} fill="none" stroke={color} strokeWidth={strokeWidth} />
+                                                    <circle cx={startX} cy={conn.startY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
+                                                    <circle cx={conn.endX} cy={conn.endY} r={isSelected ? '3.5' : '2.5'} fill="#ffffff" stroke={color} strokeWidth="1.5" />
+                                                    {isSelected && (
+                                                        <g transform={`rotate(-90 ${badgeX} ${badgeY})`}>
+                                                            <rect x={badgeX - 42} y={badgeY - 10} width="84" height="20" rx="10" fill="#ffffff" stroke="#0d9488" strokeWidth="1" />
+                                                            <text x={badgeX} y={badgeY + 1} fill="#0d9488" fontSize="9" fontFamily="monospace" textAnchor="middle" dominantBaseline="middle" fontWeight="600">
+                                                                {regCount} {regCount === 1 ? t('detail.register') : t('detail.registers_plural')}
+                                                            </text>
+                                                        </g>
+                                                    )}
+                                                </g>
+                                            );
+                                        })}
+
+                                        {/* 3. Selected Device to its Registers */}
+                                        {registerConnections.map(conn => {
+                                            const startX = conn.startX + 28; // Start from right of 2 Registers badge
+                                            const cp1X = startX + (conn.endX - startX) * 0.5;
+                                            const cp1Y = conn.startY;
+                                            const cp2X = conn.endX - (conn.endX - startX) * 0.5;
+                                            const cp2Y = conn.endY;
+                                            const pathD = `M ${startX},${conn.startY} C ${cp1X},${cp1Y} ${cp2X},${cp2Y} ${conn.endX},${conn.endY}`;
+
+                                            const color = '#10b981';
+
+                                            return (
+                                                <g key={`reg-conn-${conn.id}`}>
+                                                    <path d={pathD} fill="none" stroke={color} strokeWidth="1.5" />
+                                                    <circle cx={startX} cy={conn.startY} r="3" fill="#ffffff" stroke={color} strokeWidth="1.5" />
+                                                    <circle cx={conn.endX} cy={conn.endY} r="3" fill="#ffffff" stroke={color} strokeWidth="1.5" />
+                                                </g>
+                                            );
+                                        })}
+                                    </svg>
+
+                                    {/* Column 1: Core - Fixed on left */}
+                                    <div className="core-column">
+                                        <div ref={coreRef} className="node farm-node active-glow">
+                                            <Activity size={32} />
+                                            <h3>{t('detail.core')}</h3>
+                                            <p>{farm.name}</p>
                                         </div>
                                     </div>
-                                    <p className="node-desc">{dev.description || t('detail.noDescription')}</p>
-                                    <div className="device-meta">
-                                        <span>{t('detail.unitId')}: {dev.unit_id}</span>
-                                        <span>{t('detail.kind')}: {dev.device_kind}</span>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
 
-                    {/* Column 4: Register Configs */}
-                    <div className="registers-column">
-                        <div className="column-header-row">
-                            <h3 className="column-title">{t('detail.registers')}</h3>
-                            {selectedDeviceId && (
-                                <button className="add-btn-small" onClick={() => setRegisterModal({ isOpen: true, type: 'new', data: { is_active: true, displayNamesStr: emptyDisplayNamesText() }, deviceId: selectedDeviceId })}>
-                                    <Plus size={12} /> {t('btn.addRegister')}
-                                </button>
-                            )}
-                        </div>
-
-                        {!selectedDeviceId ? (
-                            <div className="empty-column-placeholder">{t('detail.selectDevice')}</div>
-                        ) : currentDeviceRegisters.length === 0 ? (
-                            <div className="empty-column-placeholder">{t('detail.noRegisters')}</div>
-                        ) : (
-                            currentDeviceRegisters.map((reg) => (
-                                <div
-                                    key={reg.id}
-                                    ref={el => registerRefs.current[reg.id] = el}
-                                    className={`node register-node compact panel ${!reg.is_active ? 'deactivated' : ''}`}
-                                    onDoubleClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId })}
-                                >
-                                    <div className="node-head">
-                                        <h5>{reg.code} <span className="reg-addr">0x{reg.address.toString(16).toUpperCase()}</span></h5>
-                                        <div className="node-actions hidden-actions">
-                                            <button onClick={(e) => { e.stopPropagation(); toggleRegisterActive(reg); }} className={!reg.is_active ? 'deactivated-btn' : ''} title={reg.is_active ? "Activate" : "Deactivate"}><Power size={12} /></button>
-                                            <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId }); }}><Edit2 size={12} /></button>
-                                            <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
+                                    {/* Column 2: Zones */}
+                                    <div className="zones-column">
+                                        <div className="column-header-row">
+                                            <h3 className="column-title">{t('detail.zones')}</h3>
+                                            <button className="add-btn-small" onClick={() => setZoneModal({ isOpen: true, type: 'new', data: { is_active: true, display_order: zones.length + 1, default_unit_id: 1, displayNamesStr: emptyDisplayNamesText() } })}>
+                                                <Plus size={12} /> {t('btn.addZone')}
+                                            </button>
                                         </div>
+                                        {modbusZones.map((zone) => (
+                                            <div
+                                                key={zone.id}
+                                                ref={el => zoneRefs.current[zone.id] = el}
+                                                className={`node zone-node panel ${selectedZoneId === zone.id ? 'selected' : ''}`}
+                                                onClick={() => handleZoneClick(zone.id)}
+                                            >
+                                                <div className="node-head">
+                                                    <h4>{zone.display_names?.[i18n.language] || zone.display_names?.en || zone.display_names?.ko || zone.display_names?.vi || zone.name || zone.code}</h4>
+                                                    <div className="node-actions">
+                                                        <button onClick={(e) => { e.stopPropagation(); setZoneModal({ isOpen: true, type: 'edit', data: { ...zone, displayNamesStr: displayNamesToText(zone.display_names) } }); }}><Edit2 size={12} /></button>
+                                                        <button className="del" onClick={(e) => { e.stopPropagation(); deleteZone(zone.id); }}><Trash2 size={12} /></button>
+                                                    </div>
+                                                </div>
+                                                <p className="node-desc">{zone.description || t('detail.noDescription')}</p>
+                                                <div className="zone-meta">
+                                                    <span>{t('detail.unitId')}: {zone.default_unit_id ?? '—'}</span>
+                                                    <span>{t('detail.order')}: {zone.display_order}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {/* Unassigned Zone Option */}
+                                        {devices.some(d => !d.zone_id) && (
+                                            <div
+                                                ref={el => zoneRefs.current['unassigned'] = el}
+                                                className={`node zone-node panel unassigned-node ${selectedZoneId === 'unassigned' ? 'selected' : ''}`}
+                                                onClick={() => handleZoneClick('unassigned')}
+                                            >
+                                                <div className="node-head">
+                                                    <h4>{t('detail.unassigned')} <span className="zone-code">[SYSTEM]</span></h4>
+                                                </div>
+                                                <p className="node-desc">Devices not assigned to any specific zone.</p>
+                                            </div>
+                                        )}
                                     </div>
-                                    <p className="node-desc">{reg.display_names?.[i18n.language] || reg.display_names?.en || reg.display_names?.ko || reg.display_names?.vi || reg.code}</p>
-                                    <div className="reg-meta">
-                                        <span>{reg.description || reg.role}</span>
-                                        <span>[{reg.data_type}]</span>
+
+                                    {/* Column 3: Devices */}
+                                    <div className="devices-column">
+                                        <div className="column-header-row">
+                                            <h3 className="column-title">{t('detail.devices')}</h3>
+                                            {selectedZoneId && selectedZoneId !== 'unassigned' && (
+                                                <button className="add-btn-small" onClick={() => setDeviceModal({ isOpen: true, type: 'new', data: { is_active: true, device_kind: 'sensor', device_type: 'sensor_group', unit_id: zones.find(z => z.id === selectedZoneId)?.default_unit_id || 1, zone_id: selectedZoneId, displayNamesStr: emptyDisplayNamesText() } })}>
+                                                    <Plus size={12} /> {t('btn.addDevice')}
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {!selectedZoneId ? (
+                                            <div className="empty-column-placeholder">{t('detail.selectZone')}</div>
+                                        ) : currentZoneDevices.length === 0 ? (
+                                            <div className="empty-column-placeholder">{t('detail.noDevices')}</div>
+                                        ) : (
+                                            currentZoneDevices.map((dev) => (
+                                                <div
+                                                    key={dev.id}
+                                                    ref={el => deviceRefs.current[dev.id] = el}
+                                                    className={`node module-node panel ${selectedDeviceId === dev.id ? 'selected' : ''}`}
+                                                    onClick={() => handleDeviceClick(dev.id)}
+                                                >
+                                                    <div className="node-head">
+                                                        <h4>{dev.display_names?.[i18n.language] || dev.display_names?.en || dev.display_names?.ko || dev.display_names?.vi || dev.name || dev.code}</h4>
+                                                        <div className="node-actions">
+                                                            <button onClick={(e) => { e.stopPropagation(); setDeviceModal({ isOpen: true, type: 'edit', data: { ...dev, displayNamesStr: displayNamesToText(dev.display_names) } }); }}><Edit2 size={12} /></button>
+                                                            <button className="del" onClick={(e) => { e.stopPropagation(); deleteDevice(dev.id); }}><Trash2 size={12} /></button>
+                                                        </div>
+                                                    </div>
+                                                    <p className="node-desc">{dev.description || t('detail.noDescription')}</p>
+                                                    <div className="device-meta">
+                                                        <span>{t('detail.unitId')}: {dev.unit_id}</span>
+                                                        <span>{t('detail.kind')}: {dev.device_kind}</span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    {/* Column 4: Register Configs */}
+                                    <div className="registers-column">
+                                        <div className="column-header-row">
+                                            <h3 className="column-title">{t('detail.registers')}</h3>
+                                            {selectedDeviceId && (
+                                                <button className="add-btn-small" onClick={() => setRegisterModal({ isOpen: true, type: 'new', data: { is_active: true, displayNamesStr: emptyDisplayNamesText() }, deviceId: selectedDeviceId })}>
+                                                    <Plus size={12} /> {t('btn.addRegister')}
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {!selectedDeviceId ? (
+                                            <div className="empty-column-placeholder">{t('detail.selectDevice')}</div>
+                                        ) : currentDeviceRegisters.length === 0 ? (
+                                            <div className="empty-column-placeholder">{t('detail.noRegisters')}</div>
+                                        ) : (
+                                            currentDeviceRegisters.map((reg) => (
+                                                <div
+                                                    key={reg.id}
+                                                    ref={el => registerRefs.current[reg.id] = el}
+                                                    className={`node register-node compact panel ${!reg.is_active ? 'deactivated' : ''}`}
+                                                    onDoubleClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId })}
+                                                >
+                                                    <div className="node-head">
+                                                        <h5>{reg.code} <span className="reg-addr">0x{reg.address.toString(16).toUpperCase()}</span></h5>
+                                                        <div className="node-actions hidden-actions">
+                                                            <button onClick={(e) => { e.stopPropagation(); toggleRegisterActive(reg); }} className={!reg.is_active ? 'deactivated-btn' : ''} title={reg.is_active ? "Activate" : "Deactivate"}><Power size={12} /></button>
+                                                            <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId }); }}><Edit2 size={12} /></button>
+                                                            <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
+                                                        </div>
+                                                    </div>
+                                                    <p className="node-desc">{reg.display_names?.[i18n.language] || reg.display_names?.en || reg.display_names?.ko || reg.display_names?.vi || reg.code}</p>
+                                                    <div className="reg-meta">
+                                                        <span>{reg.description || reg.role}</span>
+                                                        <span>[{reg.data_type}]</span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
                                     </div>
                                 </div>
-                            ))
-                        )}
-                    </div>
-                </div>
-            </div>
-        </>
-    )}
+                            </div>
+                        </>
+                    )}
 
                     {activeTab === 'automations' && <AutomationsTab farmId={id!} />}
 
