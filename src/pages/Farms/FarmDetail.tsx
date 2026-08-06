@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors } from '../../types';
 import { farmsApi, zonesApi, devicesApi, registersApi, ApiError } from '../../api/services';
@@ -26,6 +26,17 @@ export default function FarmDetail() {
     const [registers, setRegisters] = useState<Record<string, Register[]>>({});
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
+    // Config tab is view-only by default; editing must be unlocked through the notice modal.
+    const [configEditMode, setConfigEditMode] = useState(false);
+    const [editNoticeOpen, setEditNoticeOpen] = useState(false);
+
+    // Re-lock the register map whenever the admin leaves the config tab.
+    useEffect(() => {
+        if (activeTab !== 'config') {
+            setConfigEditMode(false);
+            setEditNoticeOpen(false);
+        }
+    }, [activeTab]);
 
     // Interactive drill-down selection states
     const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
@@ -521,17 +532,49 @@ export default function FarmDetail() {
                     {activeTab === 'config' && (
                         <>
                             <div className="config-tab-header">
-                                <div className="config-header-text">
-                                    <h3>{t('detail.configTitle')}</h3>
-                                    <p>{t('detail.configDesc')}</p>
+                                <div className="config-header-top">
+                                    <div className="config-header-text">
+                                        <h3>
+                                            {t('detail.configTitle')}
+                                            {configEditMode ? (
+                                                <span className="config-mode-badge editing"><Edit2 size={10} /> {t('detail.configEditing')}</span>
+                                            ) : (
+                                                <span className="config-mode-badge view"><Lock size={10} /> {t('detail.configViewOnly')}</span>
+                                            )}
+                                        </h3>
+                                        <p>{t('detail.configDesc')}</p>
+                                    </div>
+                                    <div className="config-header-actions">
+                                        {configEditMode ? (
+                                            <button
+                                                className="edit-toggle-btn active flex-center"
+                                                onClick={() => setConfigEditMode(false)}
+                                            >
+                                                <Lock size={13} /> {t('detail.configDoneBtn')}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                className="edit-toggle-btn flex-center"
+                                                onClick={() => setEditNoticeOpen(true)}
+                                            >
+                                                <Edit2 size={13} /> {t('detail.configEditBtn')}
+                                            </button>
+                                        )}
+                                        <button
+                                            className="export-btn flex-center"
+                                            onClick={handleExport}
+                                            disabled={exporting}
+                                        >
+                                            {exporting ? t('btn.exporting') : 'Export Configuration'}
+                                        </button>
+                                    </div>
                                 </div>
-                                <button
-                                    className="export-btn flex-center"
-                                    onClick={handleExport}
-                                    disabled={exporting}
-                                >
-                                    {exporting ? t('btn.exporting') : 'Export Configuration'}
-                                </button>
+                                {configEditMode && (
+                                    <div className="config-note">
+                                        <AlertTriangle size={13} className="config-note-icon" />
+                                        <span className="config-note-short">{t('detail.configNoteShort')}</span>
+                                    </div>
+                                )}
                             </div>
                             <div className="blueprint-canvas new-horizontal-layout">
                                 <div className="canvas-inner">
@@ -641,9 +684,11 @@ export default function FarmDetail() {
                                     <div className="zones-column">
                                         <div className="column-header-row">
                                             <h3 className="column-title">{t('detail.zones')}</h3>
-                                            <button className="add-btn-small" onClick={() => setZoneModal({ isOpen: true, type: 'new', data: { is_active: true, display_order: zones.length + 1, default_unit_id: 1, displayNamesStr: emptyDisplayNamesText() } })}>
-                                                <Plus size={12} /> {t('btn.addZone')}
-                                            </button>
+                                            {configEditMode && (
+                                                <button className="add-btn-small" onClick={() => setZoneModal({ isOpen: true, type: 'new', data: { is_active: true, display_order: zones.length + 1, default_unit_id: 1, displayNamesStr: emptyDisplayNamesText() } })}>
+                                                    <Plus size={12} /> {t('btn.addZone')}
+                                                </button>
+                                            )}
                                         </div>
                                         {modbusZones.map((zone) => (
                                             <div
@@ -654,10 +699,12 @@ export default function FarmDetail() {
                                             >
                                                 <div className="node-head">
                                                     <h4>{zone.display_names?.[i18n.language] || zone.display_names?.en || zone.display_names?.ko || zone.display_names?.vi || zone.name || zone.code}</h4>
-                                                    <div className="node-actions">
-                                                        <button onClick={(e) => { e.stopPropagation(); setZoneModal({ isOpen: true, type: 'edit', data: { ...zone, displayNamesStr: displayNamesToText(zone.display_names) } }); }}><Edit2 size={12} /></button>
-                                                        <button className="del" onClick={(e) => { e.stopPropagation(); deleteZone(zone.id); }}><Trash2 size={12} /></button>
-                                                    </div>
+                                                    {configEditMode && (
+                                                        <div className="node-actions">
+                                                            <button onClick={(e) => { e.stopPropagation(); setZoneModal({ isOpen: true, type: 'edit', data: { ...zone, displayNamesStr: displayNamesToText(zone.display_names) } }); }}><Edit2 size={12} /></button>
+                                                            <button className="del" onClick={(e) => { e.stopPropagation(); deleteZone(zone.id); }}><Trash2 size={12} /></button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <p className="node-desc">{zone.description || t('detail.noDescription')}</p>
                                                 <div className="zone-meta">
@@ -686,7 +733,7 @@ export default function FarmDetail() {
                                     <div className="devices-column">
                                         <div className="column-header-row">
                                             <h3 className="column-title">{t('detail.devices')}</h3>
-                                            {selectedZoneId && selectedZoneId !== 'unassigned' && (
+                                            {configEditMode && selectedZoneId && selectedZoneId !== 'unassigned' && (
                                                 <button className="add-btn-small" onClick={() => setDeviceModal({ isOpen: true, type: 'new', data: { is_active: true, device_kind: 'sensor', device_type: 'sensor_group', unit_id: zones.find(z => z.id === selectedZoneId)?.default_unit_id || 1, zone_id: selectedZoneId, displayNamesStr: emptyDisplayNamesText() } })}>
                                                     <Plus size={12} /> {t('btn.addDevice')}
                                                 </button>
@@ -707,10 +754,12 @@ export default function FarmDetail() {
                                                 >
                                                     <div className="node-head">
                                                         <h4>{dev.display_names?.[i18n.language] || dev.display_names?.en || dev.display_names?.ko || dev.display_names?.vi || dev.name || dev.code}</h4>
-                                                        <div className="node-actions">
-                                                            <button onClick={(e) => { e.stopPropagation(); setDeviceModal({ isOpen: true, type: 'edit', data: { ...dev, displayNamesStr: displayNamesToText(dev.display_names) } }); }}><Edit2 size={12} /></button>
-                                                            <button className="del" onClick={(e) => { e.stopPropagation(); deleteDevice(dev.id); }}><Trash2 size={12} /></button>
-                                                        </div>
+                                                        {configEditMode && (
+                                                            <div className="node-actions">
+                                                                <button onClick={(e) => { e.stopPropagation(); setDeviceModal({ isOpen: true, type: 'edit', data: { ...dev, displayNamesStr: displayNamesToText(dev.display_names) } }); }}><Edit2 size={12} /></button>
+                                                                <button className="del" onClick={(e) => { e.stopPropagation(); deleteDevice(dev.id); }}><Trash2 size={12} /></button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <p className="node-desc">{dev.description || t('detail.noDescription')}</p>
                                                     <div className="device-meta">
@@ -726,7 +775,7 @@ export default function FarmDetail() {
                                     <div className="registers-column">
                                         <div className="column-header-row">
                                             <h3 className="column-title">{t('detail.registers')}</h3>
-                                            {selectedDeviceId && (
+                                            {configEditMode && selectedDeviceId && (
                                                 <button className="add-btn-small" onClick={() => setRegisterModal({ isOpen: true, type: 'new', data: { is_active: true, displayNamesStr: emptyDisplayNamesText() }, deviceId: selectedDeviceId })}>
                                                     <Plus size={12} /> {t('btn.addRegister')}
                                                 </button>
@@ -743,15 +792,17 @@ export default function FarmDetail() {
                                                     key={reg.id}
                                                     ref={el => registerRefs.current[reg.id] = el}
                                                     className={`node register-node compact panel ${!reg.is_active ? 'deactivated' : ''}`}
-                                                    onDoubleClick={() => setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId })}
+                                                    onDoubleClick={configEditMode ? () => setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId }) : undefined}
                                                 >
                                                     <div className="node-head">
                                                         <h5>{reg.code} <span className="reg-addr">0x{reg.address.toString(16).toUpperCase()}</span></h5>
-                                                        <div className="node-actions hidden-actions">
-                                                            <button onClick={(e) => { e.stopPropagation(); toggleRegisterActive(reg); }} className={!reg.is_active ? 'deactivated-btn' : ''} title={reg.is_active ? "Activate" : "Deactivate"}><Power size={12} /></button>
-                                                            <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId }); }}><Edit2 size={12} /></button>
-                                                            <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
-                                                        </div>
+                                                        {configEditMode && (
+                                                            <div className="node-actions hidden-actions">
+                                                                <button onClick={(e) => { e.stopPropagation(); toggleRegisterActive(reg); }} className={!reg.is_active ? 'deactivated-btn' : ''} title={reg.is_active ? "Activate" : "Deactivate"}><Power size={12} /></button>
+                                                                <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId }); }}><Edit2 size={12} /></button>
+                                                                <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <p className="node-desc">{reg.display_names?.[i18n.language] || reg.display_names?.en || reg.display_names?.ko || reg.display_names?.vi || reg.code}</p>
                                                     <div className="reg-meta">
@@ -778,6 +829,30 @@ export default function FarmDetail() {
                     {activeTab === 'analytics' && <AnalyticsTab />}
                 </div>
             </div>
+
+            {/* Edit-unlock notice for the register-map config tab */}
+            {editNoticeOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-content panel config-notice-modal">
+                        <div className="config-notice-head">
+                            <span className="config-notice-icon"><AlertTriangle size={18} /></span>
+                            <h3>{t('detail.configNoticeTitle')}</h3>
+                        </div>
+                        <div className="config-notice-body">
+                            <p><strong>{t('detail.configNoteDiffL')}</strong> — {t('detail.configNoteDiff')}</p>
+                            <p><strong>{t('detail.configNoteWhyL')}</strong> — {t('detail.configNoteWhy')}</p>
+                            <p><strong>{t('detail.configNoteRiskL')}</strong> — {t('detail.configNoteRisk')}</p>
+                            <p><strong>{t('detail.configNoteHowL')}</strong> — {t('detail.configNoteHow')}</p>
+                        </div>
+                        <div className="modal-actions">
+                            <button onClick={() => setEditNoticeOpen(false)}>{t('btn.cancel')}</button>
+                            <button className="primary" onClick={() => { setEditNoticeOpen(false); setConfigEditMode(true); }}>
+                                {t('detail.configNoticeConfirm')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Zone Modal */}
             {zoneModal.isOpen && (

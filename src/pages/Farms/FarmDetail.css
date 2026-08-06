@@ -295,14 +295,19 @@
 
 .config-tab-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
+    flex-direction: column;
     background: var(--panel-bg);
     border: 1px solid var(--border-input);
     border-radius: 12px;
     padding: 16px 24px;
     margin: 24px 24px 16px 24px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01), 0 10px 30px rgba(13, 92, 58, 0.02);
+}
+
+.config-header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .config-header-text h3 {
@@ -315,6 +320,135 @@
     margin: 0;
     font-size: 12px;
     color: var(--text-muted);
+}
+
+.config-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border-input);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+.config-note-icon {
+    flex-shrink: 0;
+    color: var(--color-warning);
+}
+
+.config-note-short {
+    flex: 1;
+}
+
+.config-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 10px;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-size: 10px;
+    font-weight: 600;
+    vertical-align: 2px;
+}
+
+.config-mode-badge.view {
+    color: var(--text-muted);
+    background: rgba(100, 116, 139, 0.1);
+    border: 1px solid var(--border-input);
+}
+
+.config-mode-badge.editing {
+    color: var(--color-warning);
+    background: rgba(217, 119, 6, 0.1);
+    border: 1px solid rgba(217, 119, 6, 0.3);
+}
+
+.config-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.edit-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border-input);
+    background: var(--panel-bg);
+    color: var(--text-muted);
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.edit-toggle-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-glow);
+}
+
+.edit-toggle-btn.active {
+    border-color: rgba(217, 119, 6, 0.4);
+    color: var(--color-warning);
+    background: rgba(217, 119, 6, 0.08);
+}
+
+.edit-toggle-btn.active:hover {
+    border-color: var(--color-warning);
+    background: rgba(217, 119, 6, 0.14);
+}
+
+.config-notice-modal {
+    max-width: 560px;
+}
+
+.config-notice-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.config-notice-head h3 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.config-notice-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: rgba(217, 119, 6, 0.12);
+    color: var(--color-warning);
+}
+
+.config-notice-body {
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.config-notice-body p {
+    margin: 0 0 10px;
+}
+
+.config-notice-body p:last-child {
+    margin-bottom: 0;
+}
+
+.config-notice-body strong {
+    color: var(--text-main);
+    font-weight: 600;
 }
 
 .export-btn {
