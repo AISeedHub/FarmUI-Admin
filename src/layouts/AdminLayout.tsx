@@ -15,6 +15,9 @@ import { farmsApi, usersApi } from '../api/services';
 import LanguageSelector from '../components/LanguageSelector';
 import './AdminLayout.css';
 
+// Member-facing Dashboard deployment; per-stage via env (Vite only exposes VITE_* vars).
+const DASHBOARD_URL: string = import.meta.env.VITE_DASHBOARD_URL || '';
+
 interface AdminLayoutProps {
     onLogout: () => void;
 }
@@ -61,7 +64,12 @@ export default function AdminLayout({ onLogout }: AdminLayoutProps) {
                 </div>
 
                 <div className="topbar-actions">
-                    <button className="dashboard-link-btn">
+                    <button
+                        className="dashboard-link-btn"
+                        disabled={!DASHBOARD_URL}
+                        title={DASHBOARD_URL || t('detail.dashboardNotConfigured')}
+                        onClick={() => DASHBOARD_URL && window.open(DASHBOARD_URL, '_blank', 'noopener')}
+                    >
                         <LayoutGrid size={16} /> {t('nav.farmDashboard')}
                     </button>
                     <LanguageSelector onLanguageChange={() => { }} />
