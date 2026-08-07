@@ -81,29 +81,15 @@ export interface Register {
     updated_at?: string;
 }
 
-// ── Direct register control (Control tab) ─────────────────────────────────
+// ── Direct register control (Advanced control tab) ─────────────────────────
 
-// Per-farm capability gate: whether the backend has a live write channel to this
-// farm's FarmLink edge. Farms without the hardware/agent support report false and
-// the Control tab is hidden entirely.
-export interface FarmControlStatus {
-    enabled: boolean;
-}
-
-// Current value of one register, as reported by the edge.
-// `value` is the engineering value (scale_factor already applied); `raw` is the
-// untouched register word when the backend provides it.
-export interface RegisterValueReading {
-    register_id: string;
-    value: number | null;
-    raw?: number | null;
-    read_at?: string | null;
-}
-
-export interface RegisterWriteResponse {
+// POST /farms/{farm_id}/registers/{register_id}/plain-write.
+// 200 with success:false means the audit row was created but the MQTT publish
+// failed — treat it as a failure in the UI.
+export interface PlainWriteResponse {
     success: boolean;
-    // Engineering value read back after the write, when the backend verifies.
-    value?: number | null;
+    message?: string;
+    command_id?: string;
 }
 
 export interface UserResponse {
@@ -198,6 +184,29 @@ export interface ActuatorCommand {
     error_message?: string | null;
     requested_at?: string;
     executed_at?: string | null;
+}
+
+// GET /farms/{farm_id}/actuator-commands — one audit row with display names
+// joined server-side. `source=api` rows are the Advanced-control plain writes;
+// `user` = dashboard force/release; `automation` = rule-driven.
+export interface ActuatorCommandHistoryItem extends ActuatorCommand {
+    source: 'user' | 'automation' | 'api' | string;
+    user_id?: string | null;
+    automation_id?: string | null;
+    execution_id?: string | null;
+    zone_id?: string | null;
+    slave_id?: number | null;
+    device_name?: string | null;
+    register_code?: string | null;
+    automation_name?: string | null;
+    user_name?: string | null;
+}
+
+export interface ActuatorCommandHistoryPage {
+    items: ActuatorCommandHistoryItem[];
+    total: number;
+    limit: number;
+    offset: number;
 }
 
 export interface ExecutionHistoryRow {

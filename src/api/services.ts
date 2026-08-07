@@ -1,6 +1,6 @@
 
 
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetPackagePayload, PresetPackageRule, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate, VirtualSensor, VirtualSensorCreate, VirtualSensorUpdate, SlaveSensorReading, FarmControlStatus, RegisterValueReading, RegisterWriteResponse } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetPackagePayload, PresetPackageRule, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate, VirtualSensor, VirtualSensorCreate, VirtualSensorUpdate, SlaveSensorReading, PlainWriteResponse, ActuatorCommandHistoryPage } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 // Auth-action endpoints stay under /auth (login, me, me/farms).
@@ -537,27 +537,23 @@ export const sensorsApi = {
     },
 };
 
-// ── Direct register control (Control tab) ─────────────────────────────────
-// Live read/write of individual registers over the farm's MQTT channel. Unlike the
-// register-map CRUD above (a master copy applied manually via YAML export), these
-// calls talk to the *running* FarmLink — which is why availability is per-farm.
+// ── Direct register control (Advanced control tab) ─────────────────────────
+// One-shot write of a single register value over the farm's MQTT channel. Unlike
+// the register-map CRUD above (a master copy applied manually via YAML export),
+// this talks to the *running* FarmLink. BE resolves device/slave/register code from
+// register_id and is the final validator (writable, active, data_type shape,
+// min/max) — the FE pre-checks the same rules only to disable the button early.
 export const controlApi = {
-    // Capability gate: { enabled: false } (or an error) hides the Control tab.
-    getStatus: (farmId: string): Promise<FarmControlStatus> => {
-        return fetchJson(`/farms/${farmId}/control/status`);
-    },
-    // Snapshot of current values for every active register of one device.
-    readDeviceValues: (deviceId: string): Promise<RegisterValueReading[]> => {
-        return fetchJson(`/devices/${deviceId}/register-values`);
-    },
-    // Write one engineering value (scale_factor is applied server-side, where the
-    // register map is authoritative). Rejected with 422 when the register is not
-    // writable or the value falls outside [min_value, max_value].
-    writeRegister: (registerId: string, value: number): Promise<RegisterWriteResponse> => {
-        return fetchJson(`/registers/${registerId}/write`, {
+    plainWrite: (farmId: string, registerId: string, value: number): Promise<PlainWriteResponse> => {
+        return fetchJson(`/farms/${farmId}/registers/${registerId}/plain-write`, {
             method: 'POST',
             body: JSON.stringify({ value }),
         });
+    },
+    // Server-side audit trail of plain writes: the `source=api` slice of the shared
+    // actuator_commands history (names pre-joined, newest first).
+    getWriteHistory: (farmId: string, limit = 50, offset = 0): Promise<ActuatorCommandHistoryPage> => {
+        return fetchJson(`/farms/${farmId}/actuator-commands?source=api&limit=${limit}&offset=${offset}`);
     },
 };
 

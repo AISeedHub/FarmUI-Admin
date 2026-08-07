@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors } from '../../types';
-import { farmsApi, zonesApi, devicesApi, registersApi, controlApi, ApiError } from '../../api/services';
+import { farmsApi, zonesApi, devicesApi, registersApi, ApiError } from '../../api/services';
 import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../utils/displayNames';
 import AutomationsTab from './components/AutomationsTab';
 import PresetsPanel from './components/PresetsPanel';
@@ -23,10 +23,6 @@ export default function FarmDetail() {
     const { t, i18n } = useTranslation();
 
     const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'presets' | 'virtualSensors' | 'analytics' | 'cameras' | 'control'>('config');
-
-    // Direct register control is a per-farm capability (needs a live write channel
-    // to the FarmLink edge) — the tab only exists when the API reports it enabled.
-    const [controlEnabled, setControlEnabled] = useState(false);
 
     const [farm, setFarm] = useState<Farm | null>(null);
     const [zones, setZones] = useState<Zone[]>([]);
@@ -165,13 +161,6 @@ export default function FarmDetail() {
     const loadData = async () => {
         setLoading(true);
         if (!id) return;
-
-        // Fire-and-forget capability probe for the Control tab. In dev builds a
-        // missing/failing endpoint still shows the tab so the UI can be exercised
-        // before the backend lands; in production it stays hidden.
-        controlApi.getStatus(id)
-            .then(s => setControlEnabled(!!s?.enabled))
-            .catch(() => setControlEnabled(import.meta.env.DEV));
 
         const f = await farmsApi.getById(id);
         if (!f) {
@@ -545,11 +534,9 @@ export default function FarmDetail() {
                     <button className={`sidebar-tab-btn ${activeTab === 'cameras' ? 'active' : ''}`} onClick={() => setActiveTab('cameras')}>
                         <Video size={16} /> {t('detail.tabCameras')}
                     </button>
-                    {controlEnabled && (
-                        <button className={`sidebar-tab-btn ${activeTab === 'control' ? 'active' : ''}`} onClick={() => setActiveTab('control')}>
-                            <SlidersHorizontal size={16} /> {t('detail.tabControl')}
-                        </button>
-                    )}
+                    <button className={`sidebar-tab-btn ${activeTab === 'control' ? 'active' : ''}`} onClick={() => setActiveTab('control')}>
+                        <SlidersHorizontal size={16} /> {t('detail.tabControl')}
+                    </button>
                     <button className={`sidebar-tab-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
                         <Activity size={16} /> {t('detail.tabAnalytics')}
                     </button>
@@ -874,7 +861,7 @@ export default function FarmDetail() {
 
                     {activeTab === 'cameras' && <CamerasTab farmId={id!} zones={zones} onZonesChanged={reloadZones} />}
 
-                    {activeTab === 'control' && controlEnabled && <ControlPanel farmId={id!} />}
+                    {activeTab === 'control' && <ControlPanel farmId={id!} />}
 
                     {activeTab === 'analytics' && <AnalyticsTab />}
                 </div>
