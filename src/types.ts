@@ -73,8 +73,37 @@ export interface Register {
     min_value: number;
     max_value: number;
     is_active: boolean;
+    // Names for enumerated register values, e.g. {"1": "Reboot", "2": "Rebooting",
+    // "3": "Reboot complete", "4": "Error"}. When present, the Control tab renders a
+    // named-action picker instead of a bare number input, and decodes read values.
+    value_map?: Record<string, string> | null;
     created_at?: string;
     updated_at?: string;
+}
+
+// ── Direct register control (Control tab) ─────────────────────────────────
+
+// Per-farm capability gate: whether the backend has a live write channel to this
+// farm's FarmLink edge. Farms without the hardware/agent support report false and
+// the Control tab is hidden entirely.
+export interface FarmControlStatus {
+    enabled: boolean;
+}
+
+// Current value of one register, as reported by the edge.
+// `value` is the engineering value (scale_factor already applied); `raw` is the
+// untouched register word when the backend provides it.
+export interface RegisterValueReading {
+    register_id: string;
+    value: number | null;
+    raw?: number | null;
+    read_at?: string | null;
+}
+
+export interface RegisterWriteResponse {
+    success: boolean;
+    // Engineering value read back after the write, when the backend verifies.
+    value?: number | null;
 }
 
 export interface UserResponse {

@@ -1,24 +1,32 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors } from '../../types';
-import { farmsApi, zonesApi, devicesApi, registersApi, ApiError } from '../../api/services';
+import { farmsApi, zonesApi, devicesApi, registersApi, controlApi, ApiError } from '../../api/services';
 import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../utils/displayNames';
 import AutomationsTab from './components/AutomationsTab';
 import PresetsPanel from './components/PresetsPanel';
 import VirtualSensorsPanel from './components/VirtualSensorsPanel';
 import AnalyticsTab from './components/AnalyticsTab';
 import CamerasTab from './components/CamerasTab';
+import ControlPanel from './components/ControlPanel';
 import './FarmDetail.css';
+
+// Member-facing Dashboard deployment; per-stage via env (Vite only exposes VITE_* vars).
+const DASHBOARD_URL: string = import.meta.env.VITE_DASHBOARD_URL || '';
 
 export default function FarmDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
 
-    const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'presets' | 'virtualSensors' | 'analytics' | 'cameras'>('config');
+    const [activeTab, setActiveTab] = useState<'config' | 'automations' | 'presets' | 'virtualSensors' | 'analytics' | 'cameras' | 'control'>('config');
+
+    // Direct register control is a per-farm capability (needs a live write channel
+    // to the FarmLink edge) — the tab only exists when the API reports it enabled.
+    const [controlEnabled, setControlEnabled] = useState(false);
 
     const [farm, setFarm] = useState<Farm | null>(null);
     const [zones, setZones] = useState<Zone[]>([]);
@@ -45,7 +53,7 @@ export default function FarmDetail() {
     // Modal states
     const [zoneModal, setZoneModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Zone> & { displayNamesStr?: string } }>({ isOpen: false, type: 'new', data: {} });
     const [deviceModal, setDeviceModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Device> & { displayNamesStr?: string } }>({ isOpen: false, type: 'new', data: {} });
-    const [registerModal, setRegisterModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Register> & { displayNamesStr?: string }, deviceId?: string }>({ isOpen: false, type: 'new', data: {} });
+    const [registerModal, setRegisterModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Register> & { displayNamesStr?: string, valueMapStr?: string }, deviceId?: string }>({ isOpen: false, type: 'new', data: {} });
 
     // SVG Connections State & Refs
     const svgRef = useRef<SVGSVGElement>(null);
@@ -157,6 +165,13 @@ export default function FarmDetail() {
     const loadData = async () => {
         setLoading(true);
         if (!id) return;
+
+        // Fire-and-forget capability probe for the Control tab. In dev builds a
+        // missing/failing endpoint still shows the tab so the UI can be exercised
+        // before the backend lands; in production it stays hidden.
+        controlApi.getStatus(id)
+            .then(s => setControlEnabled(!!s?.enabled))
+            .catch(() => setControlEnabled(import.meta.env.DEV));
 
         const f = await farmsApi.getById(id);
         if (!f) {
@@ -359,6 +374,27 @@ export default function FarmDetail() {
             delete processedData.displayNamesStr;
         }
 
+        if (processedData.valueMapStr !== undefined) {
+            // Optional names for enumerated values, e.g. {"1": "Reboot", "2": "Rebooting"}.
+            // The Control tab uses them to offer named actions instead of bare numbers.
+            const text = processedData.valueMapStr.trim();
+            delete processedData.valueMapStr;
+            if (!text) {
+                processedData.value_map = null;
+            } else {
+                try {
+                    const parsed = JSON.parse(text);
+                    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not an object');
+                    processedData.value_map = Object.fromEntries(
+                        Object.entries(parsed as Record<string, unknown>).map(([k, v]) => [k, String(v)])
+                    );
+                } catch {
+                    alert(t('detail.invalidJson'));
+                    return;
+                }
+            }
+        }
+
         if (registerModal.type === 'new') {
             const data: Omit<Register, 'id' | 'created_at'> = {
                 ...processedData,
@@ -509,6 +545,11 @@ export default function FarmDetail() {
                     <button className={`sidebar-tab-btn ${activeTab === 'cameras' ? 'active' : ''}`} onClick={() => setActiveTab('cameras')}>
                         <Video size={16} /> {t('detail.tabCameras')}
                     </button>
+                    {controlEnabled && (
+                        <button className={`sidebar-tab-btn ${activeTab === 'control' ? 'active' : ''}`} onClick={() => setActiveTab('control')}>
+                            <SlidersHorizontal size={16} /> {t('detail.tabControl')}
+                        </button>
+                    )}
                     <button className={`sidebar-tab-btn ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
                         <Activity size={16} /> {t('detail.tabAnalytics')}
                     </button>
@@ -521,7 +562,14 @@ export default function FarmDetail() {
                         <span className="toggle on"><span className="knob"></span></span>
                     </div>
                     <button className="impersonate-btn">{t('detail.impersonate')}</button>
-                    <button className="open-dash-btn">{t('detail.openDashboard')}</button>
+                    <button
+                        className="open-dash-btn"
+                        disabled={!DASHBOARD_URL}
+                        title={DASHBOARD_URL || t('detail.dashboardNotConfigured')}
+                        onClick={() => DASHBOARD_URL && window.open(DASHBOARD_URL, '_blank', 'noopener')}
+                    >
+                        {t('detail.openDashboard')}
+                    </button>
                 </div>
             </div>
 
@@ -792,14 +840,14 @@ export default function FarmDetail() {
                                                     key={reg.id}
                                                     ref={el => registerRefs.current[reg.id] = el}
                                                     className={`node register-node compact panel ${!reg.is_active ? 'deactivated' : ''}`}
-                                                    onDoubleClick={configEditMode ? () => setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId }) : undefined}
+                                                    onDoubleClick={configEditMode ? () => setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names), valueMapStr: reg.value_map ? JSON.stringify(reg.value_map, null, 2) : '' }, deviceId: selectedDeviceId }) : undefined}
                                                 >
                                                     <div className="node-head">
                                                         <h5>{reg.code} <span className="reg-addr">0x{reg.address.toString(16).toUpperCase()}</span></h5>
                                                         {configEditMode && (
                                                             <div className="node-actions hidden-actions">
                                                                 <button onClick={(e) => { e.stopPropagation(); toggleRegisterActive(reg); }} className={!reg.is_active ? 'deactivated-btn' : ''} title={reg.is_active ? "Activate" : "Deactivate"}><Power size={12} /></button>
-                                                                <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names) }, deviceId: selectedDeviceId }); }}><Edit2 size={12} /></button>
+                                                                <button onClick={(e) => { e.stopPropagation(); setRegisterModal({ isOpen: true, type: 'edit', data: { ...reg, displayNamesStr: displayNamesToText(reg.display_names), valueMapStr: reg.value_map ? JSON.stringify(reg.value_map, null, 2) : '' }, deviceId: selectedDeviceId }); }}><Edit2 size={12} /></button>
                                                                 <button className="del" onClick={(e) => { e.stopPropagation(); deleteRegister(reg.id); }}><Trash2 size={12} /></button>
                                                             </div>
                                                         )}
@@ -825,6 +873,8 @@ export default function FarmDetail() {
                     {activeTab === 'virtualSensors' && <VirtualSensorsPanel farmId={id!} />}
 
                     {activeTab === 'cameras' && <CamerasTab farmId={id!} zones={zones} onZonesChanged={reloadZones} />}
+
+                    {activeTab === 'control' && controlEnabled && <ControlPanel farmId={id!} />}
 
                     {activeTab === 'analytics' && <AnalyticsTab />}
                 </div>
@@ -977,6 +1027,15 @@ export default function FarmDetail() {
                             <div className="form-group full-width">
                                 <label>{t('detail.description')}</label>
                                 <input value={registerModal.data.description || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, description: e.target.value } })} />
+                            </div>
+                            <div className="form-group full-width">
+                                <label>{t('detail.valueMapJson')}</label>
+                                <textarea
+                                    rows={3}
+                                    placeholder={'{"1": "Reboot", "2": "Rebooting", "3": "Reboot complete", "4": "Error"}'}
+                                    value={registerModal.data.valueMapStr ?? ''}
+                                    onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, valueMapStr: e.target.value } })}
+                                />
                             </div>
                             <div className="form-group">
                                 <label>{t('detail.bitStart')}</label>

@@ -1,6 +1,6 @@
 
 
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetPackagePayload, PresetPackageRule, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate, VirtualSensor, VirtualSensorCreate, VirtualSensorUpdate, SlaveSensorReading } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetPackagePayload, PresetPackageRule, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate, VirtualSensor, VirtualSensorCreate, VirtualSensorUpdate, SlaveSensorReading, FarmControlStatus, RegisterValueReading, RegisterWriteResponse } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 // Auth-action endpoints stay under /auth (login, me, me/farms).
@@ -534,6 +534,30 @@ export const sensorsApi = {
         const map: Record<string, SlaveSensorReading> = {};
         results.flat().forEach(r => { if (r?.device) map[r.device] = r; });
         return map;
+    },
+};
+
+// ── Direct register control (Control tab) ─────────────────────────────────
+// Live read/write of individual registers over the farm's MQTT channel. Unlike the
+// register-map CRUD above (a master copy applied manually via YAML export), these
+// calls talk to the *running* FarmLink — which is why availability is per-farm.
+export const controlApi = {
+    // Capability gate: { enabled: false } (or an error) hides the Control tab.
+    getStatus: (farmId: string): Promise<FarmControlStatus> => {
+        return fetchJson(`/farms/${farmId}/control/status`);
+    },
+    // Snapshot of current values for every active register of one device.
+    readDeviceValues: (deviceId: string): Promise<RegisterValueReading[]> => {
+        return fetchJson(`/devices/${deviceId}/register-values`);
+    },
+    // Write one engineering value (scale_factor is applied server-side, where the
+    // register map is authoritative). Rejected with 422 when the register is not
+    // writable or the value falls outside [min_value, max_value].
+    writeRegister: (registerId: string, value: number): Promise<RegisterWriteResponse> => {
+        return fetchJson(`/registers/${registerId}/write`, {
+            method: 'POST',
+            body: JSON.stringify({ value }),
+        });
     },
 };
 
