@@ -35,7 +35,14 @@ import './AutomationEditorModal.css';
 let _keySeq = 0;
 const newKey = () => `ae${++_keySeq}`;
 
-type CondCategory = 'sensor' | 'device';
+// 'sensor'  → one register of one sensor device (optionally turned into a brand-new
+//             aggregate by the "Aggregate" modifier)
+// 'device'  → one register of an actuator
+// 'vsensor' → an EXISTING virtual sensor of the farm, picked by name. The payload is
+//             the same `virtual_sensor_id` the modifier produces; the difference is
+//             that nothing is created or mutated, the definition stays the Virtual
+//             sensors tab's business.
+type CondCategory = 'sensor' | 'device' | 'vsensor';
 
 interface ECondition extends AutomationCondition {
     _key: string;
@@ -75,6 +82,7 @@ const COND_CATALOGUE: Array<{ key: string; type: ConditionType; category?: CondC
     { key: 'day_of_week', type: 'day_of_week', icon: CalendarDays, group: 'time' },
     { key: 'sun_event', type: 'sun_event', icon: Sunrise, group: 'time' },
     { key: 'sensor', type: 'register_value', category: 'sensor', icon: Gauge, group: 'sensor' },
+    { key: 'vsensor', type: 'register_value', category: 'vsensor', icon: Sigma, group: 'sensor' },
     { key: 'device', type: 'register_value', category: 'device', icon: Plug, group: 'device' },
 ];
 
@@ -99,7 +107,9 @@ const defaultParams = (type: ConditionType): Record<string, any> => {
 const makeCondition = (type: ConditionType, category?: CondCategory): ECondition => ({
     _key: newKey(),
     condition_type: type,
-    register_id: type === 'register_value' ? '' : null,
+    // A virtual-sensor condition carries virtual_sensor_id instead of register_id.
+    register_id: type === 'register_value' && category !== 'vsensor' ? '' : null,
+    ...(category === 'vsensor' ? { virtual_sensor_id: '' } : {}),
     params: defaultParams(type),
     is_negated: false,
     _category: category,
@@ -123,7 +133,9 @@ const makeAction = (type: AutomationActionType = 'set_register_value'): EAction 
 
 // label key for a condition card / picker item
 const condCatLabelKey = (type: ConditionType, category?: CondCategory) =>
-    type === 'register_value' ? (category === 'device' ? 'auto.cat.device' : 'auto.cat.sensor') : `auto.cat.${type}`;
+    type === 'register_value'
+        ? (category === 'device' ? 'auto.cat.device' : category === 'vsensor' ? 'auto.cat.vsensor' : 'auto.cat.sensor')
+        : `auto.cat.${type}`;
 
 type Step = 1 | 2 | 3;
 
@@ -461,27 +473,24 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         setIsEnabled(detail.is_enabled ?? true);
 
         const mapCondition = (c: AutomationCondition): ECondition => {
-            // Aggregate condition: the tree stores only virtual_sensor_id, so the card's
-            // primary register + extra members come from the virtual sensor's source list.
+            // Stored aggregate: the tree holds a virtual_sensor_id and nothing else, so it
+            // hydrates as a Virtual sensor card — what is on the wire is what is on screen.
+            // Its member list belongs to the virtual sensor (shared by every rule pointing
+            // at it); the card offers "edit sensors" to fork it back into an inline
+            // aggregate rather than editing a shared definition in place.
             if (c.condition_type === 'register_value' && c.virtual_sensor_id) {
                 const vs = vsMap[c.virtual_sensor_id];
-                const members = vs?.source_register_ids || [];
-                const primary = members[0] || '';
                 return {
                     _key: newKey(),
                     condition_type: c.condition_type,
-                    register_id: primary,
+                    register_id: null,
                     virtual_sensor_id: c.virtual_sensor_id,
                     params: c.params || defaultParams(c.condition_type),
                     is_negated: !!c.is_negated,
                     is_tunable: !!c.is_tunable,
                     tunable_min: c.tunable_min ?? null,
                     tunable_max: c.tunable_max ?? null,
-                    _deviceId: primary ? regToDev[primary] : undefined,
-                    _category: 'sensor',
-                    _aggOn: true,
-                    _agg: vs?.agg || 'min',
-                    _extraRegisterIds: members.slice(1),
+                    _category: 'vsensor',
                     _vsCode: vs?.code,
                     _vsOpaque: !vs,
                 };
@@ -622,9 +631,12 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         conditions: g.conditions.map((c, i) => ({
             condition_type: c.condition_type,
             ...(c.condition_type === 'register_value'
-                ? (c._aggOn
-                    ? { virtual_sensor_id: vsIds[c._key] || c.virtual_sensor_id || undefined }
-                    : { register_id: c.register_id || undefined })
+                ? (c._category === 'vsensor'
+                    // Picked from the farm's virtual sensors — pass the reference through.
+                    ? { virtual_sensor_id: c.virtual_sensor_id || undefined }
+                    : c._aggOn
+                        ? { virtual_sensor_id: vsIds[c._key] || c.virtual_sensor_id || undefined }
+                        : { register_id: c.register_id || undefined })
                 : {}),
             params: c.params,
             is_negated: !!c.is_negated,
@@ -671,7 +683,10 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         const flag = (s: Step) => { if (firstStep === null) firstStep = s; };
 
         rootGroup.conditions.forEach(c => {
-            if (c.condition_type === 'register_value' && !c.register_id) { errs.push(t('auto.vRegister')); flag(1); }
+            if (c.condition_type === 'register_value' && c._category !== 'vsensor' && !c.register_id) { errs.push(t('auto.vRegister')); flag(1); }
+            // A Virtual sensor card needs a pick; an unreadable reference (_vsOpaque) is
+            // passed through untouched and must not be treated as "nothing selected".
+            if (c.condition_type === 'register_value' && c._category === 'vsensor' && !c.virtual_sensor_id) { errs.push(t('auto.vs.vSelect')); flag(1); }
             // Aggregate members must all be sensor `value` registers sharing one unit —
             // the pickers enforce it for added members, this catches the primary and
             // anything hydrated from an older/hand-made definition.
@@ -735,8 +750,12 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         const aggConds = rootGroup.conditions.filter(c => c.condition_type === 'register_value' && c._aggOn);
         if (!aggConds.length) return out;
 
-        const pool = [...virtualSensors];
-        const taken = new Set<string>([...pool.map(v => v.code), ...devices.map(d => d.code)]);
+        // Reuse only considers sensors that are switched on — a retired definition is not
+        // evaluated by the runtime, so silently binding a new rule to it would produce a
+        // condition that never fires. Codes, however, stay reserved while the row exists,
+        // so `taken` spans every virtual sensor plus the farm's devices.
+        const pool = virtualSensors.filter(v => v.is_active !== false);
+        const taken = new Set<string>([...virtualSensors.map(v => v.code), ...devices.map(d => d.code)]);
         const created: VirtualSensor[] = [];
 
         for (const c of aggConds) {
@@ -745,7 +764,12 @@ export default function AutomationEditorModal({ farmId, automationId, automation
 
             const members = memberIdsOf(c);
             const agg = c._agg || 'min';
-            const match = pool.find(v => v.agg === agg && sameMembers(v.source_register_ids || [], members));
+            // Keep the binding this condition already had when it still describes the same
+            // aggregate, so re-saving an untouched rule can't drift onto a duplicate row.
+            const bound = c.virtual_sensor_id ? pool.find(v => v.id === c.virtual_sensor_id) : undefined;
+            const match = (bound && bound.agg === agg && sameMembers(bound.source_register_ids || [], members))
+                ? bound
+                : pool.find(v => v.agg === agg && sameMembers(v.source_register_ids || [], members));
             if (match) { out[c._key] = match.id; continue; }
 
             const primaryReg = registerById[members[0]];
@@ -842,20 +866,24 @@ export default function AutomationEditorModal({ farmId, automationId, automation
     // ── Summaries ──
     // Accepts both an in-progress ECondition (aggregate state in _agg/_extraRegisterIds)
     // and a raw one straight off the API (aggregate state behind virtual_sensor_id).
-    const summarizeCondition = (c: AutomationCondition & Partial<Pick<ECondition, '_aggOn' | '_agg' | '_extraRegisterIds'>>): string => {
+    const summarizeCondition = (c: AutomationCondition & Partial<Pick<ECondition, '_aggOn' | '_agg' | '_extraRegisterIds' | '_category'>>): string => {
         const neg = c.is_negated ? 'NOT ' : '';
         const p = c.params || {};
-        if (c.condition_type === 'register_value' && (c._aggOn || c.virtual_sensor_id)) {
+        if (c.condition_type === 'register_value' && (c._aggOn || c.virtual_sensor_id || c._category === 'vsensor')) {
             const vs = c.virtual_sensor_id ? vsById[c.virtual_sensor_id] : undefined;
-            const agg = (c._agg || vs?.agg || 'min').toUpperCase();
-            const count = c._aggOn
-                ? memberIdsOf(c as ECondition).length
-                : (vs?.source_register_ids?.length ?? 0);
-            const primaryId = c.register_id || vs?.source_register_ids?.[0];
-            const devId = primaryId ? registerToDevice[primaryId] : undefined;
-            const label = labelOfDevice(devId) || vs?.name || t('auto.cat.sensor');
-            const more = count > 1 ? ` +${count - 1}` : '';
-            return `${neg}${agg}(${label}${more}) ${p.operator ?? '>'} ${p.value ?? '?'}`;
+            // Inline aggregate: named after its first member, since the virtual sensor
+            // behind it does not exist yet. Picked one: named after itself.
+            if (c._aggOn) {
+                const agg = (c._agg || 'min').toUpperCase();
+                const count = memberIdsOf(c as ECondition).length;
+                const devId = c.register_id ? registerToDevice[c.register_id] : undefined;
+                const label = labelOfDevice(devId) || vs?.name || t('auto.cat.sensor');
+                const more = count > 1 ? ` +${count - 1}` : '';
+                return `${neg}${agg}(${label}${more}) ${p.operator ?? '>'} ${p.value ?? '?'}`;
+            }
+            const agg = (vs?.agg || 'min').toUpperCase();
+            const label = localizedName(vs, i18n.language) || t('auto.cat.vsensor');
+            return `${neg}${agg}(${label}) ${p.operator ?? '>'} ${p.value ?? '?'}`;
         }
         switch (c.condition_type) {
             case 'time_of_day': return `${neg}@ ${p.time ?? '--:--'}`;
@@ -912,6 +940,8 @@ export default function AutomationEditorModal({ farmId, automationId, automation
         deviceById,
         registerToDevice,
         deviceLabels,
+        virtualSensors,
+        vsById,
         live,
         liveLoading,
         refreshLive,
@@ -1236,6 +1266,8 @@ interface AggContext {
     deviceById: Record<string, Device>;
     registerToDevice: Record<string, string>;
     deviceLabels: Record<string, string>; // deviceId → "<zone> · <device>"
+    virtualSensors: VirtualSensor[]; // the farm's existing aggregates (Virtual sensor cards)
+    vsById: Record<string, VirtualSensor>;
     live: Record<string, SlaveSensorReading>; // keyed by device code
     liveLoading: boolean;
     refreshLive: () => void;
@@ -1253,7 +1285,7 @@ interface ConditionEditorProps {
 }
 
 function ConditionEditor({ condition, devices, registersByDevice, isPreset, agg, onChange, onRemove }: ConditionEditorProps) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const c = condition;
     const setParam = (key: string, value: any) => onChange({ ...c, params: { ...c.params, [key]: value } });
 
@@ -1276,10 +1308,24 @@ function ConditionEditor({ condition, devices, registersByDevice, isPreset, agg,
     const deviceRegisters = c._aggOn ? allDeviceRegisters.filter(r => r.role === 'value') : allDeviceRegisters;
     const selectedReg = c.register_id ? allDeviceRegisters.find(r => r.id === c.register_id) : undefined;
 
+    // ── Virtual sensor card state ──
+    // The card is a reference: everything it shows (function, members, unit) is read off
+    // the picked sensor, and nothing here writes back to it.
+    const isVs = c.condition_type === 'register_value' && c._category === 'vsensor';
+    const boundVs = c.virtual_sensor_id ? agg.vsById[c.virtual_sensor_id] : undefined;
+    const vsLabel = (v: VirtualSensor) => localizedName(v, i18n.language) || v.code;
+    // Retired sensors are not offered, but one a rule already points at stays listed so
+    // opening that rule doesn't silently drop its binding.
+    const vsOptions = agg.virtualSensors
+        .filter(v => v.is_active !== false || v.id === c.virtual_sensor_id)
+        .sort((a, b) => vsLabel(a).localeCompare(vsLabel(b)));
+
     // ── Aggregate modifier state (Sensor reading cards only) ──
     const showAggregate = c.condition_type === 'register_value' && c._category === 'sensor';
-    const aggFn: VirtualSensorAgg = c._agg || 'min';
-    const members = memberIdsOf(c);
+    // Both cards feed the same member/live-preview rendering below — the aggregate one
+    // from the card's own state, the reference one from the virtual sensor it points at.
+    const aggFn: VirtualSensorAgg = isVs ? (boundVs?.agg || 'min') : (c._agg || 'min');
+    const members = isVs ? (boundVs?.source_register_ids || []) : memberIdsOf(c);
     const memberSet = new Set(members);
     const primaryUnitKey = unitKeyOf(selectedReg);
     // "+ Add sensor" offers every other farm sensor measuring the same thing (same unit).
@@ -1301,7 +1347,7 @@ function ConditionEditor({ condition, devices, registersByDevice, isPreset, agg,
     const knownValues = memberValues.filter((v): v is number => v !== null);
     const aggValue = aggregateOf(aggFn, knownValues);
     const decidingIdx = decidingIndexOf(aggFn, memberValues);
-    const aggUnit = selectedReg?.unit || '';
+    const aggUnit = (isVs ? (boundVs?.unit || agg.registerById[members[0]]?.unit) : selectedReg?.unit) || '';
     const threshold = Number(c.params?.value);
     // What the condition would evaluate to right now, negation included.
     const rawState = aggValue !== null && !Number.isNaN(threshold)
@@ -1328,6 +1374,117 @@ function ConditionEditor({ condition, devices, registersByDevice, isPreset, agg,
         onChange({ ...c, _extraRegisterIds: (c._extraRegisterIds || []).filter(x => x !== rid) });
     };
 
+    // Turn a reference back into an inline aggregate, seeded with the picked sensor's
+    // members. The shared definition is left alone: saving reuses it when the list comes
+    // back identical, and creates a separate one when it doesn't.
+    const forkToAggregate = () => {
+        if (!boundVs) return;
+        const ids = boundVs.source_register_ids || [];
+        onChange({
+            ...c,
+            _category: 'sensor',
+            _aggOn: true,
+            _agg: boundVs.agg,
+            register_id: ids[0] || '',
+            _extraRegisterIds: ids.slice(1),
+            _deviceId: ids[0] ? agg.registerToDevice[ids[0]] : undefined,
+            virtual_sensor_id: undefined,
+            _vsCode: undefined,
+        });
+    };
+
+    // ── Shared between the two aggregate-shaped cards ──
+    const memberChips = (editable: boolean) => (
+        <div className="ae-agg-chips">
+            {members.map((rid, idx) => {
+                const v = memberValues[idx];
+                const deciding = decidingIdx === idx && members.length > 1;
+                return (
+                    <span
+                        className={`ae-agg-chip ${editable && idx === 0 ? 'primary' : ''} ${deciding ? 'deciding' : ''}`}
+                        key={rid}
+                        title={agg.registerById[rid]?.code || rid}
+                    >
+                        {editable && idx === 0 && <span className="ae-agg-chip-tag">{t('auto.agg.primary')}</span>}
+                        <span className="ae-agg-chip-name">{labelOfRegister(rid)}</span>
+                        <span className="ae-agg-chip-val">
+                            {v === null ? '—' : `${fmtNum(v)}${aggUnit ? ` ${aggUnit}` : ''}`}
+                        </span>
+                        {editable && idx > 0 && (
+                            <button
+                                type="button"
+                                className="ae-agg-chip-x"
+                                title={t('auto.agg.removeSensor')}
+                                onClick={() => removeMember(rid)}
+                            >
+                                <X size={11} />
+                            </button>
+                        )}
+                    </span>
+                );
+            })}
+            {editable && (
+                <select
+                    className="ae-agg-add"
+                    value=""
+                    disabled={!addable.length}
+                    onChange={e => { addMember(e.target.value); e.currentTarget.value = ''; }}
+                >
+                    <option value="">
+                        {addable.length ? `+ ${t('auto.agg.addSensor')}` : t('auto.agg.noMoreSensors')}
+                    </option>
+                    {addable.map(x => (
+                        <option key={x.register.id} value={x.register.id}>
+                            {labelOfDevice(x.device)}{x.register.unit ? ` (${x.register.unit})` : ''}
+                        </option>
+                    ))}
+                </select>
+            )}
+        </div>
+    );
+
+    // "What would this condition say right now" — the aggregate of the live readings,
+    // which member decides it, and the resulting true/false.
+    const livePreview = (
+        <div className="ae-agg-helper">
+            <Info size={12} />
+            <div className="ae-agg-helper-text">
+                {aggValue === null ? (
+                    <span className="muted">{t('auto.agg.noLive')}</span>
+                ) : (
+                    <>
+                        <span className="ae-agg-current">
+                            {t(`auto.agg.${aggFn}`)} = <strong>{fmtNum(aggValue)}</strong>{aggUnit ? ` ${aggUnit}` : ''}
+                        </span>
+                        {members.length > 1 && (
+                            aggFn === 'avg'
+                                ? <span className="ae-agg-note">{t('auto.agg.avgOf', { count: knownValues.length })}</span>
+                                : decidingIdx !== null && <span className="ae-agg-note">{t('auto.agg.decidedBy', { name: labelOfRegister(members[decidingIdx]) })}</span>
+                        )}
+                        {knownValues.length < members.length && (
+                            <span className="ae-agg-note warn">{t('auto.agg.partial', { count: members.length - knownValues.length })}</span>
+                        )}
+                        {condState !== null && (
+                            <span className={`ae-agg-state ${condState ? 'on' : 'off'}`}>
+                                {t(condState ? 'auto.agg.stateTrue' : 'auto.agg.stateFalse')}
+                                <code>{`${c.is_negated ? 'NOT ' : ''}${fmtNum(aggValue)} ${c.params?.operator || '>'} ${c.params?.value ?? '?'}`}</code>
+                            </span>
+                        )}
+                    </>
+                )}
+            </div>
+            <button
+                type="button"
+                className="ae-agg-refresh"
+                onClick={agg.refreshLive}
+                disabled={agg.liveLoading}
+                title={t('auto.agg.refresh')}
+            >
+                {agg.liveLoading ? <Loader2 className="spinner" size={12} /> : <RefreshCw size={12} />}
+            </button>
+        </div>
+    );
+
     return (
         <div className="ae-cond">
             <div className="ae-cond-top">
@@ -1342,20 +1499,82 @@ function ConditionEditor({ condition, devices, registersByDevice, isPreset, agg,
             <div className="ae-cond-params">
                 {c.condition_type === 'register_value' && (
                     <>
-                        <div className="ae-pfield">
-                            <label>{t('auto.c.device')}</label>
-                            <select value={c._deviceId || ''} onChange={e => onChange({ ...c, _deviceId: e.target.value, register_id: '' })}>
-                                <option value="">{t('auto.a.selectDevice')}</option>
-                                {condDevices.map(d => <option key={d.id} value={d.id}>{labelOfDevice(d)}</option>)}
-                            </select>
-                        </div>
-                        <div className="ae-pfield">
-                            <label>{t('auto.c.register')}</label>
-                            <select value={c.register_id || ''} disabled={!c._deviceId} onChange={e => onChange({ ...c, register_id: e.target.value })}>
-                                <option value="">{t('auto.a.selectRegister')}</option>
-                                {deviceRegisters.map(r => <option key={r.id} value={r.id}>{r.code} ({r.role})</option>)}
-                            </select>
-                        </div>
+                        {isVs ? (
+                            <div className="ae-pfield full ae-vs">
+                                <label>{t('auto.vs.field')}</label>
+                                {c._vsOpaque ? (
+                                    <div className="ae-agg-opaque">
+                                        <AlertTriangle size={13} />
+                                        <span>{t('auto.agg.opaque')}</span>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <select
+                                            value={c.virtual_sensor_id || ''}
+                                            disabled={agg.readOnly}
+                                            onChange={e => onChange({ ...c, virtual_sensor_id: e.target.value, _vsCode: agg.vsById[e.target.value]?.code })}
+                                        >
+                                            <option value="">{t('auto.vs.select')}</option>
+                                            {vsOptions.map(v => (
+                                                <option key={v.id} value={v.id}>
+                                                    {vsLabel(v)} · {v.agg.toUpperCase()}{v.unit ? ` (${v.unit})` : ''}
+                                                    {v.is_active === false ? ` — ${t('auto.vs.inactive')}` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <span className="ae-hint">
+                                            {agg.readOnly
+                                                ? t('auto.agg.unavailable')
+                                                : vsOptions.length ? t('auto.vs.hint') : t('auto.vs.none')}
+                                        </span>
+
+                                        {boundVs && (
+                                            <div className="ae-agg-body">
+                                                {boundVs.is_active === false && (
+                                                    <div className="ae-agg-opaque">
+                                                        <AlertTriangle size={13} />
+                                                        <span>{t('auto.vs.inactiveWarn')}</span>
+                                                    </div>
+                                                )}
+                                                <div className="ae-agg-row">
+                                                    <span className="ae-agg-caption">{t('auto.agg.function')}</span>
+                                                    <span className="ae-vs-fn">{t(`auto.agg.${boundVs.agg}`)}</span>
+                                                    <code className="ae-vs-code">{boundVs.code}</code>
+                                                </div>
+                                                <div className="ae-agg-row">
+                                                    <span className="ae-agg-caption">{t('auto.agg.members', { count: members.length })}</span>
+                                                    {memberChips(false)}
+                                                </div>
+                                                {livePreview}
+                                                <div className="ae-vs-actions">
+                                                    <button type="button" className="ae-vs-fork" onClick={forkToAggregate} disabled={agg.readOnly || !members.length}>
+                                                        <Sigma size={12} /> {t('auto.vs.fork')}
+                                                    </button>
+                                                    <span className="ae-hint">{t('auto.vs.forkHint')}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            <>
+                                <div className="ae-pfield">
+                                    <label>{t('auto.c.device')}</label>
+                                    <select value={c._deviceId || ''} onChange={e => onChange({ ...c, _deviceId: e.target.value, register_id: '' })}>
+                                        <option value="">{t('auto.a.selectDevice')}</option>
+                                        {condDevices.map(d => <option key={d.id} value={d.id}>{labelOfDevice(d)}</option>)}
+                                    </select>
+                                </div>
+                                <div className="ae-pfield">
+                                    <label>{t('auto.c.register')}</label>
+                                    <select value={c.register_id || ''} disabled={!c._deviceId} onChange={e => onChange({ ...c, register_id: e.target.value })}>
+                                        <option value="">{t('auto.a.selectRegister')}</option>
+                                        {deviceRegisters.map(r => <option key={r.id} value={r.id}>{r.code} ({r.role})</option>)}
+                                    </select>
+                                </div>
+                            </>
+                        )}
                         <div className="ae-pfield short">
                             <label>{t('auto.c.operator')}</label>
                             <select value={c.params.operator || '>'} onChange={e => setParam('operator', e.target.value)}>
@@ -1410,89 +1629,10 @@ function ConditionEditor({ condition, devices, registersByDevice, isPreset, agg,
 
                                                 <div className="ae-agg-row">
                                                     <span className="ae-agg-caption">{t('auto.agg.members', { count: members.length })}</span>
-                                                    <div className="ae-agg-chips">
-                                                        {members.map((rid, idx) => {
-                                                            const v = memberValues[idx];
-                                                            const deciding = decidingIdx === idx && members.length > 1;
-                                                            return (
-                                                                <span
-                                                                    className={`ae-agg-chip ${idx === 0 ? 'primary' : ''} ${deciding ? 'deciding' : ''}`}
-                                                                    key={rid}
-                                                                    title={agg.registerById[rid]?.code || rid}
-                                                                >
-                                                                    {idx === 0 && <span className="ae-agg-chip-tag">{t('auto.agg.primary')}</span>}
-                                                                    <span className="ae-agg-chip-name">{labelOfRegister(rid)}</span>
-                                                                    <span className="ae-agg-chip-val">
-                                                                        {v === null ? '—' : `${fmtNum(v)}${aggUnit ? ` ${aggUnit}` : ''}`}
-                                                                    </span>
-                                                                    {idx > 0 && (
-                                                                        <button
-                                                                            type="button"
-                                                                            className="ae-agg-chip-x"
-                                                                            title={t('auto.agg.removeSensor')}
-                                                                            onClick={() => removeMember(rid)}
-                                                                        >
-                                                                            <X size={11} />
-                                                                        </button>
-                                                                    )}
-                                                                </span>
-                                                            );
-                                                        })}
-                                                        <select
-                                                            className="ae-agg-add"
-                                                            value=""
-                                                            disabled={!addable.length}
-                                                            onChange={e => { addMember(e.target.value); e.currentTarget.value = ''; }}
-                                                        >
-                                                            <option value="">
-                                                                {addable.length ? `+ ${t('auto.agg.addSensor')}` : t('auto.agg.noMoreSensors')}
-                                                            </option>
-                                                            {addable.map(x => (
-                                                                <option key={x.register.id} value={x.register.id}>
-                                                                    {labelOfDevice(x.device)}{x.register.unit ? ` (${x.register.unit})` : ''}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                    </div>
+                                                    {memberChips(true)}
                                                 </div>
 
-                                                <div className="ae-agg-helper">
-                                                    <Info size={12} />
-                                                    <div className="ae-agg-helper-text">
-                                                        {aggValue === null ? (
-                                                            <span className="muted">{t('auto.agg.noLive')}</span>
-                                                        ) : (
-                                                            <>
-                                                                <span className="ae-agg-current">
-                                                                    {t(`auto.agg.${aggFn}`)} = <strong>{fmtNum(aggValue)}</strong>{aggUnit ? ` ${aggUnit}` : ''}
-                                                                </span>
-                                                                {members.length > 1 && (
-                                                                    aggFn === 'avg'
-                                                                        ? <span className="ae-agg-note">{t('auto.agg.avgOf', { count: knownValues.length })}</span>
-                                                                        : decidingIdx !== null && <span className="ae-agg-note">{t('auto.agg.decidedBy', { name: labelOfRegister(members[decidingIdx]) })}</span>
-                                                                )}
-                                                                {knownValues.length < members.length && (
-                                                                    <span className="ae-agg-note warn">{t('auto.agg.partial', { count: members.length - knownValues.length })}</span>
-                                                                )}
-                                                                {condState !== null && (
-                                                                    <span className={`ae-agg-state ${condState ? 'on' : 'off'}`}>
-                                                                        {t(condState ? 'auto.agg.stateTrue' : 'auto.agg.stateFalse')}
-                                                                        <code>{`${c.is_negated ? 'NOT ' : ''}${fmtNum(aggValue)} ${c.params?.operator || '>'} ${c.params?.value ?? '?'}`}</code>
-                                                                    </span>
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        className="ae-agg-refresh"
-                                                        onClick={agg.refreshLive}
-                                                        disabled={agg.liveLoading}
-                                                        title={t('auto.agg.refresh')}
-                                                    >
-                                                        {agg.liveLoading ? <Loader2 className="spinner" size={12} /> : <RefreshCw size={12} />}
-                                                    </button>
-                                                </div>
+                                                {livePreview}
                                             </>
                                         )}
                                     </div>

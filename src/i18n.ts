@@ -318,6 +318,7 @@ const resources = {
             "auto.cat.day_of_week": "Days of week",
             "auto.cat.sun_event": "Sunrise / Sunset",
             "auto.cat.sensor": "Sensor reading",
+            "auto.cat.vsensor": "Virtual sensor",
             "auto.cat.device": "Actuator / switch / door state",
             "auto.acat.set_register_value": "Control a device",
             "auto.acat.notification": "Send notification",
@@ -443,6 +444,17 @@ const resources = {
             "auto.agg.vPrimary": "An aggregate can only use the value register of a sensor device — pick one for the first sensor.",
             "auto.agg.vUnit": "All sensors in an aggregate must share the same unit.",
             "auto.agg.saveFailed": "Could not save the aggregate: {{error}}",
+
+            // Virtual sensor condition — points at an aggregate the farm already has
+            "auto.vs.field": "Virtual sensor",
+            "auto.vs.select": "Select virtual sensor…",
+            "auto.vs.hint": "Watches an aggregate defined once in the Virtual sensors tab. Every rule pointing at it follows the same sensor list.",
+            "auto.vs.none": "This farm has no active virtual sensor yet — create one in the Virtual sensors tab, or tick \"Aggregate\" on a Sensor reading condition.",
+            "auto.vs.inactive": "switched off",
+            "auto.vs.inactiveWarn": "This virtual sensor is switched off, so the condition will never be true. Re-enable it in the Virtual sensors tab or pick another one.",
+            "auto.vs.fork": "Edit sensors here",
+            "auto.vs.forkHint": "Copies the sensor list into this rule so you can change it. The shared virtual sensor is left untouched — a new one is created if your list ends up different.",
+            "auto.vs.vSelect": "Each virtual sensor condition needs a virtual sensor.",
 
             // Presets (expert-authored, farm-scoped)
             "preset.title": "Expert presets",
@@ -1161,6 +1173,7 @@ const resources = {
             "auto.cat.day_of_week": "요일",
             "auto.cat.sun_event": "일출 / 일몰",
             "auto.cat.sensor": "센서 측정값",
+            "auto.cat.vsensor": "가상 센서",
             "auto.cat.device": "구동기 / 스위치 / 도어 상태",
             "auto.acat.set_register_value": "장치 제어",
             "auto.acat.notification": "알림 전송",
@@ -1286,6 +1299,17 @@ const resources = {
             "auto.agg.vPrimary": "집계는 센서 장치의 value 레지스터만 사용할 수 있습니다 — 1번 센서를 다시 선택하세요.",
             "auto.agg.vUnit": "집계에 포함된 센서는 모두 같은 단위여야 합니다.",
             "auto.agg.saveFailed": "집계를 저장할 수 없습니다: {{error}}",
+
+            // Virtual sensor condition — points at an aggregate the farm already has
+            "auto.vs.field": "가상 센서",
+            "auto.vs.select": "가상 센서 선택…",
+            "auto.vs.hint": "가상 센서 탭에서 한 번 정의한 집계를 감시합니다. 이 가상 센서를 참조하는 모든 규칙이 같은 센서 목록을 따릅니다.",
+            "auto.vs.none": "이 농장에는 아직 활성 가상 센서가 없습니다 — 가상 센서 탭에서 만들거나, 센서 측정값 조건에서 \"집계\"를 켜세요.",
+            "auto.vs.inactive": "비활성",
+            "auto.vs.inactiveWarn": "이 가상 센서는 꺼져 있어 조건이 절대 참이 되지 않습니다. 가상 센서 탭에서 다시 켜거나 다른 센서를 선택하세요.",
+            "auto.vs.fork": "여기서 센서 편집",
+            "auto.vs.forkHint": "센서 목록을 이 규칙으로 복사해 수정할 수 있게 합니다. 공유 중인 가상 센서는 그대로 유지되며, 목록이 달라지면 새 가상 센서가 만들어집니다.",
+            "auto.vs.vSelect": "가상 센서 조건에는 가상 센서를 선택해야 합니다.",
 
             // Presets (expert-authored, farm-scoped)
             "preset.title": "전문가 프리셋",
