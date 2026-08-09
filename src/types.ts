@@ -394,6 +394,27 @@ export interface RegisterInUseByVirtualSensors {
     virtual_sensors: Array<{ id: string; code: string }>;
 }
 
+// name is null when the entity has none (e.g. unnamed virtual sensors).
+export interface ZoneBlockerItem {
+    id: string;
+    name: string | null;
+}
+
+// 409 detail when cascade-deleting a zone that other data still depends on.
+// The server deletes nothing on 409, so the cascade call doubles as a safe pre-check.
+export interface ZoneDeleteConflict {
+    error: 'zone_has_dependents';
+    message: string;
+    blockers: {
+        automations: ZoneBlockerItem[];
+        virtual_sensors: ZoneBlockerItem[];
+        cameras: ZoneBlockerItem[];
+        // Command history is never deleted; a non-zero count means the zone can
+        // only be deactivated, never cascade-deleted.
+        command_history_rows: number;
+    };
+}
+
 // GET /farms/{farm_id}/slaves/{slave_id}/sensors — live reading per sensor device
 // of one modbus unit. Used to preview aggregate values in the rule editor.
 export interface SlaveSensorReading {

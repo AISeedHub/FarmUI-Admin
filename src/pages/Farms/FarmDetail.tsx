@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal } from 'lucide-react';
 import YAML from 'yaml';
-import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors } from '../../types';
+import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors, ZoneBlockerItem, ZoneDeleteConflict } from '../../types';
 import { farmsApi, zonesApi, devicesApi, registersApi, ApiError } from '../../api/services';
 import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../utils/displayNames';
 import AutomationsTab from './components/AutomationsTab';
@@ -50,6 +50,8 @@ export default function FarmDetail() {
     const [zoneModal, setZoneModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Zone> & { displayNamesStr?: string } }>({ isOpen: false, type: 'new', data: {} });
     const [deviceModal, setDeviceModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Device> & { displayNamesStr?: string } }>({ isOpen: false, type: 'new', data: {} });
     const [registerModal, setRegisterModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Register> & { displayNamesStr?: string, valueMapStr?: string }, deviceId?: string }>({ isOpen: false, type: 'new', data: {} });
+    // Cascade delete refused with 409: the zone plus the dependents blocking it.
+    const [zoneConflict, setZoneConflict] = useState<{ zone: Zone, conflict: ZoneDeleteConflict } | null>(null);
 
     // SVG Connections State & Refs
     const svgRef = useRef<SVGSVGElement>(null);
@@ -294,10 +296,39 @@ export default function FarmDetail() {
         loadData();
     };
 
-    const deleteZone = async (zoneId: string) => {
-        if (window.confirm(t('detail.confirmDeleteZone'))) {
-            await zonesApi.delete(zoneId);
+    const deleteZone = async (zone: Zone) => {
+        if (!window.confirm(t('detail.confirmDeleteZone'))) return;
+        cascadeDeleteZone(zone);
+    };
+
+    // On 409 the server deletes nothing and reports every dependent, so this is
+    // also safe to re-run as the "retry" action of the conflict dialog.
+    const cascadeDeleteZone = async (zone: Zone) => {
+        try {
+            await zonesApi.delete(zone.id);
+            setZoneConflict(null);
             loadData();
+        } catch (err: any) {
+            if (err instanceof ApiError && err.status === 409) {
+                const detail = err.detail as ZoneDeleteConflict | undefined;
+                if (detail?.blockers) {
+                    setZoneConflict({ zone, conflict: detail });
+                    return;
+                }
+            }
+            alert(t('detail.deleteZoneFailed', { error: err?.message || 'Unknown error' }));
+        }
+    };
+
+    // The way out when command history blocks a cascade delete: history is never
+    // deleted, so the zone can only be retired, keeping devices and history intact.
+    const deactivateZone = async (zone: Zone) => {
+        try {
+            await zonesApi.update(zone.id, { is_active: false });
+            setZoneConflict(null);
+            loadData();
+        } catch (err: any) {
+            alert(t('detail.deactivateZoneFailed', { error: err?.message || 'Unknown error' }));
         }
     };
 
@@ -737,7 +768,7 @@ export default function FarmDetail() {
                                                     {configEditMode && (
                                                         <div className="node-actions">
                                                             <button onClick={(e) => { e.stopPropagation(); setZoneModal({ isOpen: true, type: 'edit', data: { ...zone, displayNamesStr: displayNamesToText(zone.display_names) } }); }}><Edit2 size={12} /></button>
-                                                            <button className="del" onClick={(e) => { e.stopPropagation(); deleteZone(zone.id); }}><Trash2 size={12} /></button>
+                                                            <button className="del" onClick={(e) => { e.stopPropagation(); deleteZone(zone); }}><Trash2 size={12} /></button>
                                                         </div>
                                                     )}
                                                 </div>
@@ -930,6 +961,55 @@ export default function FarmDetail() {
                     </div>
                 </div>
             )}
+
+            {/* Zone cascade-delete blocked (409): name every dependent and the way out.
+                When command history exists the zone can never be hard-deleted, so the
+                only action offered is deactivation; otherwise the blockers are fixable
+                and the dialog offers a retry. */}
+            {zoneConflict && (() => {
+                const { zone, conflict } = zoneConflict;
+                const hasHistory = conflict.blockers.command_history_rows > 0;
+                const zoneLabel = zone.display_names?.[i18n.language] || zone.display_names?.en || zone.display_names?.ko || zone.display_names?.vi || zone.name || zone.code;
+                const groups: Array<{ key: string, label: string, items: ZoneBlockerItem[] }> = [
+                    { key: 'automations', label: t('detail.zoneBlockerAutomations'), items: conflict.blockers.automations },
+                    { key: 'virtual_sensors', label: t('detail.zoneBlockerVirtualSensors'), items: conflict.blockers.virtual_sensors },
+                    { key: 'cameras', label: t('detail.zoneBlockerCameras'), items: conflict.blockers.cameras },
+                ].filter(g => g.items.length > 0);
+                return (
+                    <div className="modal-overlay">
+                        <div className="modal-content panel config-notice-modal">
+                            <div className="config-notice-head">
+                                <span className="config-notice-icon"><AlertTriangle size={18} /></span>
+                                <h3>{t('detail.zoneConflictTitle', { zone: zoneLabel })}</h3>
+                            </div>
+                            <div className="config-notice-body">
+                                <p>{t('detail.zoneConflictIntro')}</p>
+                                <ul className="zone-blocker-list">
+                                    {groups.map(g => (
+                                        <li key={g.key}>
+                                            <strong>{g.label}:</strong> {g.items.map(i => i.name || i.id).join(', ')}
+                                        </li>
+                                    ))}
+                                    {hasHistory && (
+                                        <li>
+                                            <strong>{t('detail.zoneBlockerHistoryL')}:</strong> {t('detail.zoneBlockerHistory', { rows: conflict.blockers.command_history_rows })}
+                                        </li>
+                                    )}
+                                </ul>
+                                <p>{hasHistory ? t('detail.zoneConflictHistoryNote') : t('detail.zoneConflictFixable')}</p>
+                            </div>
+                            <div className="modal-actions">
+                                <button onClick={() => setZoneConflict(null)}>{t('btn.close')}</button>
+                                {hasHistory ? (
+                                    <button className="primary" onClick={() => deactivateZone(zone)}>{t('detail.zoneDeactivate')}</button>
+                                ) : (
+                                    <button className="primary" onClick={() => cascadeDeleteZone(zone)}>{t('detail.zoneRetryDelete')}</button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* Device Modal */}
             {deviceModal.isOpen && (
