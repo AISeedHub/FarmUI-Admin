@@ -320,18 +320,6 @@ export default function FarmDetail() {
         }
     };
 
-    // The way out when command history blocks a cascade delete: history is never
-    // deleted, so the zone can only be retired, keeping devices and history intact.
-    const deactivateZone = async (zone: Zone) => {
-        try {
-            await zonesApi.update(zone.id, { is_active: false });
-            setZoneConflict(null);
-            loadData();
-        } catch (err: any) {
-            alert(t('detail.deactivateZoneFailed', { error: err?.message || 'Unknown error' }));
-        }
-    };
-
     // DEVICE CRUD
     const saveDevice = async () => {
         if (!id) return;
@@ -963,9 +951,10 @@ export default function FarmDetail() {
             )}
 
             {/* Zone cascade-delete blocked (409): name every dependent and the way out.
-                When command history exists the zone can never be hard-deleted, so the
-                only action offered is deactivation; otherwise the blockers are fixable
-                and the dialog offers a retry. */}
+                Blockers the admin can clear (automations, virtual sensors, cameras) get a
+                retry. Command history can never be cleared from here, and retiring the
+                zone instead is NOT offered — an inactive zone is not honoured across the
+                stack yet, so that road ends at the developers. */}
             {zoneConflict && (() => {
                 const { zone, conflict } = zoneConflict;
                 const hasHistory = conflict.blockers.command_history_rows > 0;
@@ -1000,9 +989,7 @@ export default function FarmDetail() {
                             </div>
                             <div className="modal-actions">
                                 <button onClick={() => setZoneConflict(null)}>{t('btn.close')}</button>
-                                {hasHistory ? (
-                                    <button className="primary" onClick={() => deactivateZone(zone)}>{t('detail.zoneDeactivate')}</button>
-                                ) : (
+                                {!hasHistory && (
                                     <button className="primary" onClick={() => cascadeDeleteZone(zone)}>{t('detail.zoneRetryDelete')}</button>
                                 )}
                             </div>
