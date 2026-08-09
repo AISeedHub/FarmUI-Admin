@@ -565,6 +565,59 @@
 
 .ae-agg-opaque svg { flex-shrink: 0; }
 
+/* Virtual sensor card — a reference to an aggregate defined once for the whole farm.
+   Reuses the aggregate body/chip/helper styles above; only the picker row and the
+   "edit sensors" escape hatch are its own. */
+.ae-vs {
+    gap: 6px;
+}
+
+.ae-vs .ae-agg-body { margin-top: 8px; }
+
+.ae-vs-fn {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: 0.04em;
+}
+
+.ae-vs-code {
+    font-family: var(--font-mono), monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: #f1f5f9;
+    border-radius: 5px;
+    padding: 2px 6px;
+}
+
+.ae-vs-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px dashed var(--border-input);
+    padding-top: 8px;
+}
+
+.ae-vs-actions .ae-hint { flex: 1 1 200px; }
+
+.ae-vs-fork {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-main);
+    background: #fff;
+    border: 1px solid var(--border-input);
+    border-radius: 7px;
+    cursor: pointer;
+}
+
+.ae-vs-fork:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.ae-vs-fork:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* Nested rule builder sits above the preset-package modal that opened it. */
 .ae-overlay.ae-nested { z-index: 1300; }
 

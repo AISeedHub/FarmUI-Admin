@@ -451,6 +451,15 @@
     font-weight: 600;
 }
 
+.zone-blocker-list {
+    margin: 0 0 10px;
+    padding-left: 18px;
+}
+
+.zone-blocker-list li {
+    margin-bottom: 4px;
+}
+
 .export-btn {
     display: flex;
     align-items: center;
