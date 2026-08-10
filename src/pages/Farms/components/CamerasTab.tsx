@@ -4,6 +4,7 @@ import { Loader2, AlertTriangle, RefreshCw, Plus, Pencil, Trash2, Video, VideoOf
 import { camerasApi, zonesApi } from '../../../api/services';
 import { Camera, CameraCreate, CameraUpdate, StreamProtocol, Zone } from '../../../types';
 import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText, localizedName } from '../../../utils/displayNames';
+import { CODE_MAX_LENGTH } from '../../../utils/code';
 import './CamerasTab.css';
 
 interface CamerasTabProps {
@@ -17,7 +18,9 @@ interface CamerasTabProps {
 const PROTOCOLS: StreamProtocol[] = ['webrtc', 'hls', 'rtsp'];
 
 // Shared per-farm code slug (zone codes share a namespace with sensor/actuator zones).
-const slug = (s: string) => s.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '');
+// Capped like every other code: a longer value is refused by Postgres and comes back as
+// an opaque network error, so a long camera name is truncated here instead of sent.
+const slug = (s: string) => s.toLowerCase().trim().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '').slice(0, CODE_MAX_LENGTH);
 
 // A camera-zone is a shared `zones` row with no modbus unit (default_unit_id == null).
 const isCameraZone = (z: Zone) => z.default_unit_id == null;
@@ -428,7 +431,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                             </div>
                             <div className="form-group">
                                 <label>{t('camera.fCode')}</label>
-                                <input value={form.code || ''} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
+                                <input maxLength={CODE_MAX_LENGTH} value={form.code || ''} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} />
                             </div>
 
                             <div className="form-group full-width">
@@ -548,7 +551,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                         </div>
                         <div className="form-group">
                             <label>{t('detail.zoneCode')}</label>
-                            <input value={zoneForm.code || ''} onChange={e => setZoneForm(z => ({ ...z, code: e.target.value }))} />
+                            <input maxLength={CODE_MAX_LENGTH} value={zoneForm.code || ''} onChange={e => setZoneForm(z => ({ ...z, code: e.target.value }))} />
                         </div>
                         <div className="form-group">
                             <label>{t('detail.displayNamesJson')}</label>

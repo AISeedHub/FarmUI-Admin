@@ -11,6 +11,7 @@ import {
 } from '../../../types';
 import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText, localizedName } from '../../../utils/displayNames';
 import { buildDeviceLabels } from '../../../utils/deviceLabel';
+import { VIRTUAL_SENSOR_CODE_MAX_LENGTH } from '../../../utils/code';
 // The editor modal reuses the .ae-* shell, so pull that stylesheet in explicitly
 // rather than relying on another component having been imported first.
 import './AutomationEditorModal.css';
@@ -386,7 +387,7 @@ export default function VirtualSensorsPanel({ farmId }: VirtualSensorsPanelProps
                                         type="text"
                                         value={form.code}
                                         disabled={!!editor.vs}
-                                        maxLength={100}
+                                        maxLength={VIRTUAL_SENSOR_CODE_MAX_LENGTH}
                                         placeholder="vs_internal_temp_min"
                                         onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
                                     />

@@ -133,7 +133,7 @@ export const zonesApi = {
     },
     // Cascade-or-nothing: removes the zone, its devices and their registers in
     // one transaction. If anything else still depends on the zone the server
-    // answers 409 with a ZoneDeleteConflict report and deletes nothing.
+    // answers 409 with a DeleteConflict report and deletes nothing.
     delete: async (id: string): Promise<boolean> => {
         const result = await fetchJson(`/zones/${id}`, { method: 'DELETE' });
         return result.success ?? true;
@@ -156,6 +156,8 @@ export const devicesApi = {
             body: JSON.stringify(data),
         });
     },
+    // Same contract as zonesApi.delete: cascade-or-nothing (device + registers),
+    // 409 + DeleteConflict report when dependents block it, nothing deleted then.
     delete: async (id: string): Promise<boolean> => {
         const result = await fetchJson(`/devices/${id}`, { method: 'DELETE' });
         return result.success ?? true;
