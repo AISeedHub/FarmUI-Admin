@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal } from 'lucide-react';
 import YAML from 'yaml';
-import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors, ZoneBlockerItem, ZoneDeleteConflict } from '../../types';
+import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors, BlockerItem, DeleteConflict } from '../../types';
 import { farmsApi, zonesApi, devicesApi, registersApi, ApiError } from '../../api/services';
 import { displayNamesToText, emptyDisplayNamesText, parseDisplayNamesText } from '../../utils/displayNames';
+import { CODE_MAX_LENGTH, codeFollowsName, slugifyCode } from '../../utils/code';
 import AutomationsTab from './components/AutomationsTab';
 import PresetsPanel from './components/PresetsPanel';
 import VirtualSensorsPanel from './components/VirtualSensorsPanel';
@@ -50,8 +51,8 @@ export default function FarmDetail() {
     const [zoneModal, setZoneModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Zone> & { displayNamesStr?: string } }>({ isOpen: false, type: 'new', data: {} });
     const [deviceModal, setDeviceModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Device> & { displayNamesStr?: string } }>({ isOpen: false, type: 'new', data: {} });
     const [registerModal, setRegisterModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Register> & { displayNamesStr?: string, valueMapStr?: string }, deviceId?: string }>({ isOpen: false, type: 'new', data: {} });
-    // Cascade delete refused with 409: the zone plus the dependents blocking it.
-    const [zoneConflict, setZoneConflict] = useState<{ zone: Zone, conflict: ZoneDeleteConflict } | null>(null);
+    // Delete refused with 409: the zone/device plus the dependents blocking it.
+    const [deleteConflict, setDeleteConflict] = useState<{ kind: 'zone' | 'device', entity: Zone | Device, conflict: DeleteConflict } | null>(null);
 
     // SVG Connections State & Refs
     const svgRef = useRef<SVGSVGElement>(null);
@@ -296,40 +297,30 @@ export default function FarmDetail() {
         loadData();
     };
 
-    const deleteZone = async (zone: Zone) => {
-        if (!window.confirm(t('detail.confirmDeleteZone'))) return;
-        cascadeDeleteZone(zone);
-    };
-
-    // On 409 the server deletes nothing and reports every dependent, so this is
-    // also safe to re-run as the "retry" action of the conflict dialog.
-    const cascadeDeleteZone = async (zone: Zone) => {
+    // Zone and device deletes share one contract: cascade-or-nothing, answering
+    // 409 with a report of every dependent when other data still needs the entity.
+    // The server deletes nothing on 409, so re-running this as the conflict
+    // dialog's "retry" action is safe.
+    const attemptDelete = async (kind: 'zone' | 'device', entity: Zone | Device) => {
         try {
-            await zonesApi.delete(zone.id);
-            setZoneConflict(null);
+            if (kind === 'zone') await zonesApi.delete(entity.id);
+            else await devicesApi.delete(entity.id);
+            setDeleteConflict(null);
             loadData();
         } catch (err: any) {
             if (err instanceof ApiError && err.status === 409) {
-                const detail = err.detail as ZoneDeleteConflict | undefined;
+                const detail = err.detail as DeleteConflict | undefined;
                 if (detail?.blockers) {
-                    setZoneConflict({ zone, conflict: detail });
+                    setDeleteConflict({ kind, entity, conflict: detail });
                     return;
                 }
             }
-            alert(t('detail.deleteZoneFailed', { error: err?.message || 'Unknown error' }));
+            alert(t('detail.deleteFailed', { error: err?.message || 'Unknown error' }));
         }
     };
 
-    // The way out when command history blocks a cascade delete: history is never
-    // deleted, so the zone can only be retired, keeping devices and history intact.
-    const deactivateZone = async (zone: Zone) => {
-        try {
-            await zonesApi.update(zone.id, { is_active: false });
-            setZoneConflict(null);
-            loadData();
-        } catch (err: any) {
-            alert(t('detail.deactivateZoneFailed', { error: err?.message || 'Unknown error' }));
-        }
+    const deleteZone = (zone: Zone) => {
+        if (window.confirm(t('detail.confirmDeleteZone'))) attemptDelete('zone', zone);
     };
 
     // DEVICE CRUD
@@ -361,11 +352,8 @@ export default function FarmDetail() {
         loadData();
     };
 
-    const deleteDevice = async (deviceId: string) => {
-        if (window.confirm(t('detail.confirmDeleteDevice'))) {
-            await devicesApi.delete(deviceId);
-            loadData();
-        }
+    const deleteDevice = (device: Device) => {
+        if (window.confirm(t('detail.confirmDeleteDevice'))) attemptDelete('device', device);
     };
 
     // REGISTER CRUD
@@ -823,7 +811,7 @@ export default function FarmDetail() {
                                                         {configEditMode && (
                                                             <div className="node-actions">
                                                                 <button onClick={(e) => { e.stopPropagation(); setDeviceModal({ isOpen: true, type: 'edit', data: { ...dev, displayNamesStr: displayNamesToText(dev.display_names) } }); }}><Edit2 size={12} /></button>
-                                                                <button className="del" onClick={(e) => { e.stopPropagation(); deleteDevice(dev.id); }}><Trash2 size={12} /></button>
+                                                                <button className="del" onClick={(e) => { e.stopPropagation(); deleteDevice(dev); }}><Trash2 size={12} /></button>
                                                             </div>
                                                         )}
                                                     </div>
@@ -931,12 +919,16 @@ export default function FarmDetail() {
                             <label>{t('detail.zoneNameInternal')}</label>
                             <input value={zoneModal.data.name || ''} onChange={e => {
                                 const val = e.target.value;
-                                setZoneModal({ ...zoneModal, data: { ...zoneModal.data, name: val, code: val.toLowerCase().replace(/\s+/g, '_') } });
+                                // Typing a name only fills the code in while creating, and only until the
+                                // admin writes one themselves — an existing code is an identity that
+                                // devices, automations and the edge all resolve against.
+                                const derive = zoneModal.type === 'new' && codeFollowsName(zoneModal.data.name, zoneModal.data.code);
+                                setZoneModal({ ...zoneModal, data: { ...zoneModal.data, name: val, code: derive ? slugifyCode(val) : zoneModal.data.code } });
                             }} />
                         </div>
                         <div className="form-group">
                             <label>{t('detail.zoneCode')}</label>
-                            <input value={zoneModal.data.code || ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, code: e.target.value } })} />
+                            <input maxLength={CODE_MAX_LENGTH} value={zoneModal.data.code || ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, code: e.target.value } })} />
                         </div>
                         <div className="form-group full-width">
                             <label>{t('detail.displayNamesJson')}</label>
@@ -962,48 +954,54 @@ export default function FarmDetail() {
                 </div>
             )}
 
-            {/* Zone cascade-delete blocked (409): name every dependent and the way out.
-                When command history exists the zone can never be hard-deleted, so the
-                only action offered is deactivation; otherwise the blockers are fixable
-                and the dialog offers a retry. */}
-            {zoneConflict && (() => {
-                const { zone, conflict } = zoneConflict;
-                const hasHistory = conflict.blockers.command_history_rows > 0;
-                const zoneLabel = zone.display_names?.[i18n.language] || zone.display_names?.en || zone.display_names?.ko || zone.display_names?.vi || zone.name || zone.code;
-                const groups: Array<{ key: string, label: string, items: ZoneBlockerItem[] }> = [
-                    { key: 'automations', label: t('detail.zoneBlockerAutomations'), items: conflict.blockers.automations },
-                    { key: 'virtual_sensors', label: t('detail.zoneBlockerVirtualSensors'), items: conflict.blockers.virtual_sensors },
-                    { key: 'cameras', label: t('detail.zoneBlockerCameras'), items: conflict.blockers.cameras },
-                ].filter(g => g.items.length > 0);
+            {/* Zone/device delete blocked (409): name every dependent and the way out.
+                Rendering is data-driven off the blockers payload: array categories are
+                items the admin can clear (automations, virtual sensors, cameras) and get
+                a retry; numeric categories are command-history rows, which can never be
+                cleared from here — and retiring the entity instead is NOT offered, since
+                an inactive zone/device is not honoured across the stack yet, so that
+                road ends at the developers. */}
+            {deleteConflict && (() => {
+                const { kind, entity, conflict } = deleteConflict;
+                const entityLabel = entity.display_names?.[i18n.language] || entity.display_names?.en || entity.display_names?.ko || entity.display_names?.vi || entity.name || entity.code;
+                const blockerLabels: Record<string, string> = {
+                    automations: t('detail.blockerAutomations'),
+                    virtual_sensors: t('detail.blockerVirtualSensors'),
+                    cameras: t('detail.blockerCameras'),
+                    command_history_rows: t('detail.blockerHistoryL'),
+                };
+                const label = (key: string) => blockerLabels[key] || key.replace(/_/g, ' ');
+                const entries = Object.entries(conflict.blockers);
+                const itemGroups = entries.filter((e): e is [string, BlockerItem[]] => Array.isArray(e[1]) && e[1].length > 0);
+                const countGroups = entries.filter((e): e is [string, number] => typeof e[1] === 'number' && e[1] > 0);
+                const hasHistory = countGroups.length > 0;
                 return (
                     <div className="modal-overlay">
                         <div className="modal-content panel config-notice-modal">
                             <div className="config-notice-head">
                                 <span className="config-notice-icon"><AlertTriangle size={18} /></span>
-                                <h3>{t('detail.zoneConflictTitle', { zone: zoneLabel })}</h3>
+                                <h3>{t('detail.deleteConflictTitle', { name: entityLabel })}</h3>
                             </div>
                             <div className="config-notice-body">
-                                <p>{t('detail.zoneConflictIntro')}</p>
+                                <p>{t('detail.deleteConflictIntro')}</p>
                                 <ul className="zone-blocker-list">
-                                    {groups.map(g => (
-                                        <li key={g.key}>
-                                            <strong>{g.label}:</strong> {g.items.map(i => i.name || i.id).join(', ')}
+                                    {itemGroups.map(([key, items]) => (
+                                        <li key={key}>
+                                            <strong>{label(key)}:</strong> {items.map(i => i.name || i.id).join(', ')}
                                         </li>
                                     ))}
-                                    {hasHistory && (
-                                        <li>
-                                            <strong>{t('detail.zoneBlockerHistoryL')}:</strong> {t('detail.zoneBlockerHistory', { rows: conflict.blockers.command_history_rows })}
+                                    {countGroups.map(([key, rows]) => (
+                                        <li key={key}>
+                                            <strong>{label(key)}:</strong> {t('detail.blockerHistory', { rows })}
                                         </li>
-                                    )}
+                                    ))}
                                 </ul>
-                                <p>{hasHistory ? t('detail.zoneConflictHistoryNote') : t('detail.zoneConflictFixable')}</p>
+                                <p>{hasHistory ? t('detail.deleteConflictHistoryNote') : t('detail.deleteConflictFixable')}</p>
                             </div>
                             <div className="modal-actions">
-                                <button onClick={() => setZoneConflict(null)}>{t('btn.close')}</button>
-                                {hasHistory ? (
-                                    <button className="primary" onClick={() => deactivateZone(zone)}>{t('detail.zoneDeactivate')}</button>
-                                ) : (
-                                    <button className="primary" onClick={() => cascadeDeleteZone(zone)}>{t('detail.zoneRetryDelete')}</button>
+                                <button onClick={() => setDeleteConflict(null)}>{t('btn.close')}</button>
+                                {!hasHistory && (
+                                    <button className="primary" onClick={() => attemptDelete(kind, entity)}>{t('detail.retryDelete')}</button>
                                 )}
                             </div>
                         </div>
@@ -1020,12 +1018,16 @@ export default function FarmDetail() {
                             <label>{t('detail.deviceNameInternal')}</label>
                             <input value={deviceModal.data.name || ''} onChange={e => {
                                 const val = e.target.value;
-                                setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, name: val, code: val.toLowerCase().replace(/\s+/g, '_') } });
+                                // Same rule as zones, and it matters more here: the device code is what
+                                // the gateway stamps on every telemetry payload, so renaming a device
+                                // must never move its code.
+                                const derive = deviceModal.type === 'new' && codeFollowsName(deviceModal.data.name, deviceModal.data.code);
+                                setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, name: val, code: derive ? slugifyCode(val) : deviceModal.data.code } });
                             }} />
                         </div>
                         <div className="form-group">
                             <label>{t('detail.deviceCode')}</label>
-                            <input value={deviceModal.data.code || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, code: e.target.value } })} />
+                            <input maxLength={CODE_MAX_LENGTH} value={deviceModal.data.code || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, code: e.target.value } })} />
                         </div>
                         <div className="form-group full-width">
                             <label>{t('detail.displayNamesJson')}</label>
@@ -1081,7 +1083,7 @@ export default function FarmDetail() {
                         <div className="form-grid">
                             <div className="form-group">
                                 <label>{t('detail.code')}</label>
-                                <input value={registerModal.data.code || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, code: e.target.value } })} />
+                                <input maxLength={CODE_MAX_LENGTH} value={registerModal.data.code || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, code: e.target.value } })} />
                             </div>
                             <div className="form-group">
                                 <label>{t('detail.addressBase10')}</label>

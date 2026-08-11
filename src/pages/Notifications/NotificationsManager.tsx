@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { notificationsApi, farmsApi, usersApi } from '../../api/services';
 import { Farm, UserResponse, NotificationChannel, NotificationTemplate, NotificationLog } from '../../types';
+import { NOTIFICATION_CHANNEL_CODE_MAX_LENGTH } from '../../utils/code';
 import './NotificationsManager.css';
 
 export default function NotificationsManager() {
@@ -851,8 +852,9 @@ export default function NotificationsManager() {
                                     <div className="form-group">
                                         <label>Channel Code *</label>
                                         <input 
-                                            type="text" 
-                                            required 
+                                            type="text"
+                                            required
+                                            maxLength={NOTIFICATION_CHANNEL_CODE_MAX_LENGTH}
                                             placeholder="alert-critical"
                                             value={channelForm.code}
                                             onChange={e => setChannelForm({ ...channelForm, code: e.target.value.toLowerCase().replace(/\s+/g, '-') })}

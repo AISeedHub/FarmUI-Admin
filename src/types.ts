@@ -395,24 +395,21 @@ export interface RegisterInUseByVirtualSensors {
 }
 
 // name is null when the entity has none (e.g. unnamed virtual sensors).
-export interface ZoneBlockerItem {
+export interface BlockerItem {
     id: string;
     name: string | null;
 }
 
-// 409 detail when cascade-deleting a zone that other data still depends on.
-// The server deletes nothing on 409, so the cascade call doubles as a safe pre-check.
-export interface ZoneDeleteConflict {
-    error: 'zone_has_dependents';
+// 409 detail when deleting a zone or device that other data still depends on
+// (error: 'zone_has_dependents' | 'device_has_dependents'). The server deletes
+// nothing on 409, so the delete call doubles as a safe pre-check. Each blocker
+// category holds either named items the user can remove (automations,
+// virtual_sensors, cameras) or a row count (command_history_rows) — history is
+// never deleted, so a non-zero count means the entity can only be deactivated.
+export interface DeleteConflict {
+    error: string;
     message: string;
-    blockers: {
-        automations: ZoneBlockerItem[];
-        virtual_sensors: ZoneBlockerItem[];
-        cameras: ZoneBlockerItem[];
-        // Command history is never deleted; a non-zero count means the zone can
-        // only be deactivated, never cascade-deleted.
-        command_history_rows: number;
-    };
+    blockers: Record<string, BlockerItem[] | number>;
 }
 
 // GET /farms/{farm_id}/slaves/{slave_id}/sensors — live reading per sensor device

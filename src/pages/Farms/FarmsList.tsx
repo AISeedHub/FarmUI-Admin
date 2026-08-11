@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Edit2, Trash2, Power, PowerOff } from 'lucide-react';
 import { Farm, UserResponse } from '../../types';
 import { farmsApi, authApi, farmUsersApi } from '../../api/services';
+import { CODE_MAX_LENGTH } from '../../utils/code';
 import './FarmsList.css';
 
 export default function FarmsList() {
@@ -240,6 +241,7 @@ export default function FarmsList() {
                             <div className="form-group">
                                 <label>{t('farms.farmCode')} <span className="required">*</span></label>
                                 <input
+                                    maxLength={CODE_MAX_LENGTH}
                                     value={formData.code || ''}
                                     onChange={e => setFormData({ ...formData, code: e.target.value })}
                                 />
