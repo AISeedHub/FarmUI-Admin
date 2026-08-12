@@ -413,6 +413,7 @@
     align-items: center;
     gap: 12px;
     margin-bottom: 14px;
+    flex-shrink: 0;
 }
 
 .config-notice-head h3 {
@@ -436,6 +437,9 @@
     font-size: 12.5px;
     line-height: 1.6;
     color: var(--text-muted);
+    /* the delete-conflict variant can list many blockers */
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .config-notice-body p {
@@ -451,13 +455,85 @@
     font-weight: 600;
 }
 
-.zone-blocker-list {
-    margin: 0 0 10px;
-    padding-left: 18px;
+/* Delete-conflict blockers: one row per category, count first, names on demand. */
+.blocker-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0 0 12px;
 }
 
-.zone-blocker-list li {
-    margin-bottom: 4px;
+.blocker-group {
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.015);
+}
+
+.blocker-group > summary,
+.blocker-group-plain {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    list-style: none;
+    cursor: pointer;
+}
+
+/* Safari still paints its own marker without this. */
+.blocker-group > summary::-webkit-details-marker {
+    display: none;
+}
+
+.blocker-group > summary:hover {
+    background: rgba(15, 23, 42, 0.03);
+    border-radius: 8px;
+}
+
+.blocker-group-plain {
+    cursor: default;
+}
+
+.blocker-caret {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    transition: transform 0.15s ease;
+}
+
+.blocker-group[open] > summary .blocker-caret {
+    transform: rotate(90deg);
+}
+
+.blocker-label {
+    flex: 1;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.blocker-count {
+    flex-shrink: 0;
+    min-width: 26px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: rgba(217, 119, 6, 0.12);
+    color: var(--color-warning);
+    font-size: 11.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.blocker-items {
+    /* the names of a few hundred automations scroll here rather than growing the modal */
+    max-height: 180px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 4px 10px 8px 32px;
+    border-top: 1px solid var(--border-input);
+}
+
+.blocker-items li {
+    margin: 2px 0;
+    word-break: break-word;
 }
 
 .export-btn {
@@ -857,6 +933,7 @@
     left: 0;
     width: 100vw;
     height: 100vh;
+    padding: 2rem 1rem;
     background: rgba(15, 23, 42, 0.3);
     backdrop-filter: blur(8px);
     display: flex;
@@ -869,7 +946,46 @@
 .modal-content {
     width: 90%;
     max-width: 500px;
+    /* A modal never grows past the viewport — long forms scroll inside instead
+       of spilling off the top and bottom of the screen. The overflow here is the
+       fallback for modals that have no .modal-body; those that do never reach it,
+       because the body absorbs the extra height. */
+    max-height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     box-shadow: 0 20px 50px rgba(15, 23, 42, 0.15) !important;
+}
+
+/* The panel lift-on-hover would nudge the modal every time the cursor enters it
+   to scroll. */
+.modal-content:hover {
+    transform: none;
+}
+
+.modal-content > h3 {
+    flex-shrink: 0;
+}
+
+/* Long forms put their fields in a scroll container: only the fields scroll, so
+   the title and the Cancel/Save buttons stay reachable at any window height.
+   .modal-body also lays the fields out; .modal-scroll only scrolls, for fields
+   that already sit in a .form-grid. */
+.modal-body,
+.modal-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    /* room for the scrollbar without clipping focus rings */
+    padding-right: 6px;
+    margin-right: -6px;
+}
+
+.modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
 .modal-actions {
@@ -877,6 +993,16 @@
     justify-content: flex-end;
     gap: 1rem;
     margin-top: 2rem;
+}
+
+.modal-body ~ .modal-actions,
+.modal-scroll ~ .modal-actions,
+.config-notice-body ~ .modal-actions {
+    flex-shrink: 0;
+    /* the column gap already separates it — the rule is what marks the scroll edge */
+    margin-top: 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-input);
 }
 
 .node.deactivated {

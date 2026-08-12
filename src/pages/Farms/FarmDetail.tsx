@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal, ChevronRight } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors, BlockerItem, DeleteConflict } from '../../types';
 import { farmsApi, zonesApi, devicesApi, registersApi, ApiError } from '../../api/services';
@@ -915,36 +915,38 @@ export default function FarmDetail() {
                 <div className="modal-overlay">
                     <div className="modal-content panel">
                         <h3>{zoneModal.type === 'new' ? t('detail.newZone') : t('detail.editZone')}</h3>
-                        <div className="form-group">
-                            <label>{t('detail.zoneNameInternal')}</label>
-                            <input value={zoneModal.data.name || ''} onChange={e => {
-                                const val = e.target.value;
-                                // Typing a name only fills the code in while creating, and only until the
-                                // admin writes one themselves — an existing code is an identity that
-                                // devices, automations and the edge all resolve against.
-                                const derive = zoneModal.type === 'new' && codeFollowsName(zoneModal.data.name, zoneModal.data.code);
-                                setZoneModal({ ...zoneModal, data: { ...zoneModal.data, name: val, code: derive ? slugifyCode(val) : zoneModal.data.code } });
-                            }} />
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.zoneCode')}</label>
-                            <input maxLength={CODE_MAX_LENGTH} value={zoneModal.data.code || ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, code: e.target.value } })} />
-                        </div>
-                        <div className="form-group full-width">
-                            <label>{t('detail.displayNamesJson')}</label>
-                            <textarea rows={4} value={zoneModal.data.displayNamesStr ?? ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, displayNamesStr: e.target.value } })} />
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.description')}</label>
-                            <input value={zoneModal.data.description || ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, description: e.target.value } })} />
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.defaultUnitId')}</label>
-                            <input type="number" value={zoneModal.data.default_unit_id ?? 1} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, default_unit_id: Number(e.target.value) } })} />
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.displayOrder')}</label>
-                            <input type="number" value={zoneModal.data.display_order ?? 1} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, display_order: Number(e.target.value) } })} />
+                        <div className="modal-body">
+                            <div className="form-group">
+                                <label>{t('detail.zoneNameInternal')}</label>
+                                <input value={zoneModal.data.name || ''} onChange={e => {
+                                    const val = e.target.value;
+                                    // Typing a name only fills the code in while creating, and only until the
+                                    // admin writes one themselves — an existing code is an identity that
+                                    // devices, automations and the edge all resolve against.
+                                    const derive = zoneModal.type === 'new' && codeFollowsName(zoneModal.data.name, zoneModal.data.code);
+                                    setZoneModal({ ...zoneModal, data: { ...zoneModal.data, name: val, code: derive ? slugifyCode(val) : zoneModal.data.code } });
+                                }} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.zoneCode')}</label>
+                                <input maxLength={CODE_MAX_LENGTH} value={zoneModal.data.code || ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, code: e.target.value } })} />
+                            </div>
+                            <div className="form-group full-width">
+                                <label>{t('detail.displayNamesJson')}</label>
+                                <textarea rows={4} value={zoneModal.data.displayNamesStr ?? ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, displayNamesStr: e.target.value } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.description')}</label>
+                                <input value={zoneModal.data.description || ''} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, description: e.target.value } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.defaultUnitId')}</label>
+                                <input type="number" value={zoneModal.data.default_unit_id ?? 1} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, default_unit_id: Number(e.target.value) } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.displayOrder')}</label>
+                                <input type="number" value={zoneModal.data.display_order ?? 1} onChange={e => setZoneModal({ ...zoneModal, data: { ...zoneModal.data, display_order: Number(e.target.value) } })} />
+                            </div>
                         </div>
                         <div className="modal-actions">
                             <button onClick={() => setZoneModal({ ...zoneModal, isOpen: false })}>{t('btn.cancel')}</button>
@@ -954,13 +956,18 @@ export default function FarmDetail() {
                 </div>
             )}
 
-            {/* Zone/device delete blocked (409): name every dependent and the way out.
+            {/* Zone/device delete blocked (409): count every dependent and name the way out.
                 Rendering is data-driven off the blockers payload: array categories are
                 items the admin can clear (automations, virtual sensors, cameras) and get
                 a retry; numeric categories are command-history rows, which can never be
                 cleared from here — and retiring the entity instead is NOT offered, since
                 an inactive zone/device is not honoured across the stack yet, so that
-                road ends at the developers. */}
+                road ends at the developers.
+
+                A zone can hold hundreds of automations, so the groups only carry a count
+                up front and keep the names behind a <details> that scrolls on its own —
+                the admin needs "how much is in the way" first, the names only when they
+                start clearing them. */}
             {deleteConflict && (() => {
                 const { kind, entity, conflict } = deleteConflict;
                 const entityLabel = entity.display_names?.[i18n.language] || entity.display_names?.en || entity.display_names?.ko || entity.display_names?.vi || entity.name || entity.code;
@@ -984,18 +991,28 @@ export default function FarmDetail() {
                             </div>
                             <div className="config-notice-body">
                                 <p>{t('detail.deleteConflictIntro')}</p>
-                                <ul className="zone-blocker-list">
+                                <div className="blocker-groups">
                                     {itemGroups.map(([key, items]) => (
-                                        <li key={key}>
-                                            <strong>{label(key)}:</strong> {items.map(i => i.name || i.id).join(', ')}
-                                        </li>
+                                        <details key={key} className="blocker-group">
+                                            <summary>
+                                                <ChevronRight size={14} className="blocker-caret" />
+                                                <span className="blocker-label">{label(key)}</span>
+                                                <span className="blocker-count">{items.length}</span>
+                                            </summary>
+                                            <ul className="blocker-items">
+                                                {items.map((item, idx) => (
+                                                    <li key={item.id || idx}>{item.name || item.id}</li>
+                                                ))}
+                                            </ul>
+                                        </details>
                                     ))}
                                     {countGroups.map(([key, rows]) => (
-                                        <li key={key}>
-                                            <strong>{label(key)}:</strong> {t('detail.blockerHistory', { rows })}
-                                        </li>
+                                        <div key={key} className="blocker-group blocker-group-plain">
+                                            <span className="blocker-label">{label(key)}</span>
+                                            <span className="blocker-count" title={t('detail.blockerHistory', { rows })}>{rows}</span>
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
                                 <p>{hasHistory ? t('detail.deleteConflictHistoryNote') : t('detail.deleteConflictFixable')}</p>
                             </div>
                             <div className="modal-actions">
@@ -1014,58 +1031,60 @@ export default function FarmDetail() {
                 <div className="modal-overlay">
                     <div className="modal-content panel">
                         <h3>{deviceModal.type === 'new' ? t('detail.newDevice') : t('detail.editDevice')}</h3>
-                        <div className="form-group">
-                            <label>{t('detail.deviceNameInternal')}</label>
-                            <input value={deviceModal.data.name || ''} onChange={e => {
-                                const val = e.target.value;
-                                // Same rule as zones, and it matters more here: the device code is what
-                                // the gateway stamps on every telemetry payload, so renaming a device
-                                // must never move its code.
-                                const derive = deviceModal.type === 'new' && codeFollowsName(deviceModal.data.name, deviceModal.data.code);
-                                setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, name: val, code: derive ? slugifyCode(val) : deviceModal.data.code } });
-                            }} />
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.deviceCode')}</label>
-                            <input maxLength={CODE_MAX_LENGTH} value={deviceModal.data.code || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, code: e.target.value } })} />
-                        </div>
-                        <div className="form-group full-width">
-                            <label>{t('detail.displayNamesJson')}</label>
-                            <textarea rows={4} value={deviceModal.data.displayNamesStr ?? ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, displayNamesStr: e.target.value } })} />
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.description')}</label>
-                            <input value={deviceModal.data.description || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, description: e.target.value } })} />
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.zone')}</label>
-                            <select value={deviceModal.data.zone_id || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, zone_id: e.target.value || null } })}>
-                                <option value="">-- {t('detail.unassigned')} --</option>
-                                {modbusZones.map(zone => (
-                                    <option key={zone.id} value={zone.id}>{zone.name} ({zone.code})</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.deviceKind')}</label>
-                            <select value={deviceModal.data.device_kind || 'sensor'} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, device_kind: e.target.value as any } })}>
-                                <option value="sensor">Sensor</option>
-                                <option value="actuator">Actuator</option>
-                                <option value="system">System</option>
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.deviceType')}</label>
-                            <select value={deviceModal.data.device_type || 'sensor'} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, device_type: e.target.value as any } })}>
-                                <option value="switch">Switch</option>
-                                <option value="open_close">Open/Close</option>
-                                <option value="sensor">Sensor</option>
-                                <option value="control_mode">Control Mode</option>
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label>{t('detail.unitId')}</label>
-                            <input type="number" value={deviceModal.data.unit_id ?? 1} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, unit_id: Number(e.target.value) } })} />
+                        <div className="modal-body">
+                            <div className="form-group">
+                                <label>{t('detail.deviceNameInternal')}</label>
+                                <input value={deviceModal.data.name || ''} onChange={e => {
+                                    const val = e.target.value;
+                                    // Same rule as zones, and it matters more here: the device code is what
+                                    // the gateway stamps on every telemetry payload, so renaming a device
+                                    // must never move its code.
+                                    const derive = deviceModal.type === 'new' && codeFollowsName(deviceModal.data.name, deviceModal.data.code);
+                                    setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, name: val, code: derive ? slugifyCode(val) : deviceModal.data.code } });
+                                }} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.deviceCode')}</label>
+                                <input maxLength={CODE_MAX_LENGTH} value={deviceModal.data.code || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, code: e.target.value } })} />
+                            </div>
+                            <div className="form-group full-width">
+                                <label>{t('detail.displayNamesJson')}</label>
+                                <textarea rows={4} value={deviceModal.data.displayNamesStr ?? ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, displayNamesStr: e.target.value } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.description')}</label>
+                                <input value={deviceModal.data.description || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, description: e.target.value } })} />
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.zone')}</label>
+                                <select value={deviceModal.data.zone_id || ''} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, zone_id: e.target.value || null } })}>
+                                    <option value="">-- {t('detail.unassigned')} --</option>
+                                    {modbusZones.map(zone => (
+                                        <option key={zone.id} value={zone.id}>{zone.name} ({zone.code})</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.deviceKind')}</label>
+                                <select value={deviceModal.data.device_kind || 'sensor'} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, device_kind: e.target.value as any } })}>
+                                    <option value="sensor">Sensor</option>
+                                    <option value="actuator">Actuator</option>
+                                    <option value="system">System</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.deviceType')}</label>
+                                <select value={deviceModal.data.device_type || 'sensor'} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, device_type: e.target.value as any } })}>
+                                    <option value="switch">Switch</option>
+                                    <option value="open_close">Open/Close</option>
+                                    <option value="sensor">Sensor</option>
+                                    <option value="control_mode">Control Mode</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.unitId')}</label>
+                                <input type="number" value={deviceModal.data.unit_id ?? 1} onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, unit_id: Number(e.target.value) } })} />
+                            </div>
                         </div>
                         <div className="modal-actions">
                             <button onClick={() => setDeviceModal({ ...deviceModal, isOpen: false })}>{t('btn.cancel')}</button>
@@ -1080,7 +1099,7 @@ export default function FarmDetail() {
                 <div className="modal-overlay">
                     <div className="modal-content panel modal-large">
                         <h3>{registerModal.type === 'new' ? t('detail.newRegister') : t('detail.editRegister')}</h3>
-                        <div className="form-grid">
+                        <div className="form-grid modal-scroll">
                             <div className="form-group">
                                 <label>{t('detail.code')}</label>
                                 <input maxLength={CODE_MAX_LENGTH} value={registerModal.data.code || ''} onChange={e => setRegisterModal({ ...registerModal, data: { ...registerModal.data, code: e.target.value } })} />
