@@ -11,6 +11,9 @@
     flex-direction: column;
     gap: 6px;
     position: relative;
+    /* Chỗ trống cho .header-actions (absolute) để nó không đè lên h2 khi hẹp.
+       Dưới 900px .header-actions trở lại luồng bình thường. */
+    padding-right: 260px;
 }
 
 .overview-header .subtitle {
@@ -53,11 +56,7 @@
     transition: var(--transition-smooth);
 }
 
-.fleet-alerts-btn:hover {
-    background: rgba(239, 68, 68, 0.12);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.08);
-}
+/* :hover gom vào khối @media (hover: hover) bên dưới. */
 
 .fleet-alerts-btn .dot {
     width: 6px;
@@ -77,11 +76,6 @@
     color: var(--text-main);
     cursor: pointer;
     transition: var(--transition-smooth);
-}
-
-.status-page-btn:hover {
-    background: var(--bg-color);
-    border-color: var(--text-muted);
 }
 
 .metrics-grid {
@@ -167,10 +161,23 @@
     transition: var(--transition-smooth);
 }
 
-.manage-btn:hover {
-    background: var(--primary-glow);
-    border-color: var(--primary);
-    color: var(--primary);
+@media (hover: hover) and (pointer: fine) {
+    .manage-btn:hover {
+        background: var(--primary-glow);
+        border-color: var(--primary);
+        color: var(--primary);
+    }
+
+    .fleet-alerts-btn:hover {
+        background: rgba(239, 68, 68, 0.12);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.08);
+    }
+
+    .status-page-btn:hover {
+        background: var(--bg-color);
+        border-color: var(--text-muted);
+    }
 }
 
 .text-btn {
@@ -459,11 +466,17 @@
     transition: var(--transition-smooth);
 }
 
-.block:hover {
-    transform: scale(1.15);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    z-index: 2;
+@media (hover: hover) and (pointer: fine) {
+    .block:hover {
+        transform: scale(1.15);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        z-index: 2;
+    }
 }
+
+/* .block-wrapper:hover .tooltip vẫn để nguyên (không bọc hover guard): trên iOS
+   Safari, tap vào một phần tử có :hover style sẽ kích hoạt trạng thái hover đó,
+   nên đây là cách duy nhất đọc được giá trị của ô trên mobile. */
 
 .block.val-0 { background: rgba(13, 92, 58, 0.03); }
 .block.val-1 { background: rgba(5, 150, 105, 0.15); }
@@ -587,4 +600,116 @@
     border: 1px dashed var(--border);
     border-radius: 8px;
     background: rgba(13, 92, 58, 0.01);
+}
+
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css
+   ========================================================================== */
+
+/* ── ≤1200px: 4 thẻ metric quá hẹp khi thanh sidebar còn chiếm 260px ────────── */
+@media (max-width: 1200px) {
+    .metrics-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ── ≤900px: bỏ định vị absolute, cắt cột đôi ─────────────────────────────── */
+@media (max-width: 900px) {
+    .overview-header {
+        padding-right: 0;
+    }
+
+    /* Trước đây: position: absolute; right: 0 → cụm nút đè lên h2 26px khi hẹp. */
+    .header-actions {
+        position: static;
+        transform: none;
+        margin-top: 10px;
+        flex-wrap: wrap;
+    }
+
+    .middle-row {
+        grid-template-columns: 1fr;
+    }
+
+    .overview-container {
+        gap: 20px;
+    }
+
+    /* Bảng nhiệt 24 cột × 7 hàng không co thêm được — cho cuộn ngang trong panel
+       của nó thay vì bóp mỗi block xuống dưới 4px. */
+    .heatmap-grid {
+        overflow-x: auto;
+        padding: 20px 16px;
+    }
+
+    .heatmap-row,
+    .heatmap-x-axis {
+        min-width: 520px;
+    }
+}
+
+/* ── ≤640px: điện thoại ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .overview-header h2 {
+        font-size: 21px;
+    }
+
+    .metric-card {
+        padding: 16px;
+    }
+
+    .metric-value {
+        font-size: 26px;
+    }
+
+    .metric-title {
+        margin-bottom: 10px;
+    }
+
+    .section-header {
+        flex-direction: column;
+        gap: 10px;
+        padding: 18px 16px 0;
+    }
+
+    .farm-list,
+    .scale-chart {
+        padding: 12px 16px 18px;
+    }
+
+    /* Một dòng farm gồm icon + tên + uptime + badge trạng thái = quá nhiều cho
+       390px. Xếp thành 2 tầng: icon + thông tin ở trên, số liệu xuống dưới. */
+    .farm-list-item {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .farm-stats {
+        width: 100%;
+        justify-content: space-between;
+        /* thẳng hàng với .farm-info, bỏ qua bề rộng icon 36px + margin 14px */
+        padding-left: 50px;
+        gap: 10px;
+    }
+
+    .farm-info .code {
+        margin-left: 0;
+    }
+
+    .scale-legend {
+        flex-wrap: wrap;
+        gap: 10px 16px;
+    }
+
+    .heatmap-x-axis {
+        /* .row-label (60px) + gap (14px) */
+        margin-left: 74px;
+    }
+}
+
+/* ── ≤420px: máy nhỏ ──────────────────────────────────────────────────────── */
+@media (max-width: 420px) {
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
 }

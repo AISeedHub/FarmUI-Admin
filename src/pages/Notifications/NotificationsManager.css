@@ -2,7 +2,9 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    padding: 1.5rem;
+    /* Chỉ padding dọc: .admin-main-content đã có padding ngang var(--page-pad),
+       thêm 1.5rem nữa là padding kép. */
+    padding: 0.5rem 0;
     animation: fadeIn 0.3s ease-out;
 }
 
@@ -67,7 +69,8 @@
 
 .search-wrapper {
     position: relative;
-    width: 300px;
+    width: min(300px, 100%);
+    flex-shrink: 0;
 }
 
 .search-icon {
@@ -115,7 +118,10 @@
     border: 1px solid var(--border-input);
     border-radius: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01), 0 10px 30px rgba(13, 92, 58, 0.02);
-    overflow: hidden;
+    /* Trước đây là overflow: hidden — bảng 7 cột bị CẮT MẤT các cột bên phải và
+       không có cách nào kéo tới. overflow-x: auto vẫn bo tròn góc như cũ nhưng
+       cho cuộn ngang. */
+    overflow-x: auto;
 }
 
 .notifications-table {
@@ -123,6 +129,9 @@
     border-collapse: collapse;
     font-size: 0.875rem;
     text-align: left;
+    /* Cả hai bảng đều 7 cột (kênh: có cột webhook + filters rộng). Dưới ngưỡng
+       này thì cuộn ngang trong panel thay vì bóp chữ đến mức không đọc được. */
+    min-width: 1000px;
 }
 
 .notifications-table th {
@@ -314,10 +323,10 @@
 /* Modal and Forms */
 .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    /* inset thay cho 100vw/100vh: 100vw tính cả scrollbar dọc, còn 100vh trên
+       mobile cao hơn viewport thật nên đáy modal nằm dưới thanh URL. */
+    inset: 0;
+    padding: 1rem;
     background: rgba(15, 23, 42, 0.4);
     backdrop-filter: blur(4px);
     display: flex;
@@ -329,7 +338,7 @@
 .modal-content.notifications-modal {
     width: 620px;
     max-width: 90vw;
-    max-height: 90vh;
+    max-height: 90dvh;
     overflow-y: auto;
     animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
@@ -511,11 +520,22 @@
     to { transform: rotate(360deg); }
 }
 
-@media (max-width: 768px) {
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css (trước đây là 768px/800px)
+   ========================================================================== */
+
+@media (max-width: 900px) {
     .notifications-header {
         flex-direction: column;
-        align-items: flex-start;
+        align-items: stretch;
         gap: 12px;
+    }
+    .notifications-header h2 {
+        font-size: 1.4rem;
+    }
+    /* Hai tab "Channels / Templates" trải đều bề rộng thay vì dồn sang phải. */
+    .tab-buttons {
+        align-self: flex-start;
     }
     .filter-bar {
         flex-direction: column;
@@ -524,9 +544,30 @@
     .search-wrapper {
         width: 100%;
     }
+    .scope-filters {
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
     .form-group-row, .filters-grid {
         grid-template-columns: 1fr;
         gap: 12px;
+    }
+}
+
+@media (max-width: 640px) {
+    .notifications-container {
+        gap: 1rem;
+    }
+    .tab-buttons {
+        align-self: stretch;
+    }
+    .tab-btn {
+        flex: 1;
+    }
+    /* Ô webhook/filter trong bảng đang bị max-width cứng bó lại; trong bảng cuộn
+       ngang thì cứ để chúng dùng đủ chỗ cần. */
+    .webhook-cell {
+        max-width: none;
     }
 }
 
@@ -595,7 +636,8 @@
 .logs-history-modal {
     width: 960px;
     max-width: 95%;
-    height: 85vh;
+    /* dvh: với vh, đáy modal nằm dưới thanh URL của trình duyệt mobile. */
+    height: 85dvh;
     max-height: 760px;
     background: #ffffff;
     border: 1px solid var(--border-input);
@@ -614,7 +656,8 @@
     overflow: hidden;
 }
 
-@media (max-width: 800px) {
+/* Chuẩn hoá từ 800px → 900px theo quy ước breakpoint ở index.css. */
+@media (max-width: 900px) {
     .logs-modal-layout {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr;

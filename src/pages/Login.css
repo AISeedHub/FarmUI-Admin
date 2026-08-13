@@ -1,5 +1,6 @@
 .login-container {
-    min-height: 100vh;
+    /* dvh: với vh, phần dưới của form nằm dưới thanh URL trên mobile. */
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;

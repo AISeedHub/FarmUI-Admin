@@ -15,7 +15,8 @@
 .ae-modal {
     width: 760px;
     max-width: 96%;
-    max-height: 92vh;
+    /* dvh: với vh, đáy modal nằm dưới thanh URL của trình duyệt mobile. */
+    max-height: 92dvh;
     background: #ffffff;
     border: 1px solid var(--border-input);
     border-radius: 16px;
@@ -1247,7 +1248,8 @@
 /* ── Copy preview popover ── */
 .ae-preview {
     position: fixed;
-    width: 320px;
+    /* 320px cứng vượt ra ngoài màn hình 390px khi popover mở gần cạnh phải. */
+    width: min(320px, calc(100vw - 24px));
     background: #fff;
     border: 1px solid var(--border-input);
     border-radius: 12px;
@@ -1278,9 +1280,15 @@
     padding: 12px;
 }
 
-@media (max-width: 700px) {
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css (trước đây là 700px)
+   ========================================================================== */
+
+@media (max-width: 640px) {
     .ae-grid-2 { grid-template-columns: 1fr; }
     .ae-picker-items, .ae-picker-items.wide { grid-template-columns: 1fr 1fr; }
     .ae-step-line { width: 24px; }
     .ae-step-label { display: none; }
+
+    .ae-header { padding: 14px 16px; }
 }

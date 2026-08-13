@@ -31,6 +31,34 @@
   --color-danger-bg: rgba(239, 68, 68, 0.06);
   
   --transition-smooth: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Khoảng đệm ngoài của vùng nội dung chính — thu lại theo màn hình bên dưới.
+     Trang nào tự đặt padding riêng thì dùng token này thay vì số cứng, để
+     không cộng dồn padding với .admin-main-content. */
+  --page-pad: 32px;
+}
+
+/* ==========================================================================
+   BREAKPOINT DÙNG CHUNG TOÀN APP
+   CSS custom property không hoạt động trong @media, nên đây là *quy ước*:
+   mọi media query mới phải dùng một trong 4 mốc dưới, không tự thêm mốc mới.
+
+     max-width: 1200px  → laptop hẹp : hạ số cột của grid dày (7→4, 4→3)
+     max-width:  900px  → tablet     : sidebar thành drawer, split-pane → 1 cột,
+                                       các pane scroll lồng nhau → scroll trang
+     max-width:  640px  → điện thoại : mọi thứ 1 cột, header xếp dọc, padding gọn
+     max-width:  420px  → máy nhỏ    : chỉ dùng khi 640px vẫn còn tràn
+
+   Quy tắc: KHÔNG dùng width/height cố định bằng px cho khối layout. Dùng
+   `min(<px>, 100%)` hoặc `min(<px>, calc(100vw - <gutter>))` để phần tử tự co.
+   ========================================================================== */
+
+@media (max-width: 900px) {
+  :root { --page-pad: 20px; }
+}
+
+@media (max-width: 640px) {
+  :root { --page-pad: 14px; }
 }
 
 * {
@@ -48,9 +76,13 @@ body {
     linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
   background-size: 32px 32px;
   background-position: center center;
-  min-height: 100vh;
-  overflow-x: hidden;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
+  /* Không dùng overflow-x: hidden ở đây. Nó *che* lỗi tràn ngang thay vì để lỗi
+     lộ ra, và đã từng che việc .admin-layout-wrapper đặt width: 100vw (100vw
+     tính cả bề rộng scrollbar dọc → tràn ngang trên desktop). Vùng cần clip là
+     shell của app, không phải cả body. */
+  -webkit-tap-highlight-color: rgba(5, 150, 105, 0.12);
 }
 
 /* Sophisticated Panels with subtle elevation */
@@ -63,10 +95,14 @@ body {
   transition: var(--transition-smooth);
 }
 
-.panel:hover {
-  border-color: var(--border-active);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.01), 0 20px 40px rgba(13, 92, 58, 0.05);
-  transform: translateY(-2px);
+/* Chỉ áp hiệu ứng hover cho thiết bị có con trỏ thật. Trên màn cảm ứng, :hover
+   "dính" lại sau khi bấm — panel bị nhấc lên 2px và không hạ xuống nữa. */
+@media (hover: hover) and (pointer: fine) {
+  .panel:hover {
+    border-color: var(--border-active);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.01), 0 20px 40px rgba(13, 92, 58, 0.05);
+    transform: translateY(-2px);
+  }
 }
 
 /* Headings */
@@ -123,22 +159,10 @@ button {
   gap: 6px;
 }
 
-button:hover {
-  background: var(--bg-color);
-  border-color: var(--text-muted);
-}
-
 button.primary {
   background: var(--primary);
   border-color: var(--primary);
   color: white;
-}
-
-button.primary:hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
-  box-shadow: 0 4px 12px var(--primary-glow);
-  transform: translateY(-1px);
 }
 
 button.accent {
@@ -147,11 +171,44 @@ button.accent {
   color: var(--accent);
 }
 
-button.accent:hover {
-  background: var(--accent);
-  color: white;
-  box-shadow: 0 4px 12px var(--accent-glow);
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  button:hover {
+    background: var(--bg-color);
+    border-color: var(--text-muted);
+  }
+
+  button.primary:hover {
+    background: var(--primary-hover);
+    border-color: var(--primary-hover);
+    box-shadow: 0 4px 12px var(--primary-glow);
+    transform: translateY(-1px);
+  }
+
+  button.accent:hover {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 4px 12px var(--accent-glow);
+    transform: translateY(-1px);
+  }
+}
+
+/* Phản hồi thay cho :hover trên màn cảm ứng — thấy được ngay lúc ngón tay chạm. */
+@media (hover: none) {
+  button:active { filter: brightness(0.94); }
+
+  /* Các :hover còn lại có translateY nằm rải rác ở CSS của từng tab/trang. Chỉ
+     cú "nhấc lên" là gây hiểu nhầm (dính lại sau khi bấm, trông như đang được
+     chọn); phần đổi bóng/viền thì gần như không thấy nên để nguyên.
+     Không dùng reset kiểu *:hover { transform: none } vì sẽ phá các transform
+     hợp lệ (núm toggle translateX, icon căn giữa translateY(-50%)).
+     Class viết lặp vì rule gốc nằm ở CSS của trang (CamerasTab, AutomationsTab,
+     NotificationsManager) với cùng specificity — nhân đôi để thắng chắc chắn,
+     không phụ thuộc thứ tự import. */
+  .camera-card.camera-card:hover,
+  .stat-card.stat-card:hover,
+  .primary-btn.primary-btn:hover {
+    transform: none;
+  }
 }
 
 /* Scrollbar */
@@ -171,6 +228,107 @@ button.accent:hover {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
+}
+
+/* ==========================================================================
+   NỀN TẢNG MOBILE (áp cho mọi trang)
+   ========================================================================== */
+
+/* iOS Safari tự zoom viewport khi focus vào input có font-size < 16px, và không
+   zoom lại — người dùng phải pinch tay. Các input trong app đặt 13–14px nên
+   selector ở đây phải "nặng" hơn (0,2,1) để thắng .search-input / .form-group input. */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Vùng bấm tối thiểu ~40px trên thiết bị cảm ứng. Giới hạn bằng pointer: coarse
+   để desktop cửa sổ hẹp vẫn giữ nguyên mật độ dày. */
+@media (max-width: 900px) and (pointer: coarse) {
+  button:not(.help-tip-btn):not(.toggle) {
+    min-height: 40px;
+  }
+
+  /* Nút chỉ có icon: nới cả hai chiều để không bị méo thành hình chữ nhật cao. */
+  .back-btn-simple,
+  .user-profile-btn,
+  .context-menu-btn,
+  .action-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  /* Ô tick nhỏ hơn 20px rất khó bấm chính xác bằng ngón tay. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-width: 20px;
+    min-height: 20px;
+  }
+}
+
+/* Dải cuộn ngang (bảng rộng, canvas blueprint): cuộn theo đà giống native và
+   không để trình duyệt lấy cử chỉ đó làm điều hướng back/forward. */
+@media (pointer: coarse) {
+  .users-table-panel,
+  .notifications-table-panel,
+  .blueprint-canvas,
+  .sidebar-tabs {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+}
+
+/* ── Modal trên điện thoại ─────────────────────────────────────────────────
+   .modal-overlay / .modal-content / .modal-actions là class TOÀN CỤC, được định
+   nghĩa lại ở 6 file trang khác nhau (FarmsList, FarmDetail, AutomationsTab,
+   UsersList, SystemHealth, NotificationsManager) — tất cả cùng specificity nên
+   file nào vào bundle sau thì thắng. Thay vì lặp lại cùng một khối mobile ở từng
+   trang (và bị trang sau ghi đè), quy tắc dùng chung nằm ở đây một lần duy nhất.
+
+   Class được viết lặp (.modal-overlay.modal-overlay) để nâng specificity lên
+   0,2,0 / 0,3,0 → thắng chắc chắn, không phụ thuộc vào thứ tự import trong
+   main.tsx (hiện index.css tình cờ vào bundle cuối, nhưng đó là tình cờ).
+   Đặc thù riêng của từng trang vẫn để trong file của trang đó. */
+@media (max-width: 640px) {
+  .modal-overlay.modal-overlay,
+  .ae-overlay.ae-overlay,
+  .ph-overlay.ph-overlay,
+  .ctrl-modal-overlay.ctrl-modal-overlay {
+    /* Neo lên trên thay vì căn giữa: khi bàn phím ảo mở ra, modal căn giữa bị
+       đẩy lên và cắt mất phần đầu. */
+    align-items: flex-start;
+    padding: 12px;
+    /* Lối thoát cuối nếu modal vẫn cao hơn màn hình. */
+    overflow-y: auto;
+  }
+
+  .modal-content.modal-content.modal-content,
+  .ae-modal.ae-modal,
+  .ph-modal.ph-modal,
+  .history-modal.history-modal,
+  .logs-history-modal.logs-history-modal,
+  .ctrl-modal.ctrl-modal {
+    width: 100%;
+    /* Ghi đè các max-width cứng: 500 / 560 / 650 / 700 / 720 / 760 / 900 / 960px. */
+    max-width: 100%;
+    max-height: calc(100dvh - 24px);
+  }
+
+  /* Hai nút Cancel / Save cạnh nhau chỉ còn ~80px mỗi nút. Xếp dọc, đảo thứ tự
+     để nút chính (đứng sau trong DOM) nằm trên. */
+  .modal-actions.modal-actions,
+  .ctrl-modal-actions.ctrl-modal-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .modal-actions.modal-actions > button,
+  .ctrl-modal-actions.ctrl-modal-actions > button {
+    width: 100%;
+  }
 }
 
 /* ==========================================================================
@@ -200,11 +358,8 @@ button.accent:hover {
 /* Moving grid background during scan */
 .cyber-scanner-grid {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-image: 
+  inset: 0;
+  background-image:
       linear-gradient(rgba(16, 185, 129, 0.02) 1px, transparent 1px),
       linear-gradient(90deg, rgba(16, 185, 129, 0.02) 1px, transparent 1px);
   background-size: 32px 32px;

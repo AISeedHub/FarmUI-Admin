@@ -135,7 +135,8 @@
     background: var(--color-danger-bg);
 }
 
-@media (max-width: 700px) {
+/* Chuẩn hoá từ 700px → 640px theo quy ước breakpoint ở index.css. */
+@media (max-width: 640px) {
     .pp-rule-row { flex-wrap: wrap; }
     .pp-rule-info { flex: 1 1 100%; }
 }

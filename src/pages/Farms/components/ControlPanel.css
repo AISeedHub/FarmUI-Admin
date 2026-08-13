@@ -296,7 +296,7 @@
 /* Control cards */
 .control-cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr));
     gap: 12px;
 }
 
@@ -489,7 +489,7 @@
 /* Write-history modal */
 .ctrl-modal.history-modal {
     width: min(680px, calc(100vw - 40px));
-    max-height: min(72vh, 640px);
+    max-height: min(72dvh, 640px);
 }
 
 .history-head {
@@ -608,3 +608,79 @@
 .history-more:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
 .history-more:disabled { opacity: 0.6; cursor: default; }
 .history-more .spinner { animation: spin 1s linear infinite; }
+
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css
+   ========================================================================== */
+
+/* ── ≤900px: cây thiết bị và bảng điều khiển xếp dọc ───────────────────────
+   .control-tree cố định 232px + flex-shrink: 0 nên .control-surface bên phải
+   gần như không còn chỗ. Ở đây cây thiết bị thành một khối cao tối đa 220px có
+   cuộn riêng, đặt trên bảng điều khiển. */
+@media (max-width: 900px) {
+    /* FarmDetail bỏ chiều cao cố định của khung tab ở mốc này, nên tab không
+       còn được cấp chiều cao xác định — nhả các pane cuộn lồng nhau ra để nội
+       dung cuộn theo cả trang. */
+    .control-tab {
+        height: auto;
+        overflow: visible;
+        padding: 14px;
+    }
+
+    .control-body {
+        flex-direction: column;
+    }
+
+    .control-tree {
+        width: 100%;
+        max-height: 220px;
+        overflow-y: auto;
+    }
+
+    .control-surface-scroll {
+        overflow: visible;
+    }
+
+    .control-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .control-edge-banner {
+        flex-wrap: wrap;
+    }
+}
+
+/* ── ≤640px: điện thoại ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .control-tab {
+        padding: 12px;
+    }
+
+    .control-surface {
+        padding: 12px;
+    }
+
+    /* Nhãn 74px + giá trị không đủ chỗ trên một dòng ở modal xác nhận ghi. */
+    .ctrl-modal-facts .fact {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .ctrl-modal-facts .fact-label {
+        width: auto;
+    }
+
+    /* Dòng lịch sử: cột thời gian/người thao tác xuống dưới thay vì bó bên phải. */
+    .history-row {
+        flex-wrap: wrap;
+    }
+
+    .history-side {
+        align-items: flex-start;
+        flex-direction: row;
+        gap: 8px;
+        width: 100%;
+    }
+}

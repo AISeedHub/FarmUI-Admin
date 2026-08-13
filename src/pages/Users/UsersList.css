@@ -1,10 +1,12 @@
 .users-container {
-    padding: 24px 32px;
+    /* Không đặt padding ngang ở đây: .admin-main-content đã có padding
+       var(--page-pad), thêm 32px nữa là padding kép 64px mỗi bên — ở 390px chỉ
+       còn 262px cho bảng. min-height: 100vh cũ cũng tạo scroll container thứ hai
+       lồng trong .admin-main-content (đã overflow-y: auto). */
     display: flex;
     flex-direction: column;
     gap: 24px;
     background: var(--bg-color);
-    min-height: 100vh;
     font-family: var(--font-sans);
 }
 
@@ -45,9 +47,11 @@
     gap: 8px;
 }
 
-.invite-btn:hover {
-    background: var(--primary-hover);
-    box-shadow: 0 4px 12px var(--primary-glow);
+@media (hover: hover) and (pointer: fine) {
+    .invite-btn:hover {
+        background: var(--primary-hover);
+        box-shadow: 0 4px 12px var(--primary-glow);
+    }
 }
 
 .filter-bar {
@@ -59,7 +63,9 @@
 
 .search-wrapper {
     position: relative;
-    width: 280px;
+    /* min() để ô tìm kiếm co lại thay vì giữ 280px và đẩy .role-filters ra ngoài. */
+    width: min(280px, 100%);
+    flex-shrink: 0;
 }
 
 .search-icon {
@@ -107,9 +113,11 @@
     white-space: nowrap;
 }
 
-.filter-pill:hover {
-    background: var(--bg-color);
-    color: var(--text-main);
+@media (hover: hover) and (pointer: fine) {
+    .filter-pill:hover {
+        background: var(--bg-color);
+        color: var(--text-main);
+    }
 }
 
 .filter-pill.active {
@@ -130,6 +138,9 @@
     width: 100%;
     border-collapse: collapse;
     text-align: left;
+    /* Bảng 7 cột không nén xuống dưới ngưỡng này mà vẫn đọc được; dưới ngưỡng
+       thì cuộn ngang trong .users-table-panel (overflow-x: auto ở trên). */
+    min-width: 780px;
 }
 
 .users-table th {
@@ -305,27 +316,27 @@
     transition: var(--transition-smooth);
 }
 
-.context-menu-btn:hover {
-    background: var(--bg-color);
-    color: var(--primary);
-}
-
 .context-menu-btn.delete-btn {
     color: var(--text-muted);
 }
 
-.context-menu-btn.delete-btn:hover {
-    background: var(--color-danger-bg);
-    color: var(--color-danger);
+@media (hover: hover) and (pointer: fine) {
+    .context-menu-btn:hover {
+        background: var(--bg-color);
+        color: var(--primary);
+    }
+
+    .context-menu-btn.delete-btn:hover {
+        background: var(--color-danger-bg);
+        color: var(--color-danger);
+    }
 }
 
 /* Modals */
 .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
+    padding: 1rem;
     background: rgba(15, 23, 42, 0.3);
     backdrop-filter: blur(8px);
     z-index: 1000;
@@ -359,7 +370,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    max-height: 60vh;
+    max-height: 60dvh;
     overflow-y: auto;
 }
 
@@ -434,25 +445,53 @@
     color: var(--text-muted);
 }
 
-.modal-actions button.cancel-btn:hover {
-    background: var(--bg-color);
-    color: var(--text-main);
-}
-
 .modal-actions button.submit-btn {
     background: var(--primary);
     color: #ffffff;
     border: none;
 }
 
-.modal-actions button.submit-btn:hover {
-    background: var(--primary-hover);
+@media (hover: hover) and (pointer: fine) {
+    .modal-actions button.cancel-btn:hover {
+        background: var(--bg-color);
+        color: var(--text-main);
+    }
+
+    .modal-actions button.submit-btn:hover {
+        background: var(--primary-hover);
+    }
 }
 
 .modal-actions button.submit-btn:disabled {
     background: var(--text-muted);
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Hàng "cấp quyền nông trại mới" trong modal sửa user */
+.grant-access-row {
+    display: flex;
+    gap: 8px;
+}
+
+.grant-access-row select {
+    padding: 8px;
+    /* <select> mặc định min-width: auto = bề rộng option dài nhất, nên nó KHÔNG
+       co theo flex và làm hàng tràn ngang. */
+    min-width: 0;
+}
+
+.grant-farm-select {
+    flex: 1;
+}
+
+.grant-role-select {
+    width: 110px;
+    flex-shrink: 0;
+}
+
+.grant-add-btn {
+    flex-shrink: 0;
 }
 
 /* User options dropdown/popover */
@@ -492,6 +531,115 @@
     border-top: 1px solid var(--border);
 }
 
-.user-actions-dropdown button.delete-action:hover {
-    background: var(--color-danger-bg);
+@media (hover: hover) and (pointer: fine) {
+    .user-actions-dropdown button:hover {
+        background: var(--bg-color);
+    }
+
+    .user-actions-dropdown button.delete-action:hover {
+        background: var(--color-danger-bg);
+    }
+}
+
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css
+   ========================================================================== */
+
+/* ── ≤900px: tiêu đề và thanh lọc xếp dọc ─────────────────────────────────── */
+@media (max-width: 900px) {
+    .users-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .users-header h2 {
+        font-size: 22px;
+    }
+
+    .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .search-wrapper {
+        width: 100%;
+    }
+
+    /* Danh sách vai trò cuộn ngang thành một dải pill, thay vì xuống dòng lộn xộn. */
+    .role-filters {
+        padding-bottom: 4px;
+    }
+}
+
+/* ── ≤640px: điện thoại ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .users-container {
+        gap: 16px;
+    }
+
+    /* width / max-width / max-height do khối modal dùng chung trong index.css lo.
+       Ở đây chỉ cần chuyển sang flex column để .modal-form-body co được. */
+    .modal-content.users-modal {
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* Cây DOM là .modal-content > form > (.modal-form-body + .modal-actions) —
+       thẻ <form> không có class và nằm CHEN GIỮA. Nếu không cho nó tham gia
+       chuỗi flex thì `flex: 1; min-height: 0` của .modal-form-body vô nghĩa
+       (cha là block), phần thân form cao hết nội dung, và `overflow: hidden` của
+       .modal-content cắt mất phần dưới — kể cả nút Save/Cancel. */
+    .modal-content.users-modal > form {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .users-modal h3 {
+        padding: 18px 18px 14px;
+        font-size: 17px;
+    }
+
+    .modal-form-body {
+        padding: 18px;
+        /* Bỏ 60dvh: chiều cao giờ do chuỗi flex quyết định, cắt theo chiều cao
+           thật của modal (đã giới hạn 100dvh ở index.css) thay vì một tỷ lệ cố
+           định không tính tới chiều cao của tiêu đề và hàng nút. */
+        max-height: none;
+        flex: 1;
+        min-height: 0;
+    }
+
+    /* Hàng nút không được co lại nhường chỗ cho phần thân form. */
+    .modal-content.users-modal .modal-actions {
+        flex-shrink: 0;
+    }
+
+    /* Ba phần tử trên một hàng chỉ còn ~115px cho ô chọn nông trại (và
+       font-size: 16px chống zoom của iOS còn làm nó rộng thêm). Cho ô chọn nông
+       trại chiếm hết một dòng, vai trò + nút Thêm xuống dòng dưới. */
+    .grant-access-row {
+        flex-wrap: wrap;
+    }
+
+    .grant-farm-select {
+        flex: 1 1 100%;
+    }
+
+    .grant-role-select {
+        width: auto;
+        flex: 1;
+    }
+
+    .form-group-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .modal-actions {
+        padding: 12px 18px;
+    }
 }

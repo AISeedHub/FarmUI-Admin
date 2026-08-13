@@ -7,8 +7,11 @@
 .admin-layout-wrapper {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
+  /* dvh thay vh: trên mobile, vh tính theo viewport khi thanh URL đã ẩn, nên
+     64px cuối của app bị thanh URL che mất cho tới khi người dùng cuộn. */
+  height: 100dvh;
+  /* 100vw tính cả bề rộng scrollbar dọc → tràn ngang trên desktop. */
+  width: 100%;
   overflow: hidden;
   background-color: var(--bg-color);
 }
@@ -18,6 +21,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   height: var(--topbar-height);
   background-color: var(--panel-bg);
   border-bottom: 1px solid var(--border);
@@ -30,6 +34,22 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  /* Không có min-width: 0 thì cụm brand giữ nguyên bề rộng nội dung và đẩy
+     topbar-actions ra khỏi màn hình. */
+  min-width: 0;
+}
+
+/* Nút mở drawer — chỉ tồn tại dưới 900px */
+.nav-toggle-btn {
+  display: none;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-input);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-main);
 }
 
 .brand-logo {
@@ -38,6 +58,10 @@
   padding: 6px;
   border-radius: 8px;
   transition: var(--transition-smooth);
+}
+
+.brand-text {
+  min-width: 0;
 }
 
 .brand-text h3 {
@@ -50,6 +74,10 @@
   gap: 6px;
   text-transform: none;
   letter-spacing: normal;
+  /* Cắt bằng ellipsis khi hẹp, thay vì đẩy tràn topbar. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .brand-text .subtitle {
@@ -70,6 +98,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  flex-shrink: 0;
 }
 
 .dashboard-link-btn {
@@ -87,10 +116,12 @@
   transition: var(--transition-smooth);
 }
 
-.dashboard-link-btn:hover {
-  background: var(--bg-color);
-  border-color: var(--text-muted);
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .dashboard-link-btn:hover {
+    background: var(--bg-color);
+    border-color: var(--text-muted);
+    transform: translateY(-1px);
+  }
 }
 
 .user-profile-btn {
@@ -109,9 +140,11 @@
   transition: var(--transition-smooth);
 }
 
-.user-profile-btn:hover {
-  background: var(--primary);
-  color: white;
+@media (hover: hover) and (pointer: fine) {
+  .user-profile-btn:hover {
+    background: var(--primary);
+    color: white;
+  }
 }
 
 /* Body & Sidebar */
@@ -168,13 +201,17 @@
   transition: var(--transition-smooth);
 }
 
-.nav-item:hover {
-  background: var(--bg-color);
-  color: var(--text-main);
-}
+/* Trên màn cảm ứng, :hover dính lại sau khi bấm khiến item vừa chạm trông như
+   đang được chọn — dễ nhầm với .nav-item.active. */
+@media (hover: hover) and (pointer: fine) {
+  .nav-item:hover {
+    background: var(--bg-color);
+    color: var(--text-main);
+  }
 
-.nav-item:hover svg {
-  color: var(--text-main);
+  .nav-item:hover svg {
+    color: var(--text-main);
+  }
 }
 
 .nav-item.active {
@@ -271,9 +308,12 @@
 /* Main Content */
 .admin-main-content {
   flex: 1;
+  /* min-width: 0 để nội dung rộng (bảng, canvas blueprint) không đẩy flex item
+     này phình ra và làm tràn cả shell. */
+  min-width: 0;
   overflow-y: auto;
   background-color: var(--bg-color);
-  padding: 32px;
+  padding: var(--page-pad);
 }
 
 .flex-center {
@@ -282,4 +322,119 @@
 }
 .mr-1 {
   margin-right: 6px;
+}
+
+/* Nền mờ sau drawer — chỉ render khi drawer mở (xem AdminLayout.tsx). */
+.admin-nav-backdrop {
+  display: none;
+}
+
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css
+   ========================================================================== */
+
+/* ── ≤900px: sidebar chuyển thành drawer trượt ─────────────────────────────
+   Trước đây sidebar là 260px với flex-shrink: 0, nên ở 390px vùng nội dung chỉ
+   còn 130px (trừ padding còn 66px). Ở đây sidebar rời khỏi luồng (position:
+   fixed) để main chiếm trọn bề rộng. */
+@media (max-width: 900px) {
+  .nav-toggle-btn {
+    display: inline-flex;
+  }
+
+  .admin-topbar {
+    padding: 0 16px;
+    gap: 8px;
+  }
+
+  .admin-sidebar {
+    position: fixed;
+    top: var(--topbar-height);
+    left: 0;
+    bottom: 0;
+    /* 85vw để trên máy rất nhỏ vẫn còn thấy một dải nền mờ, biết là bấm ra
+       ngoài để đóng được. */
+    width: min(280px, 85vw);
+    z-index: 900;
+    transform: translateX(-100%);
+    /* visibility chặn tab-focus vào các link đang nằm ngoài màn hình. */
+    visibility: hidden;
+    box-shadow: 8px 0 28px rgba(15, 23, 42, 0.12);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.28s;
+  }
+
+  .admin-sidebar.open {
+    transform: none;
+    visibility: visible;
+  }
+
+  .admin-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: var(--topbar-height) 0 0 0;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 890;
+    animation: navBackdropIn 0.2s ease-out;
+  }
+
+  @keyframes navBackdropIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+/* Người dùng bật "giảm chuyển động" thì drawer hiện/ẩn tức thì. */
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  .admin-sidebar {
+    transition: none;
+  }
+  .admin-nav-backdrop {
+    animation: none;
+  }
+}
+
+/* ── ≤640px: điện thoại ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  :root {
+    --topbar-height: 56px;
+  }
+
+  .admin-topbar {
+    padding: 0 12px;
+  }
+
+  /* Dòng "N farms · N users" và hậu tố "· Admin" là thông tin phụ — bỏ đi để
+     nhường chỗ cho tên brand và cụm nút bên phải. */
+  .brand-meta,
+  .brand-text .subtitle {
+    display: none;
+  }
+
+  .brand-text h3 {
+    font-size: 14px;
+  }
+
+  .topbar-actions {
+    gap: 8px;
+  }
+
+  /* Nút "Farm Dashboard" thu về còn icon. */
+  .dashboard-link-label {
+    display: none;
+  }
+
+  .dashboard-link-btn {
+    padding: 0;
+    width: 40px;
+    justify-content: center;
+  }
+}
+
+/* ── ≤420px: máy nhỏ ──────────────────────────────────────────────────────── */
+@media (max-width: 420px) {
+  /* Logo Cpu trùng chức năng nhận diện với tên brand ngay bên cạnh; ở bề rộng
+     này tên brand quan trọng hơn. */
+  .brand-logo {
+    display: none;
+  }
 }
