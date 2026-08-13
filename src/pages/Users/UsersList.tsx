@@ -628,10 +628,14 @@ export default function UsersList() {
                                     </div>
                                 </div>
 
-                                <div className="form-group" style={{ display: 'flex', alignItems: 'center', marginTop: '4px' }}>
-                                    <input 
+                                {/* checkbox-group (FarmsList.css + CamerasTab.css) đã lo hàng ngang và
+                                    bỏ chữ hoa cho nhãn. Trước đây chỗ này đặt display:flex bằng inline
+                                    style, nhưng `.modal-content .form-group { flex-direction: column }`
+                                    vẫn thắng → ô tick bị đẩy lên một dòng riêng và căn giữa. */}
+                                <div className="form-group checkbox-group" style={{ marginTop: '4px' }}>
+                                    <input
                                         id="edit-is-active-checkbox"
-                                        type="checkbox" 
+                                        type="checkbox"
                                         checked={editForm.is_active ?? true}
                                         onChange={e => setEditForm({ ...editForm, is_active: e.target.checked })}
                                     />
@@ -677,9 +681,13 @@ export default function UsersList() {
                                         {/* Add Membership Form */}
                                         <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-main)' }}>{t('users.grantAccessTitle')}</span>
-                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                            {/* Bề rộng/khoảng cách chuyển sang .grant-access-row trong
+                                                UsersList.css: <select> có min-width: auto nên với inline
+                                                style flex:1 nó không co xuống dưới bề rộng tên nông trại
+                                                dài nhất, và width:110px cứng thì CSS không ghi đè được. */}
+                                            <div className="grant-access-row">
                                                 <select
-                                                    style={{ flex: 1, padding: '8px' }}
+                                                    className="grant-farm-select"
                                                     value={newAccessFarmId}
                                                     onChange={e => setNewAccessFarmId(e.target.value)}
                                                 >
@@ -691,7 +699,7 @@ export default function UsersList() {
                                                         ))}
                                                 </select>
                                                 <select
-                                                    style={{ width: '110px', padding: '8px' }}
+                                                    className="grant-role-select"
                                                     value={newAccessRole}
                                                     onChange={e => setNewAccessRole(e.target.value as any)}
                                                     disabled={!newAccessFarmId}
@@ -702,6 +710,7 @@ export default function UsersList() {
                                                 </select>
                                                 <button
                                                     type="button"
+                                                    className="grant-add-btn"
                                                     style={{ background: 'var(--accent)', color: '#ffffff', border: 'none', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
                                                     onClick={handleAddFarmAccess}
                                                     disabled={!newAccessFarmId || saving}

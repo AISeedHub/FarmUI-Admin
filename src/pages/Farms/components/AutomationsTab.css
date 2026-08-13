@@ -438,7 +438,8 @@
 .history-modal {
     width: 900px;
     max-width: 95%;
-    height: 85vh;
+    /* dvh: với vh, đáy modal nằm dưới thanh URL của trình duyệt mobile. */
+    height: 85dvh;
     max-height: 720px;
     background: #ffffff;
     border: 1px solid var(--border-input);
@@ -556,7 +557,8 @@
     overflow: hidden;
 }
 
-@media (max-width: 800px) {
+/* Chuẩn hoá từ 800px → 900px theo quy ước breakpoint ở index.css. */
+@media (max-width: 900px) {
     .modal-layout {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr;
@@ -1001,6 +1003,63 @@
     to {
         opacity: 1;
         transform: scale(1);
+    }
+}
+
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css
+   ========================================================================== */
+
+@media (max-width: 900px) {
+    /* FarmDetail bỏ chiều cao cố định của khung tab ở mốc này → nhả pane cuộn
+       lồng nhau để bảng luật cuộn theo cả trang. */
+    .automations-tab {
+        height: auto;
+        overflow: visible;
+        padding: 14px;
+    }
+
+    .rules-section {
+        min-height: 0;
+    }
+
+    .actions {
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    /* Bảng luật 5 cột flex không nén thêm được — cho cuộn ngang trong panel. */
+    .rules-table {
+        overflow-x: auto;
+    }
+
+    .table-header,
+    .table-row {
+        min-width: 700px;
+    }
+}
+
+@media (max-width: 640px) {
+    .automations-tab {
+        padding: 12px;
+        gap: 14px;
+    }
+
+    /* 4 ô số liệu chia đều trên một dòng chỉ còn ~80px mỗi ô. Chuyển thành lưới
+       2×2 và bỏ vạch chia dọc (không còn đúng khi đã xuống dòng). */
+    .metrics-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+        padding: 14px 16px;
+    }
+
+    .metric-box {
+        border-right: none;
+    }
+
+    .metric-box .value {
+        font-size: 19px;
     }
 }
 

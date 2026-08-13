@@ -292,7 +292,9 @@
     top: calc(100% + 6px);
     right: 0;
     z-index: 20;
-    width: 300px;
+    /* Menu 300px cứng vượt ra ngoài màn hình 390px khi nút "preset mới" nằm gần
+       cạnh phải. */
+    width: min(300px, calc(100vw - 32px));
     background: #fff;
     border: 1px solid var(--border-input);
     border-radius: 12px;
@@ -464,9 +466,37 @@
     gap: 10px;
 }
 
-@media (max-width: 720px) {
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css (trước đây là 720px)
+   ========================================================================== */
+
+@media (max-width: 900px) {
+    /* FarmDetail bỏ chiều cao cố định của khung tab ở mốc này. Lưu ý: overflow:
+       hidden của .presets-tab ban đầu dùng để tránh nhấp nháy backdrop-filter
+       trên Chromium (xem ghi chú đầu file); trên mobile thì cuộn được quan trọng
+       hơn hiệu ứng blur của modal. */
+    .presets-tab {
+        height: auto;
+        overflow: visible;
+        padding: 14px;
+    }
+
+    .presets-panel {
+        min-height: 0;
+    }
+
+    .presets-list {
+        overflow: visible;
+    }
+}
+
+@media (max-width: 640px) {
+    .presets-tab { padding: 12px; }
+    .presets-panel { padding: 14px; }
     .preset-main { flex-direction: column; align-items: stretch; }
     .preset-controls { justify-content: flex-end; }
     .tune-row { flex-wrap: wrap; gap: 8px; }
     .tune-bounds { width: 100%; }
+    .tune-actions { flex-direction: column-reverse; gap: 8px; }
+    .tune-actions > button { width: 100%; }
 }

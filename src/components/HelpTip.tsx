@@ -24,13 +24,19 @@ export default function HelpTip({ label, children, width = 340 }: HelpTipProps) 
     const btnRef = useRef<HTMLButtonElement>(null);
     const cardRef = useRef<HTMLDivElement>(null);
     const [pos, setPos] = useState<TipPos | null>(null);
+    // Bề rộng thực tế: trên màn hẹp (360px) thẻ 340px sẽ chạm sát cả hai lề, và
+    // ở dưới 360px thì tràn hẳn ra ngoài. Đo lại mỗi lần mở, vì thẻ đã tự đóng
+    // khi resize nên không cần theo dõi liên tục.
+    const [shownWidth, setShownWidth] = useState(width);
 
     const open = () => {
         const r = btnRef.current?.getBoundingClientRect();
         if (!r) return;
+        const w = Math.min(width, window.innerWidth - MARGIN * 2);
+        setShownWidth(w);
         // Centre on the icon and clamp horizontally; the vertical fit needs the card's
         // real height, so park it below for one paint and correct it in the layout effect.
-        const left = Math.max(MARGIN, Math.min(r.left + r.width / 2 - width / 2, window.innerWidth - width - MARGIN));
+        const left = Math.max(MARGIN, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - MARGIN));
         setPos({ top: r.bottom + 8, left, measured: false });
     };
     const close = () => setPos(null);
@@ -82,7 +88,7 @@ export default function HelpTip({ label, children, width = 340 }: HelpTipProps) 
                 <div
                     ref={cardRef}
                     className="help-tip-card"
-                    style={{ top: pos.top, left: pos.left, width, visibility: pos.measured ? 'visible' : 'hidden' }}
+                    style={{ top: pos.top, left: pos.left, width: shownWidth, visibility: pos.measured ? 'visible' : 'hidden' }}
                     role="tooltip"
                 >
                     {children}

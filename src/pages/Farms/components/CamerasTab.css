@@ -59,7 +59,7 @@
 /* Camera card grid */
 .camera-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
     gap: 16px;
     overflow-y: auto;
     flex: 1;
@@ -437,4 +437,61 @@
     color: var(--text-muted);
     line-height: 1.4;
     margin: 4px 0 0 0;
+}
+
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css
+   ========================================================================== */
+
+@media (max-width: 900px) {
+    /* FarmDetail bỏ chiều cao cố định của khung tab ở mốc này → nhả pane cuộn
+       lồng nhau, để danh sách camera cuộn theo cả trang. */
+    .cameras-tab {
+        height: auto;
+        overflow: visible;
+        padding: 14px;
+    }
+
+    .cameras-section {
+        min-height: 0;
+    }
+
+    .camera-grid {
+        overflow: visible;
+    }
+
+    /* Tiêu đề mục + bộ lọc vùng + nút thêm không đủ chỗ trên một dòng. */
+    .cameras-section .section-header {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .cameras-section .actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .zone-filter {
+        flex: 1 1 150px;
+    }
+}
+
+@media (max-width: 640px) {
+    .cameras-tab {
+        padding: 12px;
+        gap: 14px;
+    }
+
+    .camera-grid {
+        gap: 12px;
+    }
+
+    /* Nút "vùng mới" xuống dòng riêng thay vì bó cạnh ô chọn vùng. */
+    .zone-picker-row {
+        flex-wrap: wrap;
+    }
+
+    .zone-picker-row select {
+        flex: 1 1 100%;
+    }
 }

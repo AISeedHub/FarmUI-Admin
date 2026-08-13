@@ -15,8 +15,10 @@
     text-transform: uppercase;
 }
 
-.lang-toggle-btn:hover {
-    color: var(--primary);
-    border-color: var(--primary);
-    background: var(--primary-glow);
+@media (hover: hover) and (pointer: fine) {
+    .lang-toggle-btn:hover {
+        color: var(--primary);
+        border-color: var(--primary);
+        background: var(--primary-glow);
+    }
 }

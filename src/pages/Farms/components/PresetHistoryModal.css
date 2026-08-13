@@ -19,7 +19,8 @@
 .ph-modal {
     width: 760px;
     max-width: 96%;
-    height: 82vh;
+    /* dvh: với vh, đáy modal nằm dưới thanh URL của trình duyệt mobile. */
+    height: 82dvh;
     max-height: 720px;
     background: var(--panel-bg);
     border: 1px solid var(--border-input);

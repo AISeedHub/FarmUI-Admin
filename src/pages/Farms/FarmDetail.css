@@ -2,7 +2,10 @@
     display: flex;
     flex-direction: row;
     gap: 20px;
-    height: calc(100vh - 128px);
+    /* 128px = topbar (var(--topbar-height) 64px) + padding trên/dưới của
+       .admin-main-content (2 × var(--page-pad) 32px). Cả hai token đều đổi theo
+       breakpoint, nên tính lại từ token thay vì viết cứng 128px. */
+    height: calc(100dvh - var(--topbar-height) - var(--page-pad) * 2);
     width: 100%;
     overflow: hidden;
 }
@@ -174,9 +177,11 @@
     width: 100%;
 }
 
-.sidebar-tab-btn:hover {
-    background: var(--bg-color);
-    color: var(--text-main);
+@media (hover: hover) and (pointer: fine) {
+    .sidebar-tab-btn:hover {
+        background: var(--bg-color);
+        color: var(--text-main);
+    }
 }
 
 .sidebar-tab-btn.active {
@@ -675,11 +680,9 @@
     cursor: pointer;
 }
 
-.zone-node:hover {
-    border-color: var(--primary);
-    box-shadow: 0 4px 14px var(--primary-glow);
-    transform: translateY(-2px);
-}
+/* Các node blueprint bấm được. Trên màn cảm ứng, :hover dính lại sau khi bấm
+   nên node vừa chạm cứ nhấc lên 2px và viền sáng — dễ nhầm với .selected. Gom
+   toàn bộ :hover của node vào một khối hover guard ở cuối phần blueprint. */
 
 .zone-node.selected {
     border-color: var(--primary);
@@ -690,10 +693,6 @@
 .unassigned-node {
     border-color: var(--text-muted);
     background: #EAECEE;
-}
-
-.unassigned-node:hover {
-    box-shadow: 0 4px 12px rgba(100, 116, 139, 0.08);
 }
 
 .unassigned-node.selected {
@@ -711,12 +710,6 @@
     align-self: flex-start;
     margin-top: 0;
     cursor: pointer;
-}
-
-.module-node:hover {
-    border-color: var(--secondary);
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.1);
-    transform: translateY(-2px);
 }
 
 .module-node.selected {
@@ -737,9 +730,33 @@
     background: #ffffff;
 }
 
-.register-node.compact:hover {
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.12);
-    transform: translateY(-2px);
+/* :hover của toàn bộ node blueprint — chỉ cho thiết bị có con trỏ thật. */
+@media (hover: hover) and (pointer: fine) {
+    .zone-node:hover {
+        border-color: var(--primary);
+        box-shadow: 0 4px 14px var(--primary-glow);
+        transform: translateY(-2px);
+    }
+
+    .unassigned-node:hover {
+        box-shadow: 0 4px 12px rgba(100, 116, 139, 0.08);
+    }
+
+    .module-node:hover {
+        border-color: var(--secondary);
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .register-node.compact:hover {
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.12);
+        transform: translateY(-2px);
+    }
+
+    .node.deactivated:hover {
+        border-color: var(--color-danger) !important;
+        box-shadow: 0 4px 12px var(--color-danger-bg) !important;
+    }
 }
 
 /* Metadata displays inside Nodes */
@@ -929,10 +946,9 @@
 
 .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    /* inset thay cho 100vw/100vh: 100vw tính cả scrollbar dọc, còn 100vh trên
+       mobile cao hơn viewport thật nên đáy modal nằm dưới thanh URL. */
+    inset: 0;
     padding: 2rem 1rem;
     background: rgba(15, 23, 42, 0.3);
     backdrop-filter: blur(8px);
@@ -1010,11 +1026,186 @@
     opacity: 0.8;
 }
 
-.node.deactivated:hover {
-    border-color: var(--color-danger) !important;
-    box-shadow: 0 4px 12px var(--color-danger-bg) !important;
-}
+/* :hover gộp vào khối hover guard của các node blueprint ở trên. */
 
 .deactivated-btn {
     color: var(--color-danger) !important;
+}
+
+/* ==========================================================================
+   RESPONSIVE — mốc theo quy ước ở index.css
+   ========================================================================== */
+
+/* ── ≤900px: hai cột (sidebar 280px | nội dung) xếp thành một cột ───────────
+   Trang này là chỗ vỡ nặng nhất trên mobile: sidebar 280px với flex-shrink: 0
+   nằm trong vùng nội dung đã bị sidebar app chiếm, nên tràn hẳn ra ngoài; và 7
+   tab của trang lại nằm DỌC bên trong sidebar đó nên không tab nào bấm được. */
+@media (max-width: 900px) {
+    .farm-detail-container {
+        flex-direction: column;
+        /* Bỏ chiều cao cố định: trên mobile để trang cuộn tự nhiên trong
+           .admin-main-content, thay vì nhồi mọi thứ vào một khung 100dvh rồi
+           chia tiếp thành các pane cuộn lồng nhau. */
+        height: auto;
+        overflow: visible;
+        gap: 14px;
+    }
+
+    /* display: contents "tháo" thẻ bọc sidebar ra, để 4 khối con của nó trở
+       thành flex item trực tiếp của .farm-detail-container. Nhờ vậy mới xếp lại
+       được thứ tự: tiêu đề → dải tab → NỘI DUNG → số liệu → hành động; nếu giữ
+       nguyên thứ tự DOM thì phải cuộn qua toàn bộ sidebar mới tới nội dung. */
+    .farm-detail-sidebar {
+        display: contents;
+    }
+
+    .sidebar-header      { order: 1; }
+    .sidebar-tabs        { order: 2; }
+    .farm-detail-content { order: 3; }
+    .sidebar-metrics     { order: 4; }
+    .sidebar-actions     { order: 5; }
+
+    /* Dải tab ngang cuộn được, thay cho danh sách dọc. */
+    .sidebar-tabs {
+        flex-direction: row;
+        gap: 4px;
+        overflow-x: auto;
+        padding: 6px;
+        background: var(--panel-bg);
+        border: 1px solid var(--border-input);
+        border-radius: 10px;
+        scroll-snap-type: x proximity;
+    }
+
+    .sidebar-tab-btn {
+        flex-shrink: 0;
+        width: auto;
+        white-space: nowrap;
+        scroll-snap-align: start;
+    }
+
+    /* Vạch chỉ dấu chuyển từ cạnh trái sang cạnh dưới cho phù hợp dải ngang. */
+    .sidebar-tab-btn.active {
+        box-shadow: inset 0 -2px 0 var(--primary);
+        border-radius: 8px;
+    }
+
+    /* 6 dòng nhãn/giá trị xếp dọc chiếm quá nhiều chiều cao; xếp thành lưới,
+       mỗi ô là nhãn trên / giá trị dưới (nằm ngang thì ô rộng ~110px không đủ
+       cho "REGION" và "Ho Chi Minh City" trên cùng một dòng). */
+    .sidebar-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px 14px;
+    }
+
+    .sidebar-metrics .metric-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        padding-bottom: 0;
+        /* Đường kẻ ngang giữa các dòng không còn ý nghĩa khi đã là lưới. */
+        border-bottom: none;
+    }
+
+    .sidebar-metrics .metric-row .value {
+        font-size: 13px;
+        /* Tên vùng dài thì cắt bằng ellipsis, không đẩy tràn ô. */
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .sidebar-actions {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: wrap;
+        /* margin-top: auto vô nghĩa khi container cao auto. */
+        margin-top: 0;
+        padding-top: 0;
+        border-top: none;
+    }
+
+    .sidebar-actions .agent-toggle {
+        flex: 1 1 100%;
+    }
+
+    .sidebar-actions .impersonate-btn,
+    .sidebar-actions .open-dash-btn {
+        flex: 1 1 140px;
+        width: auto;
+    }
+
+    /* Mọi pane cuộn lồng nhau nhả ra: nội dung dài thì cuộn cả trang. */
+    .farm-detail-content,
+    .tab-content-container {
+        overflow: visible;
+    }
+
+    .config-tab-header {
+        margin: 14px 14px 12px;
+        padding: 14px 16px;
+    }
+
+    .config-header-top {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .config-header-actions {
+        flex-wrap: wrap;
+    }
+
+    /* Canvas blueprint: 4 cột × 230px + 3 khe 104px + padding ≈ 1280px, tức pan
+       qua hơn 3 màn hình ở 390px. Thu node và khe lại còn ≈890px, và giới hạn
+       chiều cao để nó là một vùng pan có biên rõ ràng chứ không đẩy dài cả trang.
+       Đường nối SVG được đo lại bằng getBoundingClientRect theo sự kiện resize
+       (xem updateConnections trong FarmDetail.tsx) nên tự khớp lại. */
+    .blueprint-canvas.new-horizontal-layout {
+        --node-width: 190px;
+        --canvas-gap: 3rem;
+        max-height: 70dvh;
+    }
+
+    .canvas-inner {
+        padding: 1.25rem 14px;
+        gap: var(--canvas-gap);
+    }
+
+    /* Cột lõi đang sticky ở left: 24px — trên khung hẹp nó ghim mất 190px trong
+       số ~360px, không còn chỗ để xem các cột còn lại. */
+    .core-column {
+        position: static;
+    }
+}
+
+/* ── ≤640px: điện thoại ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    .sidebar-metrics {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .farm-title-info h2 {
+        font-size: 16px;
+    }
+
+    .sidebar-tab-btn {
+        font-size: 12.5px;
+        padding: 8px 10px;
+    }
+
+    .blueprint-canvas.new-horizontal-layout {
+        --node-width: 168px;
+        --canvas-gap: 2rem;
+    }
+
+    .modal-overlay {
+        padding: 12px;
+    }
+
+    .modal-large {
+        max-width: 100%;
+    }
 }
