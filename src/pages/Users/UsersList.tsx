@@ -513,7 +513,7 @@ export default function UsersList() {
                                     </div>
                                 </div>
 
-                                {createForm.global_role === 'user' && (
+                                {createForm.global_role === 'user' && farms.length > 0 && (
                                     <fieldset style={{ border: '1px solid var(--border-input)', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                         <legend style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', padding: '0 8px', textTransform: 'uppercase' }}>
                                             {t('users.optionalFarmLabel')}
@@ -678,47 +678,44 @@ export default function UsersList() {
                                             </div>
                                         )}
 
-                                        {/* Add Membership Form */}
-                                        <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-main)' }}>{t('users.grantAccessTitle')}</span>
-                                            {/* Bề rộng/khoảng cách chuyển sang .grant-access-row trong
-                                                UsersList.css: <select> có min-width: auto nên với inline
-                                                style flex:1 nó không co xuống dưới bề rộng tên nông trại
-                                                dài nhất, và width:110px cứng thì CSS không ghi đè được. */}
-                                            <div className="grant-access-row">
-                                                <select
-                                                    className="grant-farm-select"
-                                                    value={newAccessFarmId}
-                                                    onChange={e => setNewAccessFarmId(e.target.value)}
-                                                >
-                                                    <option value="">{t('users.chooseFarmPlaceholder')}</option>
-                                                    {farms
-                                                        .filter(f => !userMemberships.some(m => m.farm_id === f.id))
-                                                        .map(f => (
-                                                            <option key={f.id} value={f.id}>{f.name}</option>
-                                                        ))}
-                                                </select>
-                                                <select
-                                                    className="grant-role-select"
-                                                    value={newAccessRole}
-                                                    onChange={e => setNewAccessRole(e.target.value as any)}
-                                                    disabled={!newAccessFarmId}
-                                                >
-                                                    <option value="viewer">{t('users.roleViewer')}</option>
-                                                    <option value="operator">{t('users.roleOperator')}</option>
-                                                    <option value="admin">{t('users.roleAdmin')}</option>
-                                                </select>
-                                                <button
-                                                    type="button"
-                                                    className="grant-add-btn"
-                                                    style={{ background: 'var(--accent)', color: '#ffffff', border: 'none', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-                                                    onClick={handleAddFarmAccess}
-                                                    disabled={!newAccessFarmId || saving}
-                                                >
-                                                    {t('users.addBtn')}
-                                                </button>
+                                        {/* Add Membership Form - Only shown when there are available farms to grant */}
+                                        {farms.some(f => !userMemberships.some(m => m.farm_id === f.id)) && (
+                                            <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '12px', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-main)' }}>{t('users.grantAccessTitle')}</span>
+                                                <div className="grant-access-row">
+                                                    <select
+                                                        className="grant-farm-select"
+                                                        value={newAccessFarmId}
+                                                        onChange={e => setNewAccessFarmId(e.target.value)}
+                                                    >
+                                                        <option value="">{t('users.chooseFarmPlaceholder')}</option>
+                                                        {farms
+                                                            .filter(f => !userMemberships.some(m => m.farm_id === f.id))
+                                                            .map(f => (
+                                                                <option key={f.id} value={f.id}>{f.name}</option>
+                                                            ))}
+                                                    </select>
+                                                    <select
+                                                        className="grant-role-select"
+                                                        value={newAccessRole}
+                                                        onChange={e => setNewAccessRole(e.target.value as any)}
+                                                        disabled={!newAccessFarmId}
+                                                    >
+                                                        <option value="viewer">{t('users.roleViewer')}</option>
+                                                        <option value="operator">{t('users.roleOperator')}</option>
+                                                        <option value="admin">{t('users.roleAdmin')}</option>
+                                                    </select>
+                                                    <button
+                                                        type="button"
+                                                        className="grant-add-btn"
+                                                        onClick={handleAddFarmAccess}
+                                                        disabled={!newAccessFarmId || saving}
+                                                    >
+                                                        {t('users.addBtn')}
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </fieldset>
                                 )}
                             </div>
