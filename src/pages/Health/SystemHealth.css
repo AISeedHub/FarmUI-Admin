@@ -322,6 +322,11 @@
 .hm-value.critical { color: var(--color-warning); }
 .hm-value.healthy { color: var(--text-main); }
 
+.health-metric-card.highlight-modbus-down {
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.04);
+}
+
 /* Per-farm cards */
 .health-farm-grid {
     display: grid;
@@ -334,19 +339,30 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.health-farm-card.has-modbus-down {
+    border-left: 3px solid var(--color-danger);
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.15);
+}
+
+.health-farm-card.is-offline {
+    opacity: 0.85;
 }
 
 .hfc-head {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 10px;
+    gap: 12px;
 }
 
 .hfc-id {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    flex: 1;
     min-width: 0;
 }
 
@@ -356,6 +372,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.3;
 }
 
 .hfc-code {
@@ -371,10 +388,10 @@
 .health-status-badge {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     font-size: 10.5px;
     font-weight: 600;
-    padding: 4px 10px;
+    padding: 3.5px 9px;
     border-radius: 99px;
     text-transform: uppercase;
     letter-spacing: 0.02em;
@@ -408,9 +425,6 @@
     gap: 5px;
 }
 
-.hfc-meta .modbus-on { color: var(--color-success); font-weight: 500; }
-.hfc-meta .modbus-off { color: var(--color-danger); font-weight: 600; }
-
 .hfc-bars {
     display: flex;
     flex-direction: column;
@@ -424,13 +438,55 @@
 }
 
 .hfc-bar-label {
-    width: 58px;
+    width: 74px;
     flex-shrink: 0;
     font-size: 11.5px;
     color: var(--text-muted);
     display: inline-flex;
     align-items: center;
     gap: 5px;
+}
+
+/* BCON Link row right above CPU, RAM, Disk */
+.hfc-bar-row.bcon-link-row {
+    padding-bottom: 6px;
+    margin-bottom: 2px;
+    border-bottom: 1px dashed var(--border);
+}
+
+.hfc-bcon-status {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 99px;
+}
+
+.hfc-bcon-status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.hfc-bcon-status.healthy {
+    color: var(--color-success);
+    background: var(--color-success-bg);
+}
+.hfc-bcon-status.healthy .dot {
+    background: var(--color-success);
+}
+
+.hfc-bcon-status.critical {
+    color: var(--color-danger);
+    background: var(--color-danger-bg);
+    box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
+}
+.hfc-bcon-status.critical .dot {
+    background: var(--color-danger);
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
 }
 
 .hfc-bar-track {
@@ -466,7 +522,7 @@
 
 .hfc-foot {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     gap: 10px;
 }
@@ -523,6 +579,20 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
+    gap: 16px;
+}
+
+.hhm-header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.hhm-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
 }
 
 .hhm-header h3 {

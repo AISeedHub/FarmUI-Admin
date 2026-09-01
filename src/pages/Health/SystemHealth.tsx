@@ -12,6 +12,7 @@ import {
     Clock,
     Plug,
     PlugZap,
+    Cable,
     CheckCircle2,
     XCircle,
     AlertTriangle,
@@ -265,7 +266,13 @@ export default function SystemHealth() {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
     // History modal
-    const [historyFarm, setHistoryFarm] = useState<{ id: string; name: string; code: string } | null>(null);
+    const [historyFarm, setHistoryFarm] = useState<{
+        id: string;
+        name: string;
+        code: string;
+        status: string;
+        modbus_connected: boolean;
+    } | null>(null);
     const [history, setHistory] = useState<EdgeHealthHistoryResponse | null>(null);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyPeriod, setHistoryPeriod] = useState('24h');
@@ -344,7 +351,9 @@ export default function SystemHealth() {
         setHistoryFarm({
             id: f.farm_id,
             name: meta?.name || f.farm_id,
-            code: meta?.code || f.farm_id.slice(0, 8)
+            code: meta?.code || f.farm_id.slice(0, 8),
+            status: f.status,
+            modbus_connected: Boolean(f.metrics.modbus_connected)
         });
         setHistoryPeriod('24h');
         setHistoryAggregate(DEFAULT_AGGREGATE['24h']);
@@ -513,9 +522,9 @@ export default function SystemHealth() {
                                         <div className="hm-title">{t('health.farmsOffline')}</div>
                                         <div className={`hm-value ${summary.offline > 0 ? 'danger' : ''}`}>{summary.offline}</div>
                                     </div>
-                                    <div className="panel health-metric-card">
+                                    <div className={`panel health-metric-card ${summary.modbusDown > 0 ? 'highlight-modbus-down' : ''}`}>
                                         <div className="hm-title">{t('health.modbusDownStat')}</div>
-                                        <div className={`hm-value ${summary.modbusDown > 0 ? 'warning' : ''}`}>{summary.modbusDown}</div>
+                                        <div className={`hm-value ${summary.modbusDown > 0 ? 'danger' : ''}`}>{summary.modbusDown}</div>
                                     </div>
                                     <div className="panel health-metric-card">
                                         <div className="hm-title">{t('health.avgCpu')}</div>
@@ -539,8 +548,14 @@ export default function SystemHealth() {
                                         {fleetFarms.map(f => {
                                             const meta = farmMap[f.farm_id];
                                             const online = f.status === 'online';
+                                            const modbusConnected = Boolean(f.metrics.modbus_connected);
+                                            const isModbusAlert = !modbusConnected;
+
                                             return (
-                                                <div key={f.farm_id} className="panel health-farm-card">
+                                                <div
+                                                    key={f.farm_id}
+                                                    className={`panel health-farm-card ${isModbusAlert ? 'has-modbus-down' : ''} ${!online ? 'is-offline' : ''}`}
+                                                >
                                                     <div className="hfc-head">
                                                         <div className="hfc-id">
                                                             <span className="hfc-name">{meta?.name || f.farm_id}</span>
@@ -559,13 +574,23 @@ export default function SystemHealth() {
                                                         <span>
                                                             <Activity size={12} /> {t('health.uptime')}: {formatUptime(f.metrics.uptime_seconds)}
                                                         </span>
-                                                        <span className={f.metrics.modbus_connected ? 'modbus-on' : 'modbus-off'}>
-                                                            {f.metrics.modbus_connected ? <Plug size={12} /> : <PlugZap size={12} />}
-                                                            {f.metrics.modbus_connected ? t('health.modbusConnected') : t('health.modbusDisconnected')}
+                                                        <span className="hfc-disk-free">
+                                                            <HardDrive size={12} /> {t('health.diskFree', { value: f.metrics.disk_free_gb?.toFixed(1) ?? '—' })}
                                                         </span>
                                                     </div>
 
                                                     <div className="hfc-bars">
+                                                        {/* BCON Link row right above CPU, RAM, Disk */}
+                                                        <div className="hfc-bar-row bcon-link-row">
+                                                            <span className="hfc-bar-label">
+                                                                <Cable size={12} /> {t('health.bconLink')}
+                                                            </span>
+                                                            <div className={`hfc-bcon-status ${modbusConnected ? 'healthy' : 'critical'}`}>
+                                                                <span className="dot"></span>
+                                                                {modbusConnected ? t('health.modbusConnected') : t('health.modbusLost')}
+                                                            </div>
+                                                        </div>
+
                                                         {USAGE_FIELDS.map(field => {
                                                             const val = f.metrics[field.key];
                                                             const lvl = usageLevel(val);
@@ -583,9 +608,6 @@ export default function SystemHealth() {
                                                     </div>
 
                                                     <div className="hfc-foot">
-                                                        <span className="hfc-disk-free">
-                                                            <HardDrive size={12} /> {t('health.diskFree', { value: f.metrics.disk_free_gb?.toFixed(1) ?? '—' })}
-                                                        </span>
                                                         <button className="hfc-history-btn" onClick={() => openHistory(f)}>
                                                             <LineChartIcon size={13} /> {t('health.viewHistory')}
                                                         </button>
@@ -612,7 +634,13 @@ export default function SystemHealth() {
                                     {historyFarm.name} <code>{historyFarm.code}</code>
                                 </p>
                             </div>
-                            <button className="close-btn" onClick={() => setHistoryFarm(null)}><X size={20} /></button>
+                            <div className="hhm-header-right">
+                                <span className={`health-status-badge ${historyFarm.status === 'online' ? 'healthy' : 'critical'}`}>
+                                    <span className="dot"></span>
+                                    {historyFarm.status === 'online' ? t('health.statusOnline') : t('health.statusOffline')}
+                                </span>
+                                <button className="close-btn" onClick={() => setHistoryFarm(null)}><X size={20} /></button>
+                            </div>
                         </div>
 
                         <div className="hhm-controls">
@@ -664,6 +692,18 @@ export default function SystemHealth() {
                                     <div className="hhm-snapshot">
                                         <span className="hhm-snapshot-title">{t('health.currentSnapshot')}</span>
                                         <div className="hhm-snapshot-vals">
+                                            <div className="hhm-snapshot-val">
+                                                <span className="label" style={{ color: 'var(--text-muted)' }}>Status</span>
+                                                <span className={`value ${historyFarm.status === 'online' ? 'healthy' : 'critical'}`}>
+                                                    {historyFarm.status === 'online' ? t('health.statusOnline') : t('health.statusOffline')}
+                                                </span>
+                                            </div>
+                                            <div className="hhm-snapshot-val">
+                                                <span className="label" style={{ color: '#059669' }}>{t('health.bconLink')}</span>
+                                                <span className={`value ${historyFarm.modbus_connected ? 'healthy' : 'critical'}`}>
+                                                    {historyFarm.modbus_connected ? t('health.modbusConnected') : t('health.modbusLost')}
+                                                </span>
+                                            </div>
                                             {historySeries.map(s => {
                                                 const last = s.points[s.points.length - 1];
                                                 const lvl = usageLevel(last.v);
