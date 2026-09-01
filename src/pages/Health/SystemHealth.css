@@ -411,18 +411,61 @@
 
 .hfc-meta {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px 14px;
+    flex-direction: column;
+    gap: 8px;
     font-size: 11.5px;
     color: var(--text-muted);
     padding-bottom: 12px;
     border-bottom: 1px solid var(--border);
 }
 
-.hfc-meta span {
+.hfc-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.hfc-meta-row.secondary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 11px;
+}
+
+.hfc-meta-row span {
     display: inline-flex;
     align-items: center;
     gap: 5px;
+}
+
+.hfc-last-seen {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 11px;
+    transition: all 0.2s ease;
+}
+
+.hfc-last-seen.fresh {
+    color: var(--color-success);
+    background: rgba(16, 185, 129, 0.08);
+}
+
+.hfc-last-seen.warning {
+    color: var(--color-warning);
+    background: rgba(217, 119, 6, 0.1);
+    font-weight: 600;
+}
+
+.hfc-last-seen.stale {
+    color: var(--color-danger);
+    background: rgba(239, 68, 68, 0.1);
+    font-weight: 600;
 }
 
 .hfc-bars {

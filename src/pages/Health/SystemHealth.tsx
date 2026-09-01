@@ -87,6 +87,15 @@ function formatRelative(iso: string): string {
     return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function lastSeenLevel(iso: string): 'fresh' | 'warning' | 'stale' {
+    const then = new Date(iso).getTime();
+    if (Number.isNaN(then)) return 'stale';
+    const diffMins = (Date.now() - then) / 60000;
+    if (diffMins <= 15) return 'fresh';
+    if (diffMins <= 120) return 'warning';
+    return 'stale';
+}
+
 // Nearest index to `target` in an ascending-sorted array (binary search).
 function nearestIdx(arr: number[], target: number): number {
     if (arr.length === 0) return -1;
@@ -568,15 +577,22 @@ export default function SystemHealth() {
                                                     </div>
 
                                                     <div className="hfc-meta">
-                                                        <span title={new Date(f.time).toLocaleString()}>
-                                                            <Clock size={12} /> {t('health.lastSeen', { time: formatRelative(f.time) })}
-                                                        </span>
-                                                        <span>
-                                                            <Activity size={12} /> {t('health.uptime')}: {formatUptime(f.metrics.uptime_seconds)}
-                                                        </span>
-                                                        <span className="hfc-disk-free">
-                                                            <HardDrive size={12} /> {t('health.diskFree', { value: f.metrics.disk_free_gb?.toFixed(1) ?? '—' })}
-                                                        </span>
+                                                        <div className="hfc-meta-row">
+                                                            <span
+                                                                className={`hfc-last-seen ${lastSeenLevel(f.time)}`}
+                                                                title={new Date(f.time).toLocaleString()}
+                                                            >
+                                                                <Clock size={12} /> {t('health.lastSeen', { time: formatRelative(f.time) })}
+                                                            </span>
+                                                        </div>
+                                                        <div className="hfc-meta-row secondary">
+                                                            <span>
+                                                                <Activity size={12} /> {t('health.uptime')}: {formatUptime(f.metrics.uptime_seconds)}
+                                                            </span>
+                                                            <span className="hfc-disk-free">
+                                                                <HardDrive size={12} /> {t('health.diskFree', { value: f.metrics.disk_free_gb?.toFixed(1) ?? '—' })}
+                                                            </span>
+                                                        </div>
                                                     </div>
 
                                                     <div className="hfc-bars">
