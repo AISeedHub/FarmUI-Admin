@@ -10,8 +10,6 @@ import {
     MemoryStick,
     HardDrive,
     Clock,
-    Plug,
-    PlugZap,
     Cable,
     CheckCircle2,
     XCircle,
