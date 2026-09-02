@@ -33,13 +33,21 @@ const PERIOD_OPTIONS = ['1h', '6h', '24h', '7d', '30d'];
 
 // Per-period default downsample resolution for the history chart.
 const DEFAULT_AGGREGATE: Record<string, string> = {
-    '1h': '',
-    '6h': '',
-    '24h': '5m',
+    '1h': '5m',
+    '6h': '5m',
+    '24h': '15m',
     '7d': '1h',
     '30d': '6h'
 };
-const AGGREGATE_OPTIONS = ['', '5m', '15m', '1h', '6h'];
+
+// Available downsample options per period (raw is only permitted for 1h to avoid heavy queries).
+const AGGREGATE_OPTIONS_BY_PERIOD: Record<string, string[]> = {
+    '1h': ['5m', '15m', ''],
+    '6h': ['5m', '15m', '1h'],
+    '24h': ['5m', '15m', '1h', '6h'],
+    '7d': ['15m', '1h', '6h'],
+    '30d': ['1h', '6h']
+};
 
 // Metrics rendered as 0–100% usage bars / chart lines.
 const USAGE_FIELDS = [
@@ -283,7 +291,7 @@ export default function SystemHealth() {
     const [history, setHistory] = useState<EdgeHealthHistoryResponse | null>(null);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyPeriod, setHistoryPeriod] = useState('24h');
-    const [historyAggregate, setHistoryAggregate] = useState('5m');
+    const [historyAggregate, setHistoryAggregate] = useState(DEFAULT_AGGREGATE['24h']);
 
     const farmMap = useMemo(() => {
         const m: Record<string, Farm> = {};
@@ -665,7 +673,7 @@ export default function SystemHealth() {
                                         className={`health-pill ${historyPeriod === p ? 'active' : ''}`}
                                         onClick={() => {
                                             setHistoryPeriod(p);
-                                            setHistoryAggregate(DEFAULT_AGGREGATE[p] ?? '');
+                                            setHistoryAggregate(DEFAULT_AGGREGATE[p] ?? '5m');
                                         }}
                                     >
                                         {p}
@@ -675,7 +683,7 @@ export default function SystemHealth() {
                             <div className="hhm-aggregate">
                                 <label>{t('health.historyAggregate')}</label>
                                 <select value={historyAggregate} onChange={e => setHistoryAggregate(e.target.value)}>
-                                    {AGGREGATE_OPTIONS.map(a => (
+                                    {(AGGREGATE_OPTIONS_BY_PERIOD[historyPeriod] ?? ['5m', '15m', '1h', '6h']).map(a => (
                                         <option key={a || 'raw'} value={a}>{a || t('health.aggregateRaw')}</option>
                                     ))}
                                 </select>
