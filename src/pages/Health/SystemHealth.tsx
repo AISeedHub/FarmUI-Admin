@@ -704,27 +704,59 @@ export default function SystemHealth() {
 
                                     {/* Latest snapshot read out from the most recent record per series */}
                                     <div className="hhm-snapshot">
-                                        <span className="hhm-snapshot-title">{t('health.currentSnapshot')}</span>
-                                        <div className="hhm-snapshot-vals">
-                                            <div className="hhm-snapshot-val">
-                                                <span className="label" style={{ color: 'var(--text-muted)' }}>Status</span>
-                                                <span className={`value ${historyFarm.status === 'online' ? 'healthy' : 'critical'}`}>
-                                                    {historyFarm.status === 'online' ? t('health.statusOnline') : t('health.statusOffline')}
-                                                </span>
+                                        <div className="hhm-snapshot-head">
+                                            <Activity size={13} className="hhm-snapshot-icon" />
+                                            <span className="hhm-snapshot-title">{t('health.currentSnapshot')}</span>
+                                        </div>
+                                        <div className="hhm-snapshot-grid">
+                                            <div className="hhm-snapshot-card">
+                                                <div className="hhm-snapshot-label">
+                                                    <Activity size={12} />
+                                                    <span>{t('health.status')}</span>
+                                                </div>
+                                                <div className="hhm-snapshot-badge-wrap">
+                                                    <span className={`health-status-badge ${historyFarm.status === 'online' ? 'healthy' : 'critical'}`}>
+                                                        <span className="dot"></span>
+                                                        {historyFarm.status === 'online' ? t('health.statusOnline') : t('health.statusOffline')}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="hhm-snapshot-val">
-                                                <span className="label" style={{ color: '#059669' }}>{t('health.bconLink')}</span>
-                                                <span className={`value ${historyFarm.modbus_connected ? 'healthy' : 'critical'}`}>
-                                                    {historyFarm.modbus_connected ? t('health.modbusConnected') : t('health.modbusLost')}
-                                                </span>
+
+                                            <div className="hhm-snapshot-card">
+                                                <div className="hhm-snapshot-label">
+                                                    <Cable size={12} />
+                                                    <span>{t('health.bconLink')}</span>
+                                                </div>
+                                                <div className="hhm-snapshot-badge-wrap">
+                                                    <span className={`health-status-badge ${historyFarm.modbus_connected ? 'healthy' : 'critical'}`}>
+                                                        <span className="dot"></span>
+                                                        {historyFarm.modbus_connected ? t('health.modbusConnected') : t('health.modbusLost')}
+                                                    </span>
+                                                </div>
                                             </div>
+
                                             {historySeries.map(s => {
                                                 const last = s.points[s.points.length - 1];
                                                 const lvl = usageLevel(last.v);
+                                                const valRounded = Math.round(last.v);
+                                                const fieldDef = USAGE_FIELDS.find(f => f.key === s.key);
+                                                const Icon = fieldDef?.icon;
+
                                                 return (
-                                                    <div key={s.key} className="hhm-snapshot-val">
-                                                        <span className="label" style={{ color: s.color }}>{s.label}</span>
-                                                        <span className={`value ${lvl}`}>{Math.round(last.v)}%</span>
+                                                    <div key={s.key} className="hhm-snapshot-card">
+                                                        <div className="hhm-snapshot-label">
+                                                            {Icon ? <Icon size={12} style={{ color: s.color }} /> : <span className="hhm-snapshot-dot" style={{ background: s.color }} />}
+                                                            <span>{s.label}</span>
+                                                        </div>
+                                                        <div className="hhm-snapshot-metric">
+                                                            <span className={`hhm-snapshot-val ${lvl}`}>{valRounded}%</span>
+                                                            <div className="hhm-snapshot-bar-track">
+                                                                <div
+                                                                    className={`hhm-snapshot-bar-fill ${lvl}`}
+                                                                    style={{ width: `${Math.min(100, Math.max(0, valRounded))}%`, background: s.color }}
+                                                                />
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 );
                                             })}

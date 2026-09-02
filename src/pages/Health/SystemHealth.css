@@ -813,6 +813,19 @@
 .hhm-snapshot {
     border-top: 1px solid var(--border);
     padding-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.hhm-snapshot-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hhm-snapshot-icon {
+    color: var(--text-muted);
 }
 
 .hhm-snapshot-title {
@@ -823,31 +836,114 @@
     letter-spacing: 0.05em;
 }
 
-.hhm-snapshot-vals {
-    display: flex;
-    gap: 24px;
-    margin-top: 10px;
+.hhm-snapshot-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
 }
 
-.hhm-snapshot-val {
+.hhm-snapshot-card {
+    background: var(--bg-color);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    transition: var(--transition-smooth);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .hhm-snapshot-card:hover {
+        border-color: var(--border-active);
+        background: #fff;
+    }
+}
+
+.hhm-snapshot-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hhm-snapshot-label svg {
+    flex-shrink: 0;
+}
+
+.hhm-snapshot-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.hhm-snapshot-badge-wrap {
+    display: flex;
+    align-items: center;
+}
+
+.hhm-snapshot-badge-wrap .health-status-badge {
+    font-size: 11px;
+    padding: 2.5px 8px;
+}
+
+.hhm-snapshot-metric {
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-.hhm-snapshot-val .label {
-    font-size: 11.5px;
-    font-weight: 600;
-}
-
-.hhm-snapshot-val .value {
-    font-size: 22px;
-    font-weight: 600;
+.hhm-snapshot-val {
+    font-size: 15px;
+    font-weight: 700;
     font-family: var(--font-mono);
+    line-height: 1.2;
+    color: var(--text-main);
 }
 
-.hhm-snapshot-val .value.warning { color: var(--color-warning); }
-.hhm-snapshot-val .value.critical { color: var(--color-danger); }
+.hhm-snapshot-val.healthy {
+    color: var(--text-main);
+}
+
+.hhm-snapshot-val.warning {
+    color: var(--color-warning);
+}
+
+.hhm-snapshot-val.critical {
+    color: var(--color-danger);
+}
+
+.hhm-snapshot-bar-track {
+    width: 100%;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.hhm-snapshot-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.hhm-snapshot-bar-fill.warning {
+    background: var(--color-warning) !important;
+}
+
+.hhm-snapshot-bar-fill.critical {
+    background: var(--color-danger) !important;
+}
 
 /* ==========================================================================
    RESPONSIVE — mốc theo quy ước ở index.css (trước đây là 1100px/720px)
@@ -901,10 +997,19 @@
     .health-history-modal {
         padding: 18px;
     }
+    .hhm-snapshot-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .hhm-snapshot-grid .hhm-snapshot-card:last-child:nth-child(odd) {
+        grid-column: span 2;
+    }
 }
 
 @media (max-width: 420px) {
     .health-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+    .hhm-snapshot-grid {
         grid-template-columns: 1fr;
     }
 }

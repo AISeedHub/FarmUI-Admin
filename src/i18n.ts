@@ -788,6 +788,7 @@ const resources = {
             "health.avgDisk": "AVG DISK",
             // Farm card
             "health.farmlink": "FarmLink",
+            "health.status": "Status",
             "health.statusOnline": "Online",
             "health.statusOffline": "Offline",
             "health.lastSeen": "Last seen {{time}}",
@@ -1644,6 +1645,7 @@ const resources = {
             "health.avgDisk": "평균 디스크",
             // Farm card
             "health.farmlink": "FarmLink",
+            "health.status": "상태",
             "health.statusOnline": "온라인",
             "health.statusOffline": "오프라인",
             "health.lastSeen": "마지막 수신 {{time}}",
