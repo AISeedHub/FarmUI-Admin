@@ -270,7 +270,6 @@ export default function SystemHealth() {
     // Fleet edge-health (GET /admin/edge-health)
     const [fleet, setFleet] = useState<EdgeHealthFleetResponse | null>(null);
     const [fleetForbidden, setFleetForbidden] = useState(false);
-    const [period, setPeriod] = useState('24h');
 
     // Farm catalog → map farm_id to name/code for nicer labels
     const [farms, setFarms] = useState<Farm[]>([]);
@@ -299,12 +298,12 @@ export default function SystemHealth() {
         return m;
     }, [farms]);
 
-    const loadAll = useCallback(async (selectedPeriod: string, isInitial = false) => {
+    const loadAll = useCallback(async (isInitial = false) => {
         if (isInitial) setLoading(true); else setRefreshing(true);
 
         const [infraRes, fleetRes, farmsRes] = await Promise.allSettled([
             healthApi.getInfra(),
-            healthApi.getFleetEdgeHealth(selectedPeriod),
+            healthApi.getFleetEdgeHealth(),
             farmsApi.getAll()
         ]);
 
@@ -332,20 +331,19 @@ export default function SystemHealth() {
         setRefreshing(false);
     }, []);
 
-    // Initial load + reload whenever the fleet period changes.
+    // Initial load.
     useEffect(() => {
-        loadAll(period, infra === null && fleet === null);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [period]);
+        loadAll(infra === null && fleet === null);
+    }, [loadAll]);
 
     // Auto-refresh every 30s (skips while a history modal is open to avoid churn).
     useEffect(() => {
         if (!autoRefresh) return;
         const id = setInterval(() => {
-            if (!historyFarm) loadAll(period);
+            if (!historyFarm) loadAll();
         }, 30000);
         return () => clearInterval(id);
-    }, [autoRefresh, period, historyFarm, loadAll]);
+    }, [autoRefresh, historyFarm, loadAll]);
 
     // Load history for the selected farm whenever it / its period / resolution changes.
     useEffect(() => {
@@ -441,7 +439,7 @@ export default function SystemHealth() {
                         />
                         <span>{t('health.autoRefresh')}</span>
                     </label>
-                    <button className="health-refresh-btn" onClick={() => loadAll(period)} disabled={refreshing}>
+                    <button className="health-refresh-btn" onClick={() => loadAll()} disabled={refreshing}>
                         <RefreshCw size={14} className={refreshing ? 'spin' : ''} /> {t('health.refresh')}
                     </button>
                 </div>
@@ -502,18 +500,7 @@ export default function SystemHealth() {
                         <div className="health-section-head bare">
                             <div>
                                 <h3><Activity size={16} /> {t('health.fleetTitle')}</h3>
-                                <p>{t('health.fleetDesc', { period })}</p>
-                            </div>
-                            <div className="health-period-pills">
-                                {PERIOD_OPTIONS.map(p => (
-                                    <button
-                                        key={p}
-                                        className={`health-pill ${period === p ? 'active' : ''}`}
-                                        onClick={() => setPeriod(p)}
-                                    >
-                                        {p}
-                                    </button>
-                                ))}
+                                <p>{t('health.fleetDesc')}</p>
                             </div>
                         </div>
 

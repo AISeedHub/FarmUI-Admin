@@ -511,6 +511,10 @@ export default function FarmDetail() {
                 {/* Metrics list */}
                 <div className="sidebar-metrics">
                     <div className="metric-row">
+                        <span className="label">FARM ID</span>
+                        <span className="value" style={{ fontFamily: 'monospace', fontSize: '0.82em' }}>{farm.id}</span>
+                    </div>
+                    <div className="metric-row">
                         <span className="label">{t('detail.region')}</span>
                         <span className="value">{farm.location}</span>
                     </div>
