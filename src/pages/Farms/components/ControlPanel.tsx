@@ -19,12 +19,6 @@ interface PendingWrite {
     value: number;
 }
 
-// FarmLink publishes edge health every 300s (mqtt_health_interval_seconds), and the
-// snapshot's `status` is just the tag of the last point — it never flips to offline
-// by itself. So "no point within two publish cycles" IS the offline signal, hence
-// this lookback window rather than the default 24h.
-const EDGE_HEALTH_WINDOW = '15m';
-
 type EdgeState = 'checking' | 'online' | 'offline';
 
 // How a writable register is rendered, derived from its metadata:
@@ -107,7 +101,7 @@ export default function ControlPanel({ farmId }: ControlPanelProps) {
     const checkEdge = async () => {
         setEdge('checking');
         try {
-            const fleet = await healthApi.getFleetEdgeHealth(EDGE_HEALTH_WINDOW);
+            const fleet = await healthApi.getFleetEdgeHealth();
             const mine = fleet.farms.find(f => f.farm_id === farmId);
             setEdge(mine && mine.status === 'online' ? 'online' : 'offline');
         } catch (err) {

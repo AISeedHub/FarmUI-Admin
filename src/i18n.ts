@@ -776,9 +776,9 @@ const resources = {
             "health.noDetail": "No issues reported",
             // Edge-health fleet (GET /admin/edge-health)
             "health.fleetTitle": "Edge gateway fleet",
-            "health.fleetDesc": "Latest host & modbus telemetry per farm · last {{period}}",
+            "health.fleetDesc": "Latest host & modbus telemetry per farm",
             "health.forbidden": "Edge gateway telemetry is restricted to super administrators.",
-            "health.fleetEmpty": "No farms have reported edge health in this window.",
+            "health.fleetEmpty": "No farms have reported edge health.",
             "health.farmsReporting": "REPORTING",
             "health.farmsOnline": "ONLINE",
             "health.farmsOffline": "OFFLINE / STALE",
@@ -788,6 +788,7 @@ const resources = {
             "health.avgDisk": "AVG DISK",
             // Farm card
             "health.farmlink": "FarmLink",
+            "health.status": "Status",
             "health.statusOnline": "Online",
             "health.statusOffline": "Offline",
             "health.lastSeen": "Last seen {{time}}",
@@ -1632,9 +1633,9 @@ const resources = {
             "health.noDetail": "보고된 문제 없음",
             // Edge-health fleet (GET /admin/edge-health)
             "health.fleetTitle": "엣지 게이트웨이 플리트",
-            "health.fleetDesc": "농장별 최신 호스트 및 모드버스 텔레메트리 · 최근 {{period}}",
+            "health.fleetDesc": "농장별 최신 호스트 및 모드버스 텔레메트리",
             "health.forbidden": "엣지 게이트웨이 텔레메트리는 최고 관리자만 조회할 수 있습니다.",
-            "health.fleetEmpty": "이 기간에 엣지 상태를 보고한 농장이 없습니다.",
+            "health.fleetEmpty": "엣지 상태를 보고한 농장이 없습니다.",
             "health.farmsReporting": "보고 중",
             "health.farmsOnline": "온라인",
             "health.farmsOffline": "오프라인 / 지연",
@@ -1644,6 +1645,7 @@ const resources = {
             "health.avgDisk": "평균 디스크",
             // Farm card
             "health.farmlink": "FarmLink",
+            "health.status": "상태",
             "health.statusOnline": "온라인",
             "health.statusOffline": "오프라인",
             "health.lastSeen": "마지막 수신 {{time}}",

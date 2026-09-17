@@ -33,13 +33,21 @@ const PERIOD_OPTIONS = ['1h', '6h', '24h', '7d', '30d'];
 
 // Per-period default downsample resolution for the history chart.
 const DEFAULT_AGGREGATE: Record<string, string> = {
-    '1h': '',
-    '6h': '',
-    '24h': '5m',
+    '1h': '5m',
+    '6h': '5m',
+    '24h': '15m',
     '7d': '1h',
     '30d': '6h'
 };
-const AGGREGATE_OPTIONS = ['', '5m', '15m', '1h', '6h'];
+
+// Available downsample options per period (raw is only permitted for 1h to avoid heavy queries).
+const AGGREGATE_OPTIONS_BY_PERIOD: Record<string, string[]> = {
+    '1h': ['5m', '15m', ''],
+    '6h': ['5m', '15m', '1h'],
+    '24h': ['5m', '15m', '1h', '6h'],
+    '7d': ['15m', '1h', '6h'],
+    '30d': ['1h', '6h']
+};
 
 // Metrics rendered as 0–100% usage bars / chart lines.
 const USAGE_FIELDS = [
@@ -262,7 +270,6 @@ export default function SystemHealth() {
     // Fleet edge-health (GET /admin/edge-health)
     const [fleet, setFleet] = useState<EdgeHealthFleetResponse | null>(null);
     const [fleetForbidden, setFleetForbidden] = useState(false);
-    const [period, setPeriod] = useState('24h');
 
     // Farm catalog → map farm_id to name/code for nicer labels
     const [farms, setFarms] = useState<Farm[]>([]);
@@ -283,7 +290,7 @@ export default function SystemHealth() {
     const [history, setHistory] = useState<EdgeHealthHistoryResponse | null>(null);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyPeriod, setHistoryPeriod] = useState('24h');
-    const [historyAggregate, setHistoryAggregate] = useState('5m');
+    const [historyAggregate, setHistoryAggregate] = useState(DEFAULT_AGGREGATE['24h']);
 
     const farmMap = useMemo(() => {
         const m: Record<string, Farm> = {};
@@ -291,12 +298,12 @@ export default function SystemHealth() {
         return m;
     }, [farms]);
 
-    const loadAll = useCallback(async (selectedPeriod: string, isInitial = false) => {
+    const loadAll = useCallback(async (isInitial = false) => {
         if (isInitial) setLoading(true); else setRefreshing(true);
 
         const [infraRes, fleetRes, farmsRes] = await Promise.allSettled([
             healthApi.getInfra(),
-            healthApi.getFleetEdgeHealth(selectedPeriod),
+            healthApi.getFleetEdgeHealth(),
             farmsApi.getAll()
         ]);
 
@@ -324,20 +331,19 @@ export default function SystemHealth() {
         setRefreshing(false);
     }, []);
 
-    // Initial load + reload whenever the fleet period changes.
+    // Initial load.
     useEffect(() => {
-        loadAll(period, infra === null && fleet === null);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [period]);
+        loadAll(infra === null && fleet === null);
+    }, [loadAll]);
 
     // Auto-refresh every 30s (skips while a history modal is open to avoid churn).
     useEffect(() => {
         if (!autoRefresh) return;
         const id = setInterval(() => {
-            if (!historyFarm) loadAll(period);
+            if (!historyFarm) loadAll();
         }, 30000);
         return () => clearInterval(id);
-    }, [autoRefresh, period, historyFarm, loadAll]);
+    }, [autoRefresh, historyFarm, loadAll]);
 
     // Load history for the selected farm whenever it / its period / resolution changes.
     useEffect(() => {
@@ -433,7 +439,7 @@ export default function SystemHealth() {
                         />
                         <span>{t('health.autoRefresh')}</span>
                     </label>
-                    <button className="health-refresh-btn" onClick={() => loadAll(period)} disabled={refreshing}>
+                    <button className="health-refresh-btn" onClick={() => loadAll()} disabled={refreshing}>
                         <RefreshCw size={14} className={refreshing ? 'spin' : ''} /> {t('health.refresh')}
                     </button>
                 </div>
@@ -494,18 +500,7 @@ export default function SystemHealth() {
                         <div className="health-section-head bare">
                             <div>
                                 <h3><Activity size={16} /> {t('health.fleetTitle')}</h3>
-                                <p>{t('health.fleetDesc', { period })}</p>
-                            </div>
-                            <div className="health-period-pills">
-                                {PERIOD_OPTIONS.map(p => (
-                                    <button
-                                        key={p}
-                                        className={`health-pill ${period === p ? 'active' : ''}`}
-                                        onClick={() => setPeriod(p)}
-                                    >
-                                        {p}
-                                    </button>
-                                ))}
+                                <p>{t('health.fleetDesc')}</p>
                             </div>
                         </div>
 
@@ -665,7 +660,7 @@ export default function SystemHealth() {
                                         className={`health-pill ${historyPeriod === p ? 'active' : ''}`}
                                         onClick={() => {
                                             setHistoryPeriod(p);
-                                            setHistoryAggregate(DEFAULT_AGGREGATE[p] ?? '');
+                                            setHistoryAggregate(DEFAULT_AGGREGATE[p] ?? '5m');
                                         }}
                                     >
                                         {p}
@@ -675,7 +670,7 @@ export default function SystemHealth() {
                             <div className="hhm-aggregate">
                                 <label>{t('health.historyAggregate')}</label>
                                 <select value={historyAggregate} onChange={e => setHistoryAggregate(e.target.value)}>
-                                    {AGGREGATE_OPTIONS.map(a => (
+                                    {(AGGREGATE_OPTIONS_BY_PERIOD[historyPeriod] ?? ['5m', '15m', '1h', '6h']).map(a => (
                                         <option key={a || 'raw'} value={a}>{a || t('health.aggregateRaw')}</option>
                                     ))}
                                 </select>
@@ -704,27 +699,59 @@ export default function SystemHealth() {
 
                                     {/* Latest snapshot read out from the most recent record per series */}
                                     <div className="hhm-snapshot">
-                                        <span className="hhm-snapshot-title">{t('health.currentSnapshot')}</span>
-                                        <div className="hhm-snapshot-vals">
-                                            <div className="hhm-snapshot-val">
-                                                <span className="label" style={{ color: 'var(--text-muted)' }}>Status</span>
-                                                <span className={`value ${historyFarm.status === 'online' ? 'healthy' : 'critical'}`}>
-                                                    {historyFarm.status === 'online' ? t('health.statusOnline') : t('health.statusOffline')}
-                                                </span>
+                                        <div className="hhm-snapshot-head">
+                                            <Activity size={13} className="hhm-snapshot-icon" />
+                                            <span className="hhm-snapshot-title">{t('health.currentSnapshot')}</span>
+                                        </div>
+                                        <div className="hhm-snapshot-grid">
+                                            <div className="hhm-snapshot-card">
+                                                <div className="hhm-snapshot-label">
+                                                    <Activity size={12} />
+                                                    <span>{t('health.status')}</span>
+                                                </div>
+                                                <div className="hhm-snapshot-badge-wrap">
+                                                    <span className={`health-status-badge ${historyFarm.status === 'online' ? 'healthy' : 'critical'}`}>
+                                                        <span className="dot"></span>
+                                                        {historyFarm.status === 'online' ? t('health.statusOnline') : t('health.statusOffline')}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="hhm-snapshot-val">
-                                                <span className="label" style={{ color: '#059669' }}>{t('health.bconLink')}</span>
-                                                <span className={`value ${historyFarm.modbus_connected ? 'healthy' : 'critical'}`}>
-                                                    {historyFarm.modbus_connected ? t('health.modbusConnected') : t('health.modbusLost')}
-                                                </span>
+
+                                            <div className="hhm-snapshot-card">
+                                                <div className="hhm-snapshot-label">
+                                                    <Cable size={12} />
+                                                    <span>{t('health.bconLink')}</span>
+                                                </div>
+                                                <div className="hhm-snapshot-badge-wrap">
+                                                    <span className={`health-status-badge ${historyFarm.modbus_connected ? 'healthy' : 'critical'}`}>
+                                                        <span className="dot"></span>
+                                                        {historyFarm.modbus_connected ? t('health.modbusConnected') : t('health.modbusLost')}
+                                                    </span>
+                                                </div>
                                             </div>
+
                                             {historySeries.map(s => {
                                                 const last = s.points[s.points.length - 1];
                                                 const lvl = usageLevel(last.v);
+                                                const valRounded = Math.round(last.v);
+                                                const fieldDef = USAGE_FIELDS.find(f => f.key === s.key);
+                                                const Icon = fieldDef?.icon;
+
                                                 return (
-                                                    <div key={s.key} className="hhm-snapshot-val">
-                                                        <span className="label" style={{ color: s.color }}>{s.label}</span>
-                                                        <span className={`value ${lvl}`}>{Math.round(last.v)}%</span>
+                                                    <div key={s.key} className="hhm-snapshot-card">
+                                                        <div className="hhm-snapshot-label">
+                                                            {Icon ? <Icon size={12} style={{ color: s.color }} /> : <span className="hhm-snapshot-dot" style={{ background: s.color }} />}
+                                                            <span>{s.label}</span>
+                                                        </div>
+                                                        <div className="hhm-snapshot-metric">
+                                                            <span className={`hhm-snapshot-val ${lvl}`}>{valRounded}%</span>
+                                                            <div className="hhm-snapshot-bar-track">
+                                                                <div
+                                                                    className={`hhm-snapshot-bar-fill ${lvl}`}
+                                                                    style={{ width: `${Math.min(100, Math.max(0, valRounded))}%`, background: s.color }}
+                                                                />
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 );
                                             })}

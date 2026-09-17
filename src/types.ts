@@ -584,7 +584,7 @@ export interface EdgeHealthFarm {
 }
 
 export interface EdgeHealthFleetResponse {
-    period: string;
+    period?: string;
     farms: EdgeHealthFarm[];
 }
 

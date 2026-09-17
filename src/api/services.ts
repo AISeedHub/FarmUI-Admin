@@ -667,9 +667,9 @@ export const healthApi = {
         return fetchJson('/health');
     },
     // Fleet edge-health overview — latest snapshot per farm. super_admin only
-    // (throws "API Error: 403" otherwise). `period` is an Influx duration.
-    getFleetEdgeHealth: (period: string = '24h'): Promise<EdgeHealthFleetResponse> => {
-        return fetchJson(`/admin/edge-health?period=${encodeURIComponent(period)}`);
+    // (throws "API Error: 403" otherwise).
+    getFleetEdgeHealth: (): Promise<EdgeHealthFleetResponse> => {
+        return fetchJson('/admin/edge-health');
     },
     // Time-series edge health for a single farm. `aggregate_every` (e.g. "5m")
     // downsamples numeric fields for long ranges; omit it for raw records.
