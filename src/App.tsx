@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import AdminLayout from './layouts/AdminLayout';
@@ -10,20 +10,49 @@ import RolesList from './pages/Roles/RolesList';
 import FleetAnalytics from './pages/Analytics/FleetAnalytics';
 import SystemHealth from './pages/Health/SystemHealth';
 import NotificationsManager from './pages/Notifications/NotificationsManager';
+import { isTokenValid, getTokenRemainingTime } from './utils/auth';
 
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return isTokenValid(localStorage.getItem('access_token'));
+  });
 
-  // Clear session on page refresh/reload
-  useEffect(() => {
+  const handleLogout = useCallback(() => {
+    setIsAuthenticated(false);
     localStorage.removeItem('access_token');
   }, []);
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('access_token');
-  };
+  // Listen to 401 unauthorized events and schedule auto-logout when JWT expires
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      handleLogout();
+    };
+
+    window.addEventListener('auth:expired', handleAuthExpired);
+
+    if (isAuthenticated) {
+      const token = localStorage.getItem('access_token');
+      if (!isTokenValid(token)) {
+        handleLogout();
+      } else {
+        const remainingMs = getTokenRemainingTime(token);
+        if (remainingMs > 0) {
+          const timer = setTimeout(() => {
+            handleLogout();
+          }, remainingMs);
+          return () => {
+            clearTimeout(timer);
+            window.removeEventListener('auth:expired', handleAuthExpired);
+          };
+        }
+      }
+    }
+
+    return () => {
+      window.removeEventListener('auth:expired', handleAuthExpired);
+    };
+  }, [isAuthenticated, handleLogout]);
 
   return (
     <BrowserRouter>
@@ -31,7 +60,7 @@ export default function App() {
         <Route
           path="/login"
           element={
-            <Login onLogin={() => setIsAuthenticated(true)} />
+            isAuthenticated ? <Navigate to="/overview" replace /> : <Login onLogin={() => setIsAuthenticated(true)} />
           }
         />
 
