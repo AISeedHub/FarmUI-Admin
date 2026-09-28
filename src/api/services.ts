@@ -68,6 +68,10 @@ const fetchJson = async (url: string, options?: RequestInit) => {
     });
 
     if (!response.ok) {
+        if (response.status === 401) {
+            localStorage.removeItem('access_token');
+            window.dispatchEvent(new CustomEvent('auth:expired'));
+        }
         let detail: unknown = null;
         try {
             const body = await response.json();
@@ -335,6 +339,10 @@ export const automationsApi = {
         }
         const response = await fetch(`${API_BASE_URL}/farms/${farmId}/rules?format=yaml`, { headers });
         if (!response.ok) {
+            if (response.status === 401) {
+                localStorage.removeItem('access_token');
+                window.dispatchEvent(new CustomEvent('auth:expired'));
+            }
             throw new Error(`API Error: ${response.status} ${response.statusText}`);
         }
         return response.text();
