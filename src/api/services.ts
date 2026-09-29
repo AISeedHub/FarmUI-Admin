@@ -193,7 +193,7 @@ export const registersApi = {
 };
 
 // ── Cameras (farm-scoped, optionally zone-scoped) ──────────────────────────
-// rtsp_url returned here carries credentials — admin surface only.
+// stream_url returned here carries credentials — admin surface only.
 export const camerasApi = {
     getByFarm: (farmId: string): Promise<Camera[]> => {
         return fetchJson(`/farms/${farmId}/cameras`);

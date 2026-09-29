@@ -604,7 +604,7 @@ export interface EdgeHealthHistoryResponse {
 }
 
 // ── Cameras (farm-scoped, optionally zone-scoped) ──────────────────────────
-// FE picks the player from stream_protocol. rtsp_url carries credentials and is
+// FE picks the player from stream_protocol. stream_url carries credentials and is
 // admin-only — mask it in any shared/list view.
 export type StreamProtocol = 'webrtc' | 'hls' | 'rtsp';
 
@@ -617,7 +617,8 @@ export interface Camera {
     name: string;
     display_names: Record<string, string> | null; // { "vi": "...", "en": "..." }
     description: string | null;
-    rtsp_url: string; // ⚠️ includes credentials — admin-only
+    stream_url: string | null; // ⚠️ includes credentials — admin-only
+    rtsp_url?: string | null; // backward compatibility fallback
     stream_key: string | null; // id/path on the media server (unique when set)
     stream_protocol: StreamProtocol;
     is_active: boolean;
@@ -634,7 +635,7 @@ export interface CameraCreate {
     name: string; // required, max 255
     display_names?: Record<string, string> | null;
     description?: string | null;
-    rtsp_url: string; // required
+    stream_url?: string | null;
     stream_key?: string | null; // max 255, globally unique when set
     stream_protocol?: StreamProtocol; // default "webrtc"
     is_active?: boolean; // default true
@@ -648,7 +649,7 @@ export interface CameraUpdate {
     name?: string;
     display_names?: Record<string, string> | null;
     description?: string | null;
-    rtsp_url?: string;
+    stream_url?: string | null;
     stream_key?: string | null;
     stream_protocol?: StreamProtocol;
     is_active?: boolean;
