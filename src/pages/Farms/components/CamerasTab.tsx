@@ -45,14 +45,14 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
     const [editId, setEditId] = useState<string | null>(null);
     const [form, setForm] = useState<CameraForm>({});
     const [saving, setSaving] = useState(false);
-    const [revealUrl, setRevealUrl] = useState(false); // reveal rtsp_url inside the modal
+    const [revealUrl, setRevealUrl] = useState(false); // reveal stream_url inside the modal
 
     // Independent "create camera-zone" sub-modal (opens over the camera form).
     const [zoneModalOpen, setZoneModalOpen] = useState(false);
     const [zoneForm, setZoneForm] = useState<{ name?: string; code?: string; displayNamesStr?: string }>({});
     const [savingZone, setSavingZone] = useState(false);
 
-    // Per-card reveal + copy feedback for the (credential-bearing) rtsp_url.
+    // Per-card reveal + copy feedback for the (credential-bearing) stream_url.
     const [revealed, setRevealed] = useState<Record<string, boolean>>({});
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -84,10 +84,16 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
 
     const cameraName = (cam: Camera) => localizedName(cam, i18n.language);
 
-    const maskUrl = (url: string) => {
-        // Hide credentials and host; keep the scheme so it still reads as an RTSP source.
-        const scheme = url.split('://')[0];
-        return `${scheme}://••••••••••••`;
+    const getCamStreamUrl = (c: Camera | CameraForm) => c.stream_url ?? (c as any).rtsp_url ?? null;
+
+    const maskUrl = (url?: string | null) => {
+        if (!url) return '—';
+        // Hide credentials and host; keep the scheme so it still reads cleanly.
+        if (url.includes('://')) {
+            const scheme = url.split('://')[0];
+            return `${scheme}://••••••••••••`;
+        }
+        return '••••••••••••';
     };
 
     const openCreate = () => {
@@ -99,6 +105,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
             display_order: cameras.length,
             zone_id: zoneFilter !== 'all' && zoneFilter !== 'unassigned' ? zoneFilter : null,
             displayNamesStr: emptyDisplayNamesText(),
+            stream_url: '',
         });
         setModalOpen(true);
     };
@@ -106,7 +113,11 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
     const openEdit = (cam: Camera) => {
         setEditId(cam.id);
         setRevealUrl(false);
-        setForm({ ...cam, displayNamesStr: displayNamesToText(cam.display_names) });
+        setForm({
+            ...cam,
+            stream_url: getCamStreamUrl(cam) || '',
+            displayNamesStr: displayNamesToText(cam.display_names),
+        });
         setModalOpen(true);
     };
 
@@ -162,7 +173,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
 
     const handleSave = async () => {
         // Required-field guard mirrors the backend constraints.
-        if (!form.code?.trim() || !form.name?.trim() || !form.rtsp_url?.trim()) {
+        if (!form.code?.trim() || !form.name?.trim()) {
             alert(t('camera.vRequired'));
             return;
         }
@@ -185,7 +196,7 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                 name: form.name.trim(),
                 display_names: dn.value,
                 description: form.description?.trim() || null,
-                rtsp_url: form.rtsp_url.trim(),
+                stream_url: form.stream_url?.trim() || null,
                 stream_key: form.stream_key?.trim() || null,
                 stream_protocol: form.stream_protocol || 'webrtc',
                 is_active: form.is_active ?? true,
@@ -230,8 +241,10 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
     };
 
     const handleCopyUrl = async (cam: Camera) => {
+        const url = getCamStreamUrl(cam);
+        if (!url) return;
         try {
-            await navigator.clipboard.writeText(cam.rtsp_url);
+            await navigator.clipboard.writeText(url);
             setCopiedId(cam.id);
             setTimeout(() => setCopiedId(prev => (prev === cam.id ? null : prev)), 1500);
         } catch {
@@ -364,26 +377,35 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
                                         </span>
                                     </div>
 
-                                    <div className="rtsp-row">
-                                        <span className="rtsp-label">RTSP</span>
-                                        <code className="rtsp-url">
-                                            {revealed[cam.id] ? cam.rtsp_url : maskUrl(cam.rtsp_url)}
-                                        </code>
-                                        <button
-                                            className="icon-btn"
-                                            title={revealed[cam.id] ? t('camera.hideUrl') : t('camera.revealUrl')}
-                                            onClick={() => setRevealed(prev => ({ ...prev, [cam.id]: !prev[cam.id] }))}
-                                        >
-                                            {revealed[cam.id] ? <EyeOff size={13} /> : <Eye size={13} />}
-                                        </button>
-                                        <button
-                                            className="icon-btn"
-                                            title={t('camera.copyUrl')}
-                                            onClick={() => handleCopyUrl(cam)}
-                                        >
-                                            {copiedId === cam.id ? <Check size={13} className="copied" /> : <Copy size={13} />}
-                                        </button>
-                                    </div>
+                                    {(() => {
+                                        const url = getCamStreamUrl(cam);
+                                        return (
+                                            <div className="rtsp-row">
+                                                <span className="rtsp-label">URL</span>
+                                                <code className="rtsp-url">
+                                                    {url ? (revealed[cam.id] ? url : maskUrl(url)) : '—'}
+                                                </code>
+                                                {url && (
+                                                    <>
+                                                        <button
+                                                            className="icon-btn"
+                                                            title={revealed[cam.id] ? t('camera.hideUrl') : t('camera.revealUrl')}
+                                                            onClick={() => setRevealed(prev => ({ ...prev, [cam.id]: !prev[cam.id] }))}
+                                                        >
+                                                            {revealed[cam.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                                                        </button>
+                                                        <button
+                                                            className="icon-btn"
+                                                            title={t('camera.copyUrl')}
+                                                            onClick={() => handleCopyUrl(cam)}
+                                                        >
+                                                            {copiedId === cam.id ? <Check size={13} className="copied" /> : <Copy size={13} />}
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 <div className="camera-footer">
@@ -450,15 +472,15 @@ export default function CamerasTab({ farmId, zones, onZonesChanged }: CamerasTab
 
                             <div className="form-group full-width">
                                 <label className="label-with-hint">
-                                    {t('camera.fRtspUrl')}
+                                    {t('camera.fStreamUrl')}
                                     <span className="cred-warning">{t('camera.rtspWarning')}</span>
                                 </label>
                                 <div className="rtsp-input-wrap">
                                     <input
                                         type={revealUrl ? 'text' : 'password'}
                                         placeholder="rtsp://user:pass@host:554/stream"
-                                        value={form.rtsp_url || ''}
-                                        onChange={e => setForm(f => ({ ...f, rtsp_url: e.target.value }))}
+                                        value={form.stream_url || ''}
+                                        onChange={e => setForm(f => ({ ...f, stream_url: e.target.value }))}
                                     />
                                     <button type="button" className="icon-btn" title={revealUrl ? t('camera.hideUrl') : t('camera.revealUrl')} onClick={() => setRevealUrl(v => !v)}>
                                         {revealUrl ? <EyeOff size={15} /> : <Eye size={15} />}
