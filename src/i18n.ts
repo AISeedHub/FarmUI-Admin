@@ -196,6 +196,14 @@ const resources = {
             "detail.configNoteRisk": "A pushed file is written to the device's disk before it can be fully validated. For automation rules a broken file is survivable: the rules already running in memory keep working, and at worst the next restart comes up with no rules. A broken register map is a different level — FarmLink cannot start at all. A device that cannot start never comes back online (no MQTT connection), so the remote channel you would use to fix it is gone too: someone has to travel to the farm and repair it on-site. This is why remote/automatic apply is deliberately not a feature in production.",
             "detail.configNoteHowL": "How to apply",
             "detail.configNoteHow": "1) Export the YAML from this page · 2) transfer it to the FarmLink edge device · 3) restart FarmLink under direct supervision (e.g. in a maintenance window) and verify the device starts up healthy.",
+            "detail.configPostEditTitle": "FarmLink Update & Restart Required",
+            "detail.configPostEditDesc": "Register-map configuration editing is complete. Because FarmLink edge devices only load configuration at startup, this new register map will NOT take effect on the running farm until applied to FarmLink.",
+            "detail.configPostEditStep1Title": "Update to FarmLink",
+            "detail.configPostEditStep1Desc": "Export the new YAML configuration file and transfer it to the corresponding FarmLink edge gateway.",
+            "detail.configPostEditStep2Title": "Restart FarmLink",
+            "detail.configPostEditStep2Desc": "Restart the FarmLink service on the edge device (e.g. systemctl restart farmlink) to load the new register map and apply all changes.",
+            "detail.configPostEditCloseBtn": "Close",
+            "detail.configPostEditExportBtn": "Export Configuration (YAML)",
 
             // Layout & Nav
             "brand.meta": "AGX-1000 · {{farms}} farms · {{users}} users",
@@ -1054,6 +1062,14 @@ const resources = {
             "detail.configNoteRisk": "전송된 파일은 검증이 끝나기 전에 장치 디스크에 먼저 기록됩니다. 자동화 규칙이라면 파일이 깨져도 견딜 수 있습니다: 메모리에서 실행 중인 규칙은 계속 동작하고, 최악이라도 다음 재시작 때 규칙 없이 켜질 뿐입니다. 하지만 레지스터 맵이 깨지면 차원이 다릅니다 — FarmLink 자체가 부팅되지 않습니다. 부팅되지 않는 장치는 다시 온라인(MQTT 연결)으로 돌아오지 못하므로, 원격으로 고칠 통로마저 사라집니다. 결국 누군가 농장에 직접 가서 복구해야 합니다. 운영 환경에서 원격/자동 적용을 의도적으로 지원하지 않는 이유입니다.",
             "detail.configNoteHowL": "적용 방법",
             "detail.configNoteHow": "1) 이 화면에서 YAML 내보내기 · 2) FarmLink 엣지 장치로 파일 전송 · 3) 관리자의 직접 감독 하에(예: 점검 시간대) FarmLink를 재시작하고 정상 기동을 확인하세요.",
+            "detail.configPostEditTitle": "FarmLink 업데이트 및 재시작 필요",
+            "detail.configPostEditDesc": "레지스터 맵 설정 편집이 완료되었습니다. FarmLink 엣지 장치는 시작 시에만 설정을 로드하므로, FarmLink에 적용하기 전까지는 새 레지스터 맵이 실제 농장에 반영되지 않습니다.",
+            "detail.configPostEditStep1Title": "FarmLink에 업데이트",
+            "detail.configPostEditStep1Desc": "새 YAML 설정 파일을 내보내고 해당 FarmLink 엣지 게이트웨이로 전송하세요.",
+            "detail.configPostEditStep2Title": "FarmLink 재시작",
+            "detail.configPostEditStep2Desc": "엣지 장치에서 FarmLink 서비스(예: systemctl restart farmlink)를 재시작하여 새 레지스터 맵을 로드하고 변경 사항을 적용하세요.",
+            "detail.configPostEditCloseBtn": "닫기",
+            "detail.configPostEditExportBtn": "YAML 설정 내보내기",
 
             // Layout & Nav
             "brand.meta": "AGX-1000 · 농장 {{farms}}개 · 사용자 {{users}}명",

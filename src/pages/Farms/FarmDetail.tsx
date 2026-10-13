@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal, ChevronRight, Download, RefreshCw } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors, BlockerItem, DeleteConflict } from '../../types';
 import { farmsApi, zonesApi, devicesApi, registersApi, ApiError } from '../../api/services';
@@ -34,6 +34,7 @@ export default function FarmDetail() {
     // Config tab is view-only by default; editing must be unlocked through the notice modal.
     const [configEditMode, setConfigEditMode] = useState(false);
     const [editNoticeOpen, setEditNoticeOpen] = useState(false);
+    const [postEditNoticeOpen, setPostEditNoticeOpen] = useState(false);
 
     // Re-lock the register map whenever the admin leaves the config tab.
     useEffect(() => {
@@ -606,7 +607,10 @@ export default function FarmDetail() {
                                         {configEditMode ? (
                                             <button
                                                 className="edit-toggle-btn active flex-center"
-                                                onClick={() => setConfigEditMode(false)}
+                                                onClick={() => {
+                                                    setConfigEditMode(false);
+                                                    setPostEditNoticeOpen(true);
+                                                }}
                                             >
                                                 <Lock size={13} /> {t('detail.configDoneBtn')}
                                             </button>
@@ -908,6 +912,39 @@ export default function FarmDetail() {
                             <button onClick={() => setEditNoticeOpen(false)}>{t('btn.cancel')}</button>
                             <button className="primary" onClick={() => { setEditNoticeOpen(false); setConfigEditMode(true); }}>
                                 {t('detail.configNoticeConfirm')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Post-edit notice for the register-map config tab */}
+            {postEditNoticeOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-content panel config-notice-modal">
+                        <div className="config-notice-head">
+                            <span className="config-notice-icon info"><RefreshCw size={18} /></span>
+                            <h3>{t('detail.configPostEditTitle')}</h3>
+                        </div>
+                        <div className="config-notice-body">
+                            <p>{t('detail.configPostEditDesc')}</p>
+                            <div className="config-post-notice-box">
+                                <p><strong>1. {t('detail.configPostEditStep1Title')}</strong> — {t('detail.configPostEditStep1Desc')}</p>
+                                <p><strong>2. {t('detail.configPostEditStep2Title')}</strong> — {t('detail.configPostEditStep2Desc')}</p>
+                            </div>
+                        </div>
+                        <div className="modal-actions">
+                            <button onClick={() => setPostEditNoticeOpen(false)}>{t('detail.configPostEditCloseBtn')}</button>
+                            <button
+                                className="primary flex-center"
+                                onClick={async () => {
+                                    await handleExport();
+                                    setPostEditNoticeOpen(false);
+                                }}
+                                disabled={exporting}
+                            >
+                                <Download size={14} style={{ marginRight: '6px' }} />
+                                {exporting ? t('btn.exporting') : t('detail.configPostEditExportBtn')}
                             </button>
                         </div>
                     </div>
