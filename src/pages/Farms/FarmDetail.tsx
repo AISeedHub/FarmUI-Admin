@@ -164,65 +164,74 @@ export default function FarmDetail() {
 
     const loadData = async () => {
         setLoading(true);
-        if (!id) return;
-
-        const f = await farmsApi.getById(id);
-        if (!f) {
-            navigate('/farms');
+        if (!id) {
+            setLoading(false);
             return;
         }
-        setFarm(f);
 
-        // Fetch zones
-        const zs = await zonesApi.getByFarm(id);
-        zs.sort((a, b) => a.display_order - b.display_order);
-        setZones(zs);
-
-        const devs = await devicesApi.getByFarm(id);
-        setDevices(devs);
-
-
-        // Set dynamic selections: keep current if still existing, otherwise auto-select first.
-        // The config tab is modbus-only, so camera-zones (default_unit_id == null) are excluded here.
-        const modbusZs = zs.filter(z => z.default_unit_id != null);
-        let activeZoneId = selectedZoneId;
-        const exists = activeZoneId && (activeZoneId === 'unassigned' || modbusZs.some(z => z.id === activeZoneId));
-        if (!exists) {
-            if (modbusZs.length > 0) activeZoneId = modbusZs[0].id;
-            else if (devs.some(d => !d.zone_id)) activeZoneId = 'unassigned';
-            else activeZoneId = null;
-        }
-        setSelectedZoneId(activeZoneId);
-
-        if (activeZoneId) {
-            const zoneDevs = devs.filter(d => activeZoneId === 'unassigned' ? !d.zone_id : d.zone_id === activeZoneId);
-            setSelectedDeviceId(prev => {
-                const devExists = prev && zoneDevs.some(d => d.id === prev);
-                if (devExists) return prev;
-                return zoneDevs.length > 0 ? zoneDevs[0].id : null;
-            });
-        } else {
-            setSelectedDeviceId(null);
-        }
-
-        // Load registers map only for the devices in the active zone (in parallel)
-        const regsMap: Record<string, Register[]> = {};
-        if (activeZoneId) {
-            const zoneDevs = devs.filter(d => activeZoneId === 'unassigned' ? !d.zone_id : d.zone_id === activeZoneId);
-            try {
-                const results = await Promise.all(
-                    zoneDevs.map(d => registersApi.getByDevice(d.id))
-                );
-                zoneDevs.forEach((d, idx) => {
-                    regsMap[d.id] = results[idx];
-                });
-            } catch (error) {
-                console.error("Failed to load registers for active zone devices", error);
+        try {
+            const f = await farmsApi.getById(id);
+            if (!f) {
+                navigate('/farms');
+                return;
             }
-        }
-        setRegisters(regsMap);
+            setFarm(f);
 
-        setLoading(false);
+            // Fetch zones
+            const zs = await zonesApi.getByFarm(id);
+            zs.sort((a, b) => a.display_order - b.display_order);
+            setZones(zs);
+
+            const devs = await devicesApi.getByFarm(id);
+            setDevices(devs);
+
+
+            // Set dynamic selections: keep current if still existing, otherwise auto-select first.
+            // The config tab is modbus-only, so camera-zones (default_unit_id == null) are excluded here.
+            const modbusZs = zs.filter(z => z.default_unit_id != null);
+            let activeZoneId = selectedZoneId;
+            const exists = activeZoneId && (activeZoneId === 'unassigned' || modbusZs.some(z => z.id === activeZoneId));
+            if (!exists) {
+                if (modbusZs.length > 0) activeZoneId = modbusZs[0].id;
+                else if (devs.some(d => !d.zone_id)) activeZoneId = 'unassigned';
+                else activeZoneId = null;
+            }
+            setSelectedZoneId(activeZoneId);
+
+            if (activeZoneId) {
+                const zoneDevs = devs.filter(d => activeZoneId === 'unassigned' ? !d.zone_id : d.zone_id === activeZoneId);
+                setSelectedDeviceId(prev => {
+                    const devExists = prev && zoneDevs.some(d => d.id === prev);
+                    if (devExists) return prev;
+                    return zoneDevs.length > 0 ? zoneDevs[0].id : null;
+                });
+            } else {
+                setSelectedDeviceId(null);
+            }
+
+            // Load registers map only for the devices in the active zone (in parallel)
+            const regsMap: Record<string, Register[]> = {};
+            if (activeZoneId) {
+                const zoneDevs = devs.filter(d => activeZoneId === 'unassigned' ? !d.zone_id : d.zone_id === activeZoneId);
+                try {
+                    const results = await Promise.all(
+                        zoneDevs.map(d => registersApi.getByDevice(d.id))
+                    );
+                    zoneDevs.forEach((d, idx) => {
+                        regsMap[d.id] = results[idx];
+                    });
+                } catch (error) {
+                    console.error("Failed to load registers for active zone devices", error);
+                }
+            }
+            setRegisters(regsMap);
+        } catch (err: any) {
+            console.error('Failed to load farm details:', err);
+            alert(t('farms.loadFailed', { error: err?.message || 'Unknown error' }));
+            navigate('/farms');
+        } finally {
+            setLoading(false);
+        }
     };
 
     // Lightweight zones-only refresh (keeps current drill-down selection intact).
