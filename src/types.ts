@@ -11,6 +11,10 @@ export interface Farm {
     longitude: number | null;
     weather_grid_nx: number | null;
     weather_grid_ny: number | null;
+    kma_asos_stn?: string | null;       // '261'
+    kma_mid_land_regid?: string | null; // '11F20000'
+    kma_mid_ta_regid?: string | null;   // '21F20801'
+    kma_warn_areas?: string[] | null;   // ['해남']
     is_active: boolean;
     created_at?: string;
     updated_at?: string;

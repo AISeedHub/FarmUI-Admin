@@ -274,6 +274,110 @@
 }
 
 /* ==========================================================================
+   KMA WEATHER REPORT SECTION CARD
+   ========================================================================== */
+
+.kma-section-card {
+    background: #f8fafc;
+    border: 1px solid var(--border-input);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 6px;
+}
+
+.kma-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.kma-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.kma-section-icon {
+    color: var(--primary);
+    flex-shrink: 0;
+}
+
+.kma-badge {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: #ffffff;
+    border: 1px solid var(--border-input);
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.kma-codes-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.kma-codes-row .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.kma-codes-row .form-group label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    min-height: 28px;
+    display: flex;
+    align-items: flex-end;
+    line-height: 1.25;
+}
+
+.kma-warn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.kma-warn-group label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.kma-warn-group textarea {
+    width: 100%;
+    min-height: 52px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-input);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    background: #ffffff;
+    color: var(--text-main);
+    resize: vertical;
+}
+
+.kma-warn-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+/* ==========================================================================
    RESPONSIVE — mốc theo quy ước ở index.css
    ========================================================================== */
 
@@ -281,6 +385,14 @@
     /* .form-grid dùng chung cho modal của cả FarmsList và FarmDetail. */
     .form-grid {
         grid-template-columns: 1fr;
+    }
+
+    .kma-codes-row {
+        grid-template-columns: 1fr;
+    }
+
+    .kma-codes-row .form-group label {
+        min-height: auto;
     }
 
     /* Tiêu đề trang + nút "New farm" không đủ chỗ trên một dòng. */

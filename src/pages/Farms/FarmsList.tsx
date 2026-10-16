@@ -1,10 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Plus, Edit2, Trash2, Power, PowerOff } from 'lucide-react';
+import { Plus, Edit2, Trash2, Power, PowerOff, CloudSun } from 'lucide-react';
 import { Farm, UserResponse } from '../../types';
 import { farmsApi, authApi, farmUsersApi } from '../../api/services';
 import { CODE_MAX_LENGTH } from '../../utils/code';
+import {
+    AI_REPORT_CROP_OPTIONS,
+    hasCropKnowledge,
+    KMA_PROVINCE_NAMES,
+    isKoreanText
+} from '../../constants/aiReport';
 import './FarmsList.css';
 
 export default function FarmsList() {
@@ -14,6 +20,7 @@ export default function FarmsList() {
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState<string | null>(null);
     const [formData, setFormData] = useState<Partial<Farm>>({});
+    const [warnAreasText, setWarnAreasText] = useState('');
     const [saving, setSaving] = useState(false);
 
     // New state for create form dropdowns
@@ -28,13 +35,19 @@ export default function FarmsList() {
 
     const loadFarms = async () => {
         setLoading(true);
-        const data = await farmsApi.getAll();
-        setFarms(data);
-        setLoading(false);
+        try {
+            const data = await farmsApi.getAll();
+            setFarms(data);
+        } catch (err: any) {
+            alert(t('farms.loadFailed', { error: err?.message || 'Unknown error' }));
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleCreate = async () => {
         setIsEditing('new');
+        setWarnAreasText('');
         setFormData({
             code: '',
             name: '',
@@ -47,6 +60,10 @@ export default function FarmsList() {
             longitude: null,
             weather_grid_nx: null,
             weather_grid_ny: null,
+            kma_asos_stn: null,
+            kma_mid_land_regid: null,
+            kma_mid_ta_regid: null,
+            kma_warn_areas: null,
             is_active: true
         });
         setSelectedAdminUserId('');
@@ -75,23 +92,62 @@ export default function FarmsList() {
         e.stopPropagation();
         setIsEditing(farm.id);
         setFormData({ ...farm });
+        setWarnAreasText((farm.kma_warn_areas || []).join(', '));
     };
 
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         if (window.confirm(t('farms.confirmDelete'))) {
-            await farmsApi.delete(id);
-            loadFarms();
+            try {
+                await farmsApi.delete(id);
+                loadFarms();
+            } catch (err: any) {
+                alert(t('farms.deleteFailed', { error: err?.message || 'Unknown error' }));
+            }
         }
     };
 
     const toggleActive = async (e: React.MouseEvent, farm: Farm) => {
         e.stopPropagation();
-        await farmsApi.update(farm.id, { is_active: !farm.is_active });
-        loadFarms();
+        try {
+            await farmsApi.update(farm.id, { is_active: !farm.is_active });
+            loadFarms();
+        } catch (err: any) {
+            alert(t('farms.updateFailed', { error: err?.message || 'Unknown error' }));
+        }
     };
 
+    const isCreateMode = isEditing === 'new';
+    const currentFarm = isEditing && isEditing !== 'new' ? farms.find(f => f.id === isEditing) : null;
+    const showKmaGroup = isCreateMode || Boolean(currentFarm && 'kma_asos_stn' in currentFarm);
+
+    const warnAreaIssues = useMemo(() => {
+        const parsed = [...new Set(warnAreasText.split(/[,\n]/).map(a => a.trim()).filter(Boolean))];
+        const nonKorean = parsed.filter(a => !isKoreanText(a));
+        const provinces = parsed.filter(a => KMA_PROVINCE_NAMES.includes(a));
+        return { nonKorean, provinces };
+    }, [warnAreasText]);
+
     const handleSave = async () => {
+        const s16 = (v?: string | null) => { const s = (v ?? '').trim(); return s || null; };
+        const areas = [...new Set(warnAreasText.split(/[,\n]/).map(a => a.trim()).filter(Boolean))];
+        const land = s16(formData.kma_mid_land_regid);
+        const ta = s16(formData.kma_mid_ta_regid);
+
+        if (showKmaGroup && (!!land !== !!ta)) {
+            alert(t('farms.kmaMidPairError'));
+            return;
+        }
+
+        const originalFarm = farms.find(f => f.id === isEditing);
+        const wasCropSupported = hasCropKnowledge(originalFarm?.primary_crop);
+        const isCropSupported = hasCropKnowledge(formData.primary_crop);
+        if (!isCreateMode && wasCropSupported && !isCropSupported) {
+            if (!window.confirm(t('farms.unsupportedCropConfirm'))) {
+                return;
+            }
+        }
+
         const sanitizeFarmData = (data: Partial<Farm>) => {
             const latitude = data.latitude !== undefined && data.latitude !== null && String(data.latitude).trim() !== '' ? parseFloat(String(data.latitude)) : null;
             const longitude = data.longitude !== undefined && data.longitude !== null && String(data.longitude).trim() !== '' ? parseFloat(String(data.longitude)) : null;
@@ -110,6 +166,12 @@ export default function FarmsList() {
                 longitude: longitude !== null && !isNaN(longitude) ? longitude : null,
                 weather_grid_nx: weather_grid_nx !== null && !isNaN(weather_grid_nx) ? weather_grid_nx : null,
                 weather_grid_ny: weather_grid_ny !== null && !isNaN(weather_grid_ny) ? weather_grid_ny : null,
+                ...(showKmaGroup ? {
+                    kma_asos_stn: s16(data.kma_asos_stn),
+                    kma_mid_land_regid: land,
+                    kma_mid_ta_regid: ta,
+                    kma_warn_areas: areas.length ? areas : null
+                } : {}),
                 is_active: data.is_active !== undefined ? !!data.is_active : true
             };
         };
@@ -168,9 +230,16 @@ export default function FarmsList() {
                 setSaving(false);
             }
         } else if (isEditing) {
-            await farmsApi.update(isEditing, sanitizedData);
-            setIsEditing(null);
-            loadFarms();
+            setSaving(true);
+            try {
+                await farmsApi.update(isEditing, sanitizedData);
+                setIsEditing(null);
+                loadFarms();
+            } catch (err: any) {
+                alert(t('farms.updateFailed', { error: err?.message || 'Unknown error' }));
+            } finally {
+                setSaving(false);
+            }
         }
     };
 
@@ -178,8 +247,6 @@ export default function FarmsList() {
         if (e && (e.target as HTMLElement).closest('button')) return;
         navigate(`/farms/${id}`);
     };
-
-    const isCreateMode = isEditing === 'new';
 
     return (
         <div className="farms-container">
@@ -285,10 +352,21 @@ export default function FarmsList() {
                             <div className="form-group">
                                 <label>{t('farms.primaryCrop')}</label>
                                 <input
+                                    list="crop-options"
                                     value={formData.primary_crop || ''}
                                     onChange={e => setFormData({ ...formData, primary_crop: e.target.value })}
                                     placeholder="e.g. lemon"
                                 />
+                                <datalist id="crop-options">
+                                    {AI_REPORT_CROP_OPTIONS.map(opt => (
+                                        <option key={opt} value={opt} />
+                                    ))}
+                                </datalist>
+                                {Boolean(formData.primary_crop && formData.primary_crop.trim() && !hasCropKnowledge(formData.primary_crop)) && (
+                                    <div style={{ color: '#eab308', fontSize: '0.82rem', marginTop: '4px' }}>
+                                        {t('farms.unsupportedCropWarning')}
+                                    </div>
+                                )}
                             </div>
                             <div className="form-group">
                                 <label>{t('farms.plantingDate')}</label>
@@ -338,7 +416,66 @@ export default function FarmsList() {
                                     placeholder="e.g. 127"
                                 />
                             </div>
-                            <div className="form-group checkbox-group" style={{ marginTop: '20px' }}>
+                            {showKmaGroup && (
+                                <div className="form-group full-width kma-section-card">
+                                    <div className="kma-section-header">
+                                        <div className="kma-section-title">
+                                            <CloudSun size={18} className="kma-section-icon" />
+                                            <span>{t('farms.kmaGroupTitle')}</span>
+                                        </div>
+                                        <span className="kma-badge">{t('common.optional')}</span>
+                                    </div>
+                                    <div className="kma-codes-row">
+                                        <div className="form-group">
+                                            <label>{t('farms.kmaAsosStn')}</label>
+                                            <input
+                                                maxLength={16}
+                                                value={formData.kma_asos_stn || ''}
+                                                onChange={e => setFormData({ ...formData, kma_asos_stn: e.target.value })}
+                                                placeholder="261"
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>{t('farms.kmaMidLandRegid')}</label>
+                                            <input
+                                                maxLength={16}
+                                                value={formData.kma_mid_land_regid || ''}
+                                                onChange={e => setFormData({ ...formData, kma_mid_land_regid: e.target.value })}
+                                                placeholder="11F20000"
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>{t('farms.kmaMidTaRegid')}</label>
+                                            <input
+                                                maxLength={16}
+                                                value={formData.kma_mid_ta_regid || ''}
+                                                onChange={e => setFormData({ ...formData, kma_mid_ta_regid: e.target.value })}
+                                                placeholder="21F20801"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="kma-warn-group">
+                                        <label>{t('farms.kmaWarnAreas')}</label>
+                                        <textarea
+                                            rows={2}
+                                            value={warnAreasText}
+                                            onChange={e => setWarnAreasText(e.target.value)}
+                                            placeholder={t('farms.kmaWarnAreasPlaceholder')}
+                                        />
+                                        {warnAreaIssues.nonKorean.length > 0 && (
+                                            <div style={{ color: '#eab308', fontSize: '0.82rem', marginTop: '4px' }}>
+                                                {t('farms.kmaWarnAreasNonKorean', { areas: warnAreaIssues.nonKorean.join(', ') })}
+                                            </div>
+                                        )}
+                                        {warnAreaIssues.provinces.length > 0 && (
+                                            <div style={{ color: '#eab308', fontSize: '0.82rem', marginTop: '4px' }}>
+                                                {t('farms.kmaWarnAreasProvince', { provinces: warnAreaIssues.provinces.join(', ') })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="form-group full-width checkbox-group" style={{ marginTop: '8px' }}>
                                 <input
                                     type="checkbox"
                                     id="farm-active-checkbox"
@@ -388,7 +525,7 @@ export default function FarmsList() {
                         <div className="modal-actions">
                             <button onClick={() => setIsEditing(null)} disabled={saving}>{t('btn.cancel')}</button>
                             <button className="primary" onClick={handleSave} disabled={saving}>
-                                {saving ? t('farms.creating') : t('btn.save')}
+                                {saving ? t('farms.saving') : t('btn.save')}
                             </button>
                         </div>
                     </div>
