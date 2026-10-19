@@ -1,6 +1,6 @@
 
 
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationTemplate, PresetFullPayload, PresetPackagePayload, PresetPackageRule, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate, VirtualSensor, VirtualSensorCreate, VirtualSensorUpdate, SlaveSensorReading, PlainWriteResponse, ActuatorCommandHistoryPage } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationEventType, NotificationLogPage, NotificationTemplate, PresetFullPayload, PresetPackagePayload, PresetPackageRule, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate, VirtualSensor, VirtualSensorCreate, VirtualSensorUpdate, SlaveSensorReading, PlainWriteResponse, ActuatorCommandHistoryPage } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 // Auth-action endpoints stay under /auth (login, me, me/farms).
@@ -581,15 +581,19 @@ export const notificationsApi = {
         if (query) url += `?${query}`;
         return fetchJson(url);
     },
-    getEventTypes: (scope: 'system' | 'farm'): Promise<Record<string, Array<{ value: string; label: string }>>> => {
+    getEventTypes: (scope: 'system' | 'farm'): Promise<Record<string, NotificationEventType[]>> => {
         return fetchJson(`/notifications/event-types?scope=${scope}`);
     },
+    // A farm can hold several channels, so this no longer 409s on a second one.
+    // A duplicate `code` (unique system-wide) is an unhandled 500 — check it client-side.
     createChannel: (data: Omit<NotificationChannel, 'id'>): Promise<NotificationChannel> => {
         return fetchJson('/notifications/channels', {
             method: 'POST',
             body: JSON.stringify(data)
         });
     },
+    // Omitted keys are kept; `event_types: null` means "all types". scope / farm_id are
+    // not validated here (an unknown farm_id is a 500), so callers never send them.
     updateChannel: (id: string, data: Partial<NotificationChannel>): Promise<NotificationChannel> => {
         return fetchJson(`/notifications/channels/${id}`, {
             method: 'PATCH',
@@ -643,6 +647,7 @@ export const notificationsApi = {
         const url = type ? `/notifications/template-variables?type=${type}` : '/notifications/template-variables';
         return fetchJson(url);
     },
+    // One row per receiving channel. No channel_id filter yet, and limit is capped at 200.
     getLogs: (params: {
         type?: string;
         severity?: string;
@@ -653,7 +658,7 @@ export const notificationsApi = {
         until?: string;
         limit?: number;
         offset?: number;
-    }): Promise<any> => {
+    }): Promise<NotificationLogPage> => {
         let url = '/notifications/logs';
         const queryParams = new URLSearchParams();
         Object.entries(params).forEach(([key, val]) => {

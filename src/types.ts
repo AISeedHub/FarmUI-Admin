@@ -506,20 +506,30 @@ export interface FleetFrequencyResponse {
     farms: FleetFrequencyFarm[];
 }
 
+// A farm may hold any number of channels. A farm event goes to every active channel
+// of that farm whose event_types match (one Discord message + one log row each);
+// overlapping lists are allowed and left to the admin.
 export interface NotificationChannel {
     id: string; // uuid
-    code: string;
+    code: string; // unique across ALL channels, not just the farm
     name: string;
     webhook_url: string;
-    mention_role_id?: string | null;
-    scope: 'system' | 'farm';
-    farm_id?: string | null; // uuid, null = global if scope is farm
-    language?: string | null; // e.g. en, ko, vi
+    mention_role_id?: string | null; // every message to this channel @mentions it, whatever the severity
+    scope: 'system' | 'farm'; // locked after create
+    farm_id?: string | null; // uuid, required for farm scope, absent for system; locked after create
+    language?: string | null; // e.g. en, ko, vi; null → farm.default_language → en
     severities?: string[] | null;
+    // null = every type of the scope (incl. ones added later), [] = none, [..] = exactly those
     event_types?: string[] | null;
     is_active: boolean;
     created_at?: string;
     updated_at?: string;
+}
+
+// GET /notifications/event-types?scope= → { [scope]: NotificationEventType[] }
+export interface NotificationEventType {
+    value: string;
+    label: string;
 }
 
 export interface NotificationChannelMember {
@@ -541,19 +551,31 @@ export interface NotificationTemplate {
     updated_at?: string;
 }
 
+// One row per channel that received the event, so an event routed to two channels
+// shows up twice (same type/farm_id/context, own title/body language and status,
+// created_at a few hundred ms to ~10 s apart). There is no event id to group them yet.
 export interface NotificationLog {
     id: string; // uuid
+    // null = skipped (no active channel matched) or the channel was deleted since
     channel_id?: string | null; // uuid
     type: string; // event type e.g. farm_offline
-    severity: string; // info, warning, critical
+    severity: string; // info, warning, critical, report
     scope: 'system' | 'farm';
     farm_id?: string | null; // uuid
-    title: string;
-    body: string;
-    status: 'success' | 'failed' | string;
+    title: string | null;
+    body: string | null;
+    status: 'pending' | 'sent' | 'failed' | 'skipped' | string;
     error_message?: string | null;
+    context?: Record<string, unknown> | null;
     created_at: string; // timestamp
-    sent_at?: string; // fallback timestamp
+    delivered_at?: string | null;
+}
+
+export interface NotificationLogPage {
+    items: NotificationLog[];
+    total: number;
+    limit: number;
+    offset: number;
 }
 
 // ── System & edge health ──────────────────────────────────────────────────
