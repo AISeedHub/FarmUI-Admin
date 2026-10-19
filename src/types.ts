@@ -52,6 +52,12 @@ export interface Device {
     unit_id: number;
     display_order: number;
     is_active: boolean;
+    // Display-only: same-kind devices across zones share one code (e.g. the thermal
+    // curtains of zones 1–3 → "thermal_curtain"). null = no group. 1–50 chars; the BE
+    // stores it verbatim, so the FE normalizes before sending. On PUT, null clears it
+    // and an omitted key keeps it. There is no group resource — a code exists only
+    // while some device carries it.
+    group_code?: string | null;
     created_at?: string;
     updated_at?: string;
 }

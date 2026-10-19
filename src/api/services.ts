@@ -148,6 +148,11 @@ export const devicesApi = {
     getByFarm: (farmId: string): Promise<Device[]> => {
         return fetchJson(`/farms/${farmId}/devices`);
     },
+    // group_codes currently in use in the farm: distinct, A→Z, no null. Counts
+    // inactive devices too. 404 when the farm does not exist.
+    getGroupCodes: (farmId: string): Promise<string[]> => {
+        return fetchJson(`/farms/${farmId}/devices/group-codes`);
+    },
     create: (data: Omit<Device, 'id' | 'created_at'>): Promise<Device> => {
         return fetchJson('/devices', {
             method: 'POST',
