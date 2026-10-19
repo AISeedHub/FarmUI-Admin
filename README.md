@@ -69,6 +69,7 @@ FarmUI-Admin communicates with the SmartFarm FastAPI backend. Sau đợt refacto
 
 **Devices**
 - `GET /farms/{farm_id}/devices` : Lấy danh sách devices thuộc 1 farm (mapped to `devicesApi.getByFarm()`)
+- `GET /farms/{farm_id}/devices/group-codes` : Các `group_code` đang dùng trong farm, làm gợi ý cho form device (mapped to `devicesApi.getGroupCodes()`)
 - `POST /devices` : Tạo device mới (mapped to `devicesApi.create()`)
 - `PUT /devices/{device_id}` : Cập nhật device (mapped to `devicesApi.update()`)
 - `DELETE /devices/{device_id}` : Xóa device và cascade các related registers (mapped to `devicesApi.delete()`)

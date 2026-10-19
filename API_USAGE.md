@@ -49,8 +49,11 @@ Tài liệu này liệt kê chi tiết toàn bộ các API endpoint backend mà 
 | Tên phương thức | HTTP | Endpoint | Request Body | Response Type | Ghi chú |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `devicesApi.getByFarm` | `GET` | `/farms/{farmId}/devices` | — | `Device[]` | Lấy danh sách thiết bị thuộc một farm. |
-| `devicesApi.create` | `POST` | `/devices` | `Omit<Device, 'id' \| 'created_at'>` | `Device` | Tạo mới một thiết bị. |
-| `devicesApi.update` | `PUT` | `/devices/{id}` | `Partial<Device>` | `Device` | Cập nhật thông tin thiết bị. |
+| `devicesApi.getGroupCodes` | `GET` | `/farms/{farmId}/devices/group-codes` | — | `string[]` | Các `group_code` đang dùng trong farm (không trùng, A→Z, không có `null`, tính cả device `is_active=false`). Dùng làm gợi ý cho ô chọn nhóm ở form device. |
+| `devicesApi.create` | `POST` | `/devices` | `Omit<Device, 'id' \| 'created_at'>` | `Device` | Tạo mới một thiết bị. `group_code` không gửi hoặc `null` → không nhóm. |
+| `devicesApi.update` | `PUT` | `/devices/{id}` | `Partial<Device>` | `Device` | Cập nhật thông tin thiết bị. `group_code: null` → bỏ nhóm; không gửi → giữ nguyên. |
+
+`group_code` chỉ dùng để hiển thị: gom các device cùng loại ở nhiều zone vào một nhóm (vd. Thermal Curtain ở Zone 1–3 → `thermal_curtain`). BE lưu nguyên văn (1–50 ký tự, `""` → 422) nên FE chuẩn hoá bằng `slugifyCode` trước khi gửi. Không có API tạo nhóm: code chỉ tồn tại khi còn ít nhất một device dùng nó.
 | `devicesApi.delete` | `DELETE` | `/devices/{id}` | — | `boolean` | Xóa thiết bị theo ID. |
 
 ---
