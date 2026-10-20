@@ -49,8 +49,11 @@ Tài liệu này liệt kê chi tiết toàn bộ các API endpoint backend mà 
 | Tên phương thức | HTTP | Endpoint | Request Body | Response Type | Ghi chú |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `devicesApi.getByFarm` | `GET` | `/farms/{farmId}/devices` | — | `Device[]` | Lấy danh sách thiết bị thuộc một farm. |
-| `devicesApi.create` | `POST` | `/devices` | `Omit<Device, 'id' \| 'created_at'>` | `Device` | Tạo mới một thiết bị. |
-| `devicesApi.update` | `PUT` | `/devices/{id}` | `Partial<Device>` | `Device` | Cập nhật thông tin thiết bị. |
+| `devicesApi.getGroupCodes` | `GET` | `/farms/{farmId}/devices/group-codes` | — | `string[]` | Các `group_code` đang dùng trong farm (không trùng, A→Z, không có `null`, tính cả device `is_active=false`). Dùng làm gợi ý cho ô chọn nhóm ở form device. |
+| `devicesApi.create` | `POST` | `/devices` | `Omit<Device, 'id' \| 'created_at'>` | `Device` | Tạo mới một thiết bị. `group_code` không gửi hoặc `null` → không nhóm. |
+| `devicesApi.update` | `PUT` | `/devices/{id}` | `Partial<Device>` | `Device` | Cập nhật thông tin thiết bị. `group_code: null` → bỏ nhóm; không gửi → giữ nguyên. |
+
+`group_code` chỉ dùng để hiển thị: gom các device cùng loại ở nhiều zone vào một nhóm (vd. Thermal Curtain ở Zone 1–3 → `thermal_curtain`). BE lưu nguyên văn (1–50 ký tự, `""` → 422) nên FE chuẩn hoá bằng `slugifyCode` trước khi gửi. Không có API tạo nhóm: code chỉ tồn tại khi còn ít nhất một device dùng nó.
 | `devicesApi.delete` | `DELETE` | `/devices/{id}` | — | `boolean` | Xóa thiết bị theo ID. |
 
 ---
@@ -119,11 +122,13 @@ Tài liệu này liệt kê chi tiết toàn bộ các API endpoint backend mà 
 
 | Tên phương thức | HTTP | Endpoint | Request Body | Response Type | Ghi chú |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `notificationsApi.getChannels` | `GET` | `/notifications/channels?scope=&farm_id=` | — | `NotificationChannel[]` | Lấy danh sách kênh thông báo (Discord webhook + bộ lọc). |
-| `notificationsApi.createChannel` | `POST` | `/notifications/channels` | `Omit<NotificationChannel, 'id'>` | `NotificationChannel` | Tạo mới kênh thông báo Discord. |
-| `notificationsApi.updateChannel` | `PATCH` | `/notifications/channels/{channel_id}` | `Partial<NotificationChannel>` | `NotificationChannel` | Cập nhật thông tin kênh thông báo. |
-| `notificationsApi.deleteChannel` | `DELETE` | `/notifications/channels/{channel_id}` | — | `boolean` | Xóa kênh thông báo khỏi hệ thống. |
-| `notificationsApi.testChannel` | `POST` | `/notifications/channels/{channel_id}/test` | — | `{ success: boolean; message?: string }` | Gửi tin nhắn test để kiểm tra webhook/role Discord. |
+| `notificationsApi.getChannels` | `GET` | `/notifications/channels?scope=&farm_id=` | — | `NotificationChannel[]` | Lấy danh sách kênh thông báo (Discord webhook + bộ lọc). **Một farm có thể có nhiều channel** — render cả danh sách, không lấy `[0]`. |
+| `notificationsApi.getEventTypes` | `GET` | `/notifications/event-types?scope=` | — | `{ [scope]: NotificationEventType[] }` | Catalog loại sự kiện của scope; dùng cho checkbox `event_types` và để tính cảnh báo routing. |
+| `notificationsApi.createChannel` | `POST` | `/notifications/channels` | `Omit<NotificationChannel, 'id'>` | `NotificationChannel` | Tạo mới kênh thông báo Discord. Farm đã có channel vẫn tạo thêm được (không còn 409). `code` unique toàn hệ thống: trùng thì BE trả **500** → kiểm tra ở client trước. |
+| `notificationsApi.updateChannel` | `PATCH` | `/notifications/channels/{channel_id}` | `Partial<NotificationChannel>` | `NotificationChannel` | Bỏ key = giữ nguyên; `event_types: null` = đổi sang "tất cả loại". `scope`/`farm_id` không được validate (farm_id sai → 500) nên UI khoá và không gửi hai field này. 404 nếu channel đã bị xoá. |
+| `notificationsApi.deleteChannel` | `DELETE` | `/notifications/channels/{channel_id}` | — | `boolean` | Xóa kênh thông báo khỏi hệ thống. Log cũ giữ lại với `channel_id = null`. |
+| `notificationsApi.testChannel` | `POST` | `/notifications/channels/{channel_id}/test` | — | `{ success: boolean; message?: string }` | Gửi tin nhắn test để kiểm tra webhook/role Discord. Webhook lỗi → **502** `Delivery failed: <lý do>`. |
+| `notificationsApi.getLogs` | `GET` | `/notifications/logs?scope=&farm_id=&type=&status=&limit=&offset=` | — | `NotificationLogPage` | **1 dòng cho mỗi channel nhận event** (event vào 2 channel → 2 dòng, lệch nhau tới ~10 s). `skipped` (không channel nào khớp) có `channel_id = null`. `limit` tối đa 200, chưa có filter `channel_id`. |
 | `notificationsApi.getChannelMembers` | `GET` | `/notifications/channels/{channel_id}/members` | — | `any[]` | Lấy danh sách thành viên thuộc kênh thông báo. |
 | `notificationsApi.addChannelMember` | `POST` | `/notifications/channels/{channel_id}/members` | `{"user_id": "<uuid>"}` | `any` | Gán người dùng vào nhận tin nhắn của kênh thông báo. |
 | `notificationsApi.deleteChannelMember` | `DELETE` | `/notifications/channels/{channel_id}/members/{user_id}` | — | `boolean` | Gỡ người dùng khỏi kênh thông báo. |
@@ -491,21 +496,46 @@ export interface FleetFrequencyResponse {
 ```
 
 ### NotificationChannel
+Routing: một event của farm đi tới **mọi channel active của farm đó có `event_types` khớp** — mỗi channel 1 tin Discord + 1 dòng log. BE cho phép các channel trùng loại; UI cảnh báo (không chặn) khi một loại vào ≥ 2 channel active hoặc không vào channel nào (xem `src/utils/notificationRouting.ts`).
 ```typescript
 export interface NotificationChannel {
     id: string; // uuid
-    code: string;
+    code: string; // unique toàn hệ thống, tối đa 100 ký tự
     name: string;
     webhook_url: string;
-    mention_role_id?: string | null;
-    scope: 'system' | 'farm';
-    farm_id?: string | null; // uuid, null = global if scope is farm
+    mention_role_id?: string | null; // mọi tin vào channel đều @mention role này
+    scope: 'system' | 'farm'; // khoá sau khi tạo
+    farm_id?: string | null; // bắt buộc với scope farm, không có với system; khoá sau khi tạo
+    language?: string | null; // null → farm.default_language → en
     severities?: string[] | null;
-    event_types?: string[] | null;
+    event_types?: string[] | null; // null = tất cả (kể cả loại thêm sau), [] = không nhận gì
     is_active: boolean;
     created_at?: string;
     updated_at?: string;
 }
+
+export interface NotificationEventType { value: string; label: string; }
+```
+
+### NotificationLog
+```typescript
+export interface NotificationLog {
+    id: string;
+    channel_id?: string | null; // null = skipped, hoặc channel đã bị xoá
+    type: string;
+    severity: string;
+    scope: 'system' | 'farm';
+    farm_id?: string | null;
+    title: string | null; // theo ngôn ngữ của từng channel
+    body: string | null;
+    status: 'pending' | 'sent' | 'failed' | 'skipped' | string; // tính theo từng channel
+    error_message?: string | null;
+    context?: Record<string, unknown> | null;
+    created_at: string;
+    delivered_at?: string | null;
+}
+
+export interface NotificationLogPage { items: NotificationLog[]; total: number; limit: number; offset: number; }
 ```
 
 ### NotificationChannelMember

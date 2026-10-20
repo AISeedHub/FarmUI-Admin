@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal, ChevronRight, Download, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, Edit2, Trash2, Activity, Power, LayoutGrid, Settings2, Zap, Layers, Video, Sigma, AlertTriangle, Lock, SlidersHorizontal, ChevronRight, Download, RefreshCw, Boxes } from 'lucide-react';
 import YAML from 'yaml';
 import { Farm, Zone, Device, Register, RegisterInUseByVirtualSensors, BlockerItem, DeleteConflict } from '../../types';
 import { farmsApi, zonesApi, devicesApi, registersApi, ApiError } from '../../api/services';
@@ -17,6 +17,12 @@ import './FarmDetail.css';
 
 // Member-facing Dashboard deployment; per-stage via env (Vite only exposes VITE_* vars).
 const DASHBOARD_URL: string = import.meta.env.VITE_DASHBOARD_URL || '';
+
+// Values of the device group <select>. Existing codes carry a prefix so that no
+// stored code — the BE accepts any string — can collide with the two sentinels.
+const GROUP_NONE = '';
+const GROUP_NEW = 'new';
+const GROUP_CODE_OPTION = 'code:';
 
 export default function FarmDetail() {
     const { id } = useParams<{ id: string }>();
@@ -50,10 +56,26 @@ export default function FarmDetail() {
 
     // Modal states
     const [zoneModal, setZoneModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Zone> & { displayNamesStr?: string } }>({ isOpen: false, type: 'new', data: {} });
-    const [deviceModal, setDeviceModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Device> & { displayNamesStr?: string } }>({ isOpen: false, type: 'new', data: {} });
+    // newGroupCodeStr: raw text of a group being typed in; defined only while the
+    // group picker is on "New group…".
+    const [deviceModal, setDeviceModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Device> & { displayNamesStr?: string, newGroupCodeStr?: string } }>({ isOpen: false, type: 'new', data: {} });
     const [registerModal, setRegisterModal] = useState<{ isOpen: boolean, type: 'new' | 'edit', data: Partial<Register> & { displayNamesStr?: string, valueMapStr?: string }, deviceId?: string }>({ isOpen: false, type: 'new', data: {} });
     // Delete refused with 409: the zone/device plus the dependents blocking it.
     const [deleteConflict, setDeleteConflict] = useState<{ kind: 'zone' | 'device', entity: Zone | Device, conflict: DeleteConflict } | null>(null);
+
+    // Suggestions for the device group picker. Re-fetched on every open, which also
+    // covers "refresh after save": a code appears with its first device and is gone
+    // once the last one drops it.
+    const [groupCodes, setGroupCodes] = useState<string[]>([]);
+    useEffect(() => {
+        if (!deviceModal.isOpen || !id) return;
+        devicesApi.getGroupCodes(id)
+            .then(setGroupCodes)
+            .catch(err => {
+                console.error('Failed to load device group codes', err);
+                setGroupCodes([]);
+            });
+    }, [deviceModal.isOpen, id]);
 
     // SVG Connections State & Refs
     const svgRef = useRef<SVGSVGElement>(null);
@@ -340,7 +362,21 @@ export default function FarmDetail() {
             ...deviceModal.data,
             unit_id: deviceModal.data.unit_id !== undefined && String(deviceModal.data.unit_id) !== '' ? Number(deviceModal.data.unit_id) : 1,
             zone_id: deviceModal.data.zone_id || null,
+            // "" is a 422 — no group is always sent as null.
+            group_code: deviceModal.data.group_code || null,
         };
+
+        if (processedData.newGroupCodeStr !== undefined) {
+            // The BE compares codes verbatim, so a typed group is slugged like every
+            // other code: "Thermal Curtain" and "thermal_curtain" must be one group.
+            const code = slugifyCode(processedData.newGroupCodeStr);
+            if (!code) {
+                alert(t('detail.groupCodeInvalid'));
+                return;
+            }
+            processedData.group_code = code;
+            delete processedData.newGroupCodeStr;
+        }
 
         if (processedData.displayNamesStr !== undefined) {
             // Blank entries of the pre-filled scaffold are dropped, so an untouched
@@ -495,6 +531,29 @@ export default function FarmDetail() {
     const currentDeviceRegisters = selectedDeviceId
         ? registers[selectedDeviceId] || []
         : [];
+
+    // group_code → every device carrying it, farm-wide. The blueprint shows one zone at
+    // a time, so the group tag on a device card is the only place a cross-zone group shows.
+    const groupMembers = devices.reduce<Record<string, Device[]>>((acc, d) => {
+        if (d.group_code) acc[d.group_code] = [...(acc[d.group_code] || []), d];
+        return acc;
+    }, {});
+    const groupTagTitle = (code: string) => {
+        const members = groupMembers[code] || [];
+        const zoneLabels = [...new Set(members.map(m => {
+            const zone = zones.find(z => z.id === m.zone_id);
+            return zone ? zone.name || zone.code : t('detail.unassigned');
+        }))];
+        return t('detail.groupTagTip', { code, count: members.length, zones: zoneLabels.join(', ') });
+    };
+
+    // Device form group picker. The device's own code is kept in the list so it still
+    // shows while the suggestions load.
+    const groupOptions = [...new Set([...groupCodes, ...(deviceModal.data.group_code ? [deviceModal.data.group_code] : [])])].sort();
+    const groupSelectValue = deviceModal.data.newGroupCodeStr !== undefined
+        ? GROUP_NEW
+        : deviceModal.data.group_code ? GROUP_CODE_OPTION + deviceModal.data.group_code : GROUP_NONE;
+    const newGroupCode = slugifyCode(deviceModal.data.newGroupCodeStr || '');
 
     return (
         <div className="farm-detail-container">
@@ -833,6 +892,13 @@ export default function FarmDetail() {
                                                         )}
                                                     </div>
                                                     <p className="node-desc">{dev.description || t('detail.noDescription')}</p>
+                                                    {dev.group_code && (
+                                                        <span className="device-group-tag" title={groupTagTitle(dev.group_code)}>
+                                                            <Boxes size={11} />
+                                                            <span className="device-group-code">{dev.group_code}</span>
+                                                            · {groupMembers[dev.group_code]?.length ?? 0}
+                                                        </span>
+                                                    )}
                                                     <div className="device-meta">
                                                         <span>{t('detail.unitId')}: {dev.unit_id}</span>
                                                         <span>{t('detail.kind')}: {dev.device_kind}</span>
@@ -1113,6 +1179,47 @@ export default function FarmDetail() {
                                         <option key={zone.id} value={zone.id}>{zone.name} ({zone.code})</option>
                                     ))}
                                 </select>
+                            </div>
+                            <div className="form-group">
+                                <label>{t('detail.groupCode')}</label>
+                                <select value={groupSelectValue} onChange={e => {
+                                    const val = e.target.value;
+                                    setDeviceModal({
+                                        ...deviceModal,
+                                        data: val === GROUP_NEW
+                                            ? { ...deviceModal.data, newGroupCodeStr: '' }
+                                            : { ...deviceModal.data, group_code: val ? val.slice(GROUP_CODE_OPTION.length) : null, newGroupCodeStr: undefined }
+                                    });
+                                }}>
+                                    <option value={GROUP_NONE}>-- {t('detail.noGroup')} --</option>
+                                    {groupOptions.map(code => (
+                                        <option key={code} value={GROUP_CODE_OPTION + code}>{code}</option>
+                                    ))}
+                                    <option value={GROUP_NEW}>+ {t('detail.newGroup')}</option>
+                                </select>
+                                {deviceModal.data.newGroupCodeStr !== undefined && (
+                                    <>
+                                        {/* Raw text is kept as typed and slugged on save: slugging per
+                                            keystroke would eat the space between two words. */}
+                                        <input
+                                            className="group-code-input"
+                                            autoFocus
+                                            maxLength={CODE_MAX_LENGTH}
+                                            placeholder={t('detail.groupCodePlaceholder')}
+                                            value={deviceModal.data.newGroupCodeStr}
+                                            onChange={e => setDeviceModal({ ...deviceModal, data: { ...deviceModal.data, newGroupCodeStr: e.target.value } })}
+                                        />
+                                        {deviceModal.data.newGroupCodeStr.trim() && (newGroupCode ? (
+                                            <span className="group-code-hint">
+                                                {t('detail.groupCodeSavesAs')} <code>{newGroupCode}</code>
+                                                {groupOptions.includes(newGroupCode) && <> · {t('detail.groupCodeExists')}</>}
+                                            </span>
+                                        ) : (
+                                            <span className="group-code-hint warn">{t('detail.groupCodeInvalid')}</span>
+                                        ))}
+                                    </>
+                                )}
+                                <span className="group-code-hint">{t('detail.groupCodeHelp')}</span>
                             </div>
                             <div className="form-group">
                                 <label>{t('detail.deviceKind')}</label>

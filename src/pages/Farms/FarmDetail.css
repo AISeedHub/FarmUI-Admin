@@ -794,6 +794,53 @@
     font-family: var(--font-mono), monospace;
 }
 
+/* group_code on a device card — same-kind devices across zones share one */
+.device-group-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--font-mono), monospace;
+    padding: 1px 7px;
+    border-radius: 9999px;
+    background: var(--primary-glow);
+    color: var(--primary);
+}
+
+.device-group-tag svg {
+    flex-shrink: 0;
+}
+
+.device-group-code {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Device form group picker */
+.group-code-input {
+    margin-top: 6px;
+}
+
+.group-code-hint {
+    display: block;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.group-code-hint code {
+    font-family: var(--font-mono), monospace;
+    color: var(--text-main);
+}
+
+.group-code-hint.warn {
+    color: var(--color-warning);
+}
+
 /* Columns Headers & Titles */
 .column-title {
     font-size: 11px;

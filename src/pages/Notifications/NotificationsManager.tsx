@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Bell,
@@ -17,12 +17,60 @@ import {
     X,
     Activity,
     CheckCircle,
-    AlertTriangle
+    AlertTriangle,
+    ChevronDown,
+    ChevronRight,
+    Lock
 } from 'lucide-react';
-import { notificationsApi, farmsApi, usersApi } from '../../api/services';
-import { Farm, UserResponse, NotificationChannel, NotificationTemplate, NotificationLog } from '../../types';
+import { notificationsApi, farmsApi, usersApi, ApiError } from '../../api/services';
+import { Farm, UserResponse, NotificationChannel, NotificationTemplate, NotificationLog, NotificationEventType } from '../../types';
 import { NOTIFICATION_CHANNEL_CODE_MAX_LENGTH } from '../../utils/code';
+import { receivesType, routingIssues, sameEventTypes, RoutableChannel } from '../../utils/notificationRouting';
+import HelpTip from '../../components/HelpTip';
 import './NotificationsManager.css';
+
+type Scope = 'system' | 'farm';
+type ChannelForm = Omit<NotificationChannel, 'id'>;
+
+const emptyChannelForm = (scope: Scope = 'system', farmId: string | null = null): ChannelForm => ({
+    code: '',
+    name: '',
+    webhook_url: '',
+    mention_role_id: '',
+    scope,
+    farm_id: farmId,
+    language: null,
+    event_types: null,
+    is_active: true
+});
+
+// The per-farm split the backend recommends, offered as one-click starting points in
+// the create form: alerts keep the farm role's ping, the high-volume activity channel
+// goes without one so it cannot bury offline alerts and daily reports. Types missing
+// from the live catalog are dropped when applied.
+const FARM_CHANNEL_PRESETS: { purpose: string; eventTypes: string[]; ping: boolean }[] = [
+    { purpose: 'alerts', eventTypes: ['farm_offline', 'farm_reconnected', 'report_daily'], ping: true },
+    { purpose: 'activity', eventTypes: ['automation_execution', 'force_control'], ping: false }
+];
+
+// GET /notifications/logs caps `limit` at 200 and has no channel_id filter yet, so a
+// channel's history is the part of its farm's latest rows that went to it.
+const LOGS_FETCH_LIMIT = 200;
+
+// The history dialog shows one channel, or every row of a farm. Skipped rows and the
+// rows of deleted channels carry channel_id = null, so they only show up in the latter.
+type LogsTarget =
+    | { kind: 'channel'; channel: NotificationChannel }
+    | { kind: 'farm'; farm: Farm };
+
+// FastAPI's `detail` reads better than the "API Error: 502 — …" wrapper. A failure
+// without a response (e.g. a 500 missing CORS headers) only ever says "Failed to fetch".
+const describeError = (err: unknown): string =>
+    err instanceof ApiError
+        ? ApiError.detailText(err.detail) || err.message
+        : (err as Error)?.message || 'Unknown error';
+
+const isNotFound = (err: unknown) => err instanceof ApiError && err.status === 404;
 
 export default function NotificationsManager() {
     const { t } = useTranslation();
@@ -41,41 +89,34 @@ export default function NotificationsManager() {
     const [farms, setFarms] = useState<Farm[]>([]);
     const [users, setUsers] = useState<UserResponse[]>([]);
 
+    // Every /notifications/channels* endpoint is super-admin only.
+    const [forbidden, setForbidden] = useState(false);
+
     // Search and filter states
     const [searchTerm, setSearchTerm] = useState('');
-    const [scopeFilter, setScopeFilter] = useState<'all' | 'system' | 'farm'>('all');
+    // 'all' | 'system' | a farm id
+    const [groupFilter, setGroupFilter] = useState('all');
+    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
     // --- Channel Modals & States ---
     const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
     const [editingChannel, setEditingChannel] = useState<NotificationChannel | null>(null);
-    const [channelForm, setChannelForm] = useState<Omit<NotificationChannel, 'id'>>({
-        code: '',
-        name: '',
-        webhook_url: '',
-        mention_role_id: '',
-        scope: 'system',
-        farm_id: null,
-        language: null,
-        event_types: null,
-        is_active: true
-    });
+    const [channelForm, setChannelForm] = useState<ChannelForm>(emptyChannelForm());
+    // Creating a channel next to an "all types" sibling: also narrow that sibling to
+    // the types the new channel leaves out, so the two do not both receive them.
+    const [narrowAllTypesSiblings, setNarrowAllTypesSiblings] = useState(true);
     const [revealedWebhooks, setRevealedWebhooks] = useState<Record<string, boolean>>({});
-    const [availableEventTypes, setAvailableEventTypes] = useState<{ value: string; label: string }[]>([]);
-    const [loadingEventTypes, setLoadingEventTypes] = useState(false);
+    const [eventTypeCatalog, setEventTypeCatalog] = useState<Record<Scope, NotificationEventType[]>>({ system: [], farm: [] });
+    const [loadingEventTypes, setLoadingEventTypes] = useState(true);
 
-    const fetchAndSetEventTypes = async (scope: 'system' | 'farm') => {
-        setLoadingEventTypes(true);
-        try {
-            const responseData = await notificationsApi.getEventTypes(scope);
-            const types = responseData && responseData[scope] ? responseData[scope] : [];
-            setAvailableEventTypes(types);
-        } catch (error) {
-            console.error('Failed to fetch event types for scope:', scope, error);
-            setAvailableEventTypes([]);
-        } finally {
-            setLoadingEventTypes(false);
-        }
-    };
+    // A catalog that fails to load leaves its checkbox list empty instead of sinking the page.
+    const loadEventTypes = (scope: Scope): Promise<NotificationEventType[]> =>
+        notificationsApi.getEventTypes(scope)
+            .then(data => data?.[scope] || [])
+            .catch(error => {
+                console.error('Failed to fetch event types for scope:', scope, error);
+                return [];
+            });
 
     // --- Member Modal & States ---
     const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
@@ -99,13 +140,17 @@ export default function NotificationsManager() {
     const [templateVarsInfo, setTemplateVarsInfo] = useState<any>(null);
 
     // --- Log History Popup States ---
-    const [selectedChannelForLogs, setSelectedChannelForLogs] = useState<NotificationChannel | null>(null);
+    const [logsTarget, setLogsTarget] = useState<LogsTarget | null>(null);
     const [logs, setLogs] = useState<NotificationLog[]>([]);
+    // The farm has more rows than the one page fetched.
+    const [logsTruncated, setLogsTruncated] = useState(false);
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [logSearchTerm, setLogSearchTerm] = useState('');
-    const [logStatusFilter, setLogStatusFilter] = useState<'all' | 'success' | 'failed'>('all');
-    const [logSeverityFilter, setLogSeverityFilter] = useState<'all' | 'info' | 'warning' | 'critical'>('all');
+    const [logStatusFilter, setLogStatusFilter] = useState('all');
+    const [logSeverityFilter, setLogSeverityFilter] = useState('all');
     const [logTypeFilter, setLogTypeFilter] = useState('all');
+    // Farm view only: 'all' | a channel id | 'none' (channel_id = null)
+    const [logChannelFilter, setLogChannelFilter] = useState('all');
     const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
     const [loadingVars, setLoadingVars] = useState(false);
     const [lastFocusedField, setLastFocusedField] = useState<'title' | 'body'>('body');
@@ -175,6 +220,9 @@ export default function NotificationsManager() {
 
     useEffect(() => {
         loadData();
+        Promise.all([loadEventTypes('farm'), loadEventTypes('system')])
+            .then(([farm, system]) => setEventTypeCatalog({ farm, system }))
+            .finally(() => setLoadingEventTypes(false));
     }, []);
 
     const loadData = async () => {
@@ -190,19 +238,30 @@ export default function NotificationsManager() {
             setTemplates(templatesData);
             setFarms(farmsData);
             setUsers(usersData);
+            setForbidden(false);
         } catch (error) {
+            if (error instanceof ApiError && error.status === 403) setForbidden(true);
             console.error('Failed to load notifications management data', error);
         } finally {
             setLoading(false);
         }
     };
 
-    // --- Channel CRUD handlers ---
-    const handleOpenChannelModal = async (channel: NotificationChannel | null = null) => {
-        const scope = channel ? channel.scope : 'system';
-        setIsChannelModalOpen(true);
-        await fetchAndSetEventTypes(scope);
+    // --- Routing helpers ---
+    const farmTypeValues = useMemo(() => eventTypeCatalog.farm.map(e => e.value), [eventTypeCatalog]);
 
+    const typeLabel = (scope: Scope, value: string) =>
+        eventTypeCatalog[scope].find(e => e.value === value)?.label || value.replace(/_/g, ' ');
+
+    const channelsOfFarm = (farmId: string) =>
+        channels.filter(c => c.scope === 'farm' && c.farm_id === farmId);
+
+    const nameList = (list: RoutableChannel[]) => list.map(c => c.name).join(', ');
+
+    // --- Channel CRUD handlers ---
+    // `target` pre-fills scope and farm when starting from a group's "Add channel".
+    const handleOpenChannelModal = (channel: NotificationChannel | null = null, target?: { scope: Scope; farmId?: string | null }) => {
+        setNarrowAllTypesSiblings(true);
         if (channel) {
             setEditingChannel(channel);
             setChannelForm({
@@ -213,74 +272,163 @@ export default function NotificationsManager() {
                 scope: channel.scope,
                 farm_id: channel.farm_id || null,
                 language: channel.language || null,
-                event_types: channel.event_types || null,
+                // Keep [] apart from null: [] receives nothing, null receives everything.
+                event_types: channel.event_types ?? null,
                 is_active: channel.is_active
             });
         } else {
             setEditingChannel(null);
-            setChannelForm({
-                code: '',
-                name: '',
-                webhook_url: '',
-                mention_role_id: '',
-                scope: 'system',
-                farm_id: null,
-                language: null,
-                event_types: null,
-                is_active: true
-            });
+            setChannelForm(emptyChannelForm(target?.scope, target?.farmId ?? null));
         }
+        setIsChannelModalOpen(true);
+    };
+
+    // The farm's routing as it would be once the open form is saved: its other
+    // channels (an "all types" one narrowed if that box is ticked) plus this one.
+    // Feeds both the hints beside each event type and the warning on save.
+    const draftId = editingChannel?.id ?? '__draft__';
+    const isFarmForm = channelForm.scope === 'farm' && !!channelForm.farm_id;
+    const formSiblings = isFarmForm ? channelsOfFarm(channelForm.farm_id!).filter(c => c.id !== editingChannel?.id) : [];
+    const allTypesSiblings = formSiblings.filter(c => c.is_active && c.event_types == null);
+    const formEventTypes = channelForm.event_types ?? null;
+    const narrowedTypes = formEventTypes ? farmTypeValues.filter(v => !formEventTypes.includes(v)) : [];
+    // Only offered while creating, and only when it leaves the sibling something to receive.
+    const canNarrow = !editingChannel && channelForm.is_active && allTypesSiblings.length > 0
+        && !!formEventTypes && formEventTypes.length > 0 && narrowedTypes.length > 0;
+    const willNarrow = canNarrow && narrowAllTypesSiblings;
+    const draftChannel: RoutableChannel = {
+        id: draftId,
+        name: channelForm.name.trim() || channelForm.code.trim() || t('notifications.thisChannel'),
+        is_active: channelForm.is_active,
+        event_types: formEventTypes
+    };
+    const projectedChannels: RoutableChannel[] = [
+        ...formSiblings.map(c => (willNarrow && allTypesSiblings.includes(c) ? { ...c, event_types: narrowedTypes } : c)),
+        draftChannel
+    ];
+
+    // Codes are unique system-wide, and a duplicate comes back as a bare 500.
+    const trimmedCode = channelForm.code.trim().toLowerCase();
+    const codeTaken = !!trimmedCode && channels.some(c => c.id !== editingChannel?.id && c.code.toLowerCase() === trimmedCode);
+
+    const applyFarmPreset = (preset: typeof FARM_CHANNEL_PRESETS[number]) => {
+        const farm = farms.find(f => f.id === channelForm.farm_id);
+        const prefix = farm ? `${farm.code.toLowerCase().replace(/\s+/g, '-')}-` : '';
+        setChannelForm(prev => ({
+            ...prev,
+            code: `${prefix}${preset.purpose}`,
+            name: `#${prefix}${preset.purpose}`,
+            event_types: preset.eventTypes.filter(v => farmTypeValues.includes(v)),
+            mention_role_id: preset.ping ? prev.mention_role_id : ''
+        }));
     };
 
     const handleSaveChannel = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (channelForm.scope === 'farm' && !channelForm.farm_id) {
-            alert('Farm association is required for farm-scoped channels.');
+            alert(t('notifications.farmRequired'));
             return;
+        }
+        if (codeTaken) {
+            alert(t('notifications.codeTaken', { code: channelForm.code.trim() }));
+            return;
+        }
+
+        // Warn, never block. Only when routing changes, so renaming a channel does not
+        // re-raise every standing issue of its farm.
+        const routingChanged = !editingChannel || willNarrow
+            || editingChannel.is_active !== channelForm.is_active
+            || !sameEventTypes(editingChannel.event_types, channelForm.event_types);
+        if (isFarmForm && routingChanged) {
+            const issues = routingIssues(projectedChannels, farmTypeValues);
+            const lines = [
+                ...issues.duplicated.map(d => t('notifications.warnDuplicate', {
+                    type: typeLabel('farm', d.type), list: nameList(d.channels), count: d.channels.length
+                })),
+                ...issues.uncovered.map(type => t('notifications.warnUncovered', { type: typeLabel('farm', type) }))
+            ];
+            if (lines.length > 0) {
+                const message = `${t('notifications.warnIntro')}\n\n${lines.map(l => `• ${l}`).join('\n')}\n\n${t('notifications.warnProceed')}`;
+                if (!window.confirm(message)) return;
+            }
         }
 
         setSaving(true);
         try {
-            const payload: any = {
+            const fields = {
                 code: channelForm.code.trim(),
                 name: channelForm.name.trim(),
                 webhook_url: channelForm.webhook_url.trim(),
                 mention_role_id: channelForm.mention_role_id?.trim() || null,
-                scope: channelForm.scope,
                 language: channelForm.language || null,
-                event_types: channelForm.event_types,
+                event_types: formEventTypes,
                 is_active: channelForm.is_active
             };
 
-            if (channelForm.scope === 'farm') {
-                payload.farm_id = channelForm.farm_id;
-            }
-
             if (editingChannel) {
-                await notificationsApi.updateChannel(editingChannel.id, payload);
+                // scope and farm_id are locked once created and never sent on PATCH.
+                await notificationsApi.updateChannel(editingChannel.id, fields);
                 alert(t('notifications.updateSuccess'));
             } else {
-                await notificationsApi.createChannel(payload);
-                alert(t('notifications.createSuccess'));
+                await notificationsApi.createChannel({
+                    ...fields,
+                    scope: channelForm.scope,
+                    ...(channelForm.scope === 'farm' ? { farm_id: channelForm.farm_id } : {})
+                });
+                // Narrow only once the new channel exists: if the create had failed, the
+                // farm would have lost those types instead of receiving them twice.
+                const narrowFailed: string[] = [];
+                if (willNarrow) {
+                    for (const sibling of allTypesSiblings) {
+                        try {
+                            await notificationsApi.updateChannel(sibling.id, { event_types: narrowedTypes });
+                        } catch (err) {
+                            console.error('Failed to narrow channel', sibling.code, err);
+                            narrowFailed.push(sibling.name);
+                        }
+                    }
+                }
+                alert(narrowFailed.length > 0
+                    ? t('notifications.narrowFailed', { list: narrowFailed.join(', ') })
+                    : t('notifications.createSuccess'));
             }
             setIsChannelModalOpen(false);
             loadData();
-        } catch (err: any) {
-            alert(t(editingChannel ? 'notifications.updateFailed' : 'notifications.createFailed', { error: err?.message || 'Unknown error' }));
+        } catch (err) {
+            if (editingChannel && isNotFound(err)) {
+                alert(t('notifications.channelGone'));
+                setIsChannelModalOpen(false);
+                loadData();
+                return;
+            }
+            alert(t(editingChannel ? 'notifications.updateFailed' : 'notifications.createFailed', { error: describeError(err) }));
         } finally {
             setSaving(false);
         }
     };
 
-    const handleDeleteChannel = async (id: string) => {
-        if (!window.confirm(t('notifications.deleteConfirm'))) return;
+    const handleDeleteChannel = async (channel: NotificationChannel) => {
+        // Name the types that would then reach no channel of the farm at all.
+        const orphaned = channel.scope === 'farm' && channel.farm_id
+            ? routingIssues(channelsOfFarm(channel.farm_id).filter(c => c.id !== channel.id), farmTypeValues)
+                .uncovered.filter(type => receivesType(channel, type))
+            : [];
+        const message = orphaned.length > 0
+            ? `${t('notifications.deleteConfirm')}\n\n${t('notifications.deleteOrphans', { list: orphaned.map(v => typeLabel('farm', v)).join(', ') })}`
+            : t('notifications.deleteConfirm');
+        if (!window.confirm(message)) return;
         try {
-            await notificationsApi.deleteChannel(id);
+            await notificationsApi.deleteChannel(channel.id);
             alert(t('notifications.deleteSuccess'));
             loadData();
-        } catch (err: any) {
-            alert(t('notifications.deleteFailed', { error: err?.message || 'Unknown error' }));
+        } catch (err) {
+            if (isNotFound(err)) {
+                alert(t('notifications.channelGone'));
+                loadData();
+                return;
+            }
+            alert(t('notifications.deleteFailed', { error: describeError(err) }));
         }
     };
 
@@ -293,8 +441,14 @@ export default function NotificationsManager() {
             } else {
                 alert(t('notifications.testFailed', { error: result.message || 'Webhook rejected payload' }));
             }
-        } catch (err: any) {
-            alert(t('notifications.testFailed', { error: err?.message || 'Unknown error' }));
+        } catch (err) {
+            if (isNotFound(err)) {
+                alert(t('notifications.channelGone'));
+                loadData();
+                return;
+            }
+            // A webhook that refuses is a 502 "Delivery failed: <reason>".
+            alert(t('notifications.testFailed', { error: describeError(err) }));
         } finally {
             setTestingId(null);
         }
@@ -362,45 +516,40 @@ export default function NotificationsManager() {
         };
     };
 
-    const handleOpenLogsModal = async (channel: NotificationChannel) => {
-        setSelectedChannelForLogs(channel);
+    const handleOpenLogsModal = async (target: LogsTarget) => {
+        setLogsTarget(target);
         setLogs([]);
+        setLogsTruncated(false);
         setLoadingLogs(true);
         setLogSearchTerm('');
         setLogStatusFilter('all');
         setLogSeverityFilter('all');
         setLogTypeFilter('all');
+        setLogChannelFilter('all');
         setExpandedLogId(null);
 
         try {
-            const params: any = {
-                scope: channel.scope,
-                limit: 100
-            };
-            if (channel.scope === 'farm' && channel.farm_id) {
-                params.farm_id = channel.farm_id;
-            }
-
-            const response = await notificationsApi.getLogs(params);
-            const rawLogs = Array.isArray(response) ? response : (response?.items || response?.logs || []);
-            
-            const filteredLogs = rawLogs.filter((log: NotificationLog) => {
-                if (log.channel_id) {
-                    return log.channel_id === channel.id;
-                }
-                if (channel.event_types && channel.event_types.length > 0) {
-                    return channel.event_types.includes(log.type);
-                }
-                return true;
+            const scope: Scope = target.kind === 'farm' ? 'farm' : target.channel.scope;
+            const farmId = target.kind === 'farm' ? target.farm.id : target.channel.farm_id;
+            const page = await notificationsApi.getLogs({
+                scope,
+                farm_id: scope === 'farm' ? farmId : undefined,
+                limit: LOGS_FETCH_LIMIT
             });
-
-            setLogs(filteredLogs);
+            const rows = page?.items || [];
+            // Every receiving channel writes its own row, so a channel's history is
+            // exactly the rows carrying its id.
+            setLogs(target.kind === 'channel' ? rows.filter(log => log.channel_id === target.channel.id) : rows);
+            setLogsTruncated((page?.total ?? rows.length) > rows.length);
         } catch (err) {
             console.error('Failed to load notification logs', err);
         } finally {
             setLoadingLogs(false);
         }
     };
+
+    const logChannelLabel = (channelId: string | null | undefined) =>
+        (channelId && channels.find(c => c.id === channelId)?.name) || '—';
 
     // --- Template CRUD handlers ---
     const handleOpenTemplateModal = (template: NotificationTemplate | null = null) => {
@@ -491,17 +640,45 @@ export default function NotificationsManager() {
         alert('Webhook URL copied to clipboard!');
     };
 
-    // Filter Logic
-    const filteredChannels = channels.filter(channel => {
-        const matchesSearch = 
-            channel.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            channel.code.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        if (!matchesSearch) return false;
+    // Channels grouped as System, then one group per farm. Farms without a channel
+    // still get a group (header only) so the gap is visible and one click from fixed.
+    // A search term matching a farm's name or code keeps all of its channels.
+    type ChannelGroup = { key: string; scope: Scope; farm: Farm | null; farmId: string | null; all: NotificationChannel[]; shown: NotificationChannel[] };
+    const channelGroups: ChannelGroup[] = (() => {
+        const term = searchTerm.trim().toLowerCase();
+        const matches = (c: NotificationChannel) => c.name.toLowerCase().includes(term) || c.code.toLowerCase().includes(term);
+        const groups: ChannelGroup[] = [];
+        const system = channels.filter(c => c.scope === 'system');
+        groups.push({ key: 'system', scope: 'system', farm: null, farmId: null, all: system, shown: term ? system.filter(matches) : system });
 
-        if (scopeFilter === 'all') return true;
-        return channel.scope === scopeFilter;
-    });
+        // Farm channels whose farm is not in the list (deleted, or no farm_id) still need a home.
+        const farmIds = [...farms.map(f => f.id), ...channels.filter(c => c.scope === 'farm').map(c => c.farm_id || '')];
+        for (const farmId of Array.from(new Set(farmIds))) {
+            const farm = farms.find(f => f.id === farmId) || null;
+            const all = channels.filter(c => c.scope === 'farm' && (c.farm_id || '') === farmId);
+            const farmMatches = !!term && !!farm && (farm.name.toLowerCase().includes(term) || farm.code.toLowerCase().includes(term));
+            const shown = !term || farmMatches ? all : all.filter(matches);
+            groups.push({ key: farmId || 'no-farm', scope: 'farm', farm, farmId: farmId || null, all, shown });
+        }
+
+        return groups
+            .filter(g => {
+                if (groupFilter !== 'all' && groupFilter !== g.key) return false;
+                // While searching, hide groups with nothing to show; an explicitly picked group always stays.
+                if (term && g.shown.length === 0 && groupFilter === 'all') return false;
+                return true;
+            })
+            // Farms without a channel sink below the configured ones (stable, System stays first).
+            .sort((a, b) => Number(a.scope === 'farm' && a.all.length === 0) - Number(b.scope === 'farm' && b.all.length === 0));
+    })();
+
+    const toggleGroup = (key: string) => setCollapsedGroups(prev => ({ ...prev, [key]: !prev[key] }));
+
+    // The global "Create Channel" follows the group filter, if one farm is picked.
+    const createTarget = (): { scope: Scope; farmId?: string | null } =>
+        groupFilter === 'all' || groupFilter === 'system'
+            ? { scope: 'system' }
+            : { scope: 'farm', farmId: groupFilter };
 
     const filteredTemplates = templates.filter(template => {
         return (
@@ -510,16 +687,11 @@ export default function NotificationsManager() {
         );
     });
 
-    const getFarmName = (farmId: string | null | undefined) => {
-        if (!farmId) return t('notifications.scopeFarmGlobal');
-        return farms.find(f => f.id === farmId)?.name || 'Unknown Farm';
-    };
-
     const getLogs7dData = () => {
         const result = Array(7).fill(0);
         const now = new Date();
         logs.forEach(log => {
-            const logDate = new Date(log.created_at || log.sent_at || '');
+            const logDate = new Date(log.created_at);
             const diffTime = now.getTime() - logDate.getTime();
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             if (diffDays >= 0 && diffDays < 7) {
@@ -549,6 +721,10 @@ export default function NotificationsManager() {
                 if (log.type !== logTypeFilter) return false;
             }
 
+            if (logChannelFilter !== 'all') {
+                if ((log.channel_id || 'none') !== logChannelFilter) return false;
+            }
+
             return true;
         });
     };
@@ -566,6 +742,132 @@ export default function NotificationsManager() {
         if (diffHours < 24) return `${diffHours}h ago`;
         return `${diffDays}d ago`;
     };
+
+    const renderChannelRow = (channel: NotificationChannel, farm: Farm | null) => {
+        const isRevealed = revealedWebhooks[channel.id];
+        return (
+            <tr key={channel.id} className={`channel-row ${channel.is_active ? '' : 'inactive'}`}>
+                <td className="code-cell">{channel.code}</td>
+                <td className="name-cell">{channel.name}</td>
+                <td>
+                    <div className="filters-cell">
+                        {channel.event_types == null ? (
+                            <span className="filter-tag all-types">{t('notifications.allTypes')}</span>
+                        ) : channel.event_types.length === 0 ? (
+                            <span className="filter-tag no-types">{t('notifications.noTypes')}</span>
+                        ) : (
+                            channel.event_types.map(evt => (
+                                <span key={evt} className="filter-tag event-type">{typeLabel(channel.scope, evt)}</span>
+                            ))
+                        )}
+                    </div>
+                </td>
+                <td>
+                    {channel.mention_role_id ? (
+                        <span className="ping-badge" title={channel.mention_role_id}>@{channel.mention_role_id}</span>
+                    ) : (
+                        <span className="empty-filter">{t('notifications.noPing')}</span>
+                    )}
+                </td>
+                <td>
+                    {channel.language ? (
+                        <span className="locale-badge">{channel.language}</span>
+                    ) : (
+                        // null falls back to the farm's default language, then en.
+                        <span className="locale-badge inherited" title={t('notifications.langInheritedHint')}>
+                            {farm?.default_language || 'en'} · {t('notifications.langDefault')}
+                        </span>
+                    )}
+                </td>
+                <td>
+                    <div className="webhook-cell">
+                        <span className="url">
+                            {isRevealed ? channel.webhook_url : getMaskedWebhook(channel.webhook_url)}
+                        </span>
+                        <div className="webhook-actions">
+                            <button
+                                className="icon-only-btn"
+                                title="Toggle Webhook visibility"
+                                onClick={() => setRevealedWebhooks(prev => ({ ...prev, [channel.id]: !prev[channel.id] }))}
+                            >
+                                {isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}
+                            </button>
+                            <button
+                                className="icon-only-btn"
+                                title="Copy webhook URL"
+                                onClick={() => handleCopyWebhook(channel.webhook_url)}
+                            >
+                                <Copy size={13} />
+                            </button>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span className={`status-pill ${channel.is_active ? 'active' : 'suspended'}`}>
+                        <span className="dot"></span>
+                        {channel.is_active ? t('farms.active') : t('farms.inactive')}
+                    </span>
+                </td>
+                <td className="actions-cell" style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                        <button
+                            className="context-menu-btn"
+                            title={t('notifications.btnLogs')}
+                            onClick={() => handleOpenLogsModal({ kind: 'channel', channel })}
+                        >
+                            <History size={15} />
+                        </button>
+                        <button
+                            className="context-menu-btn"
+                            title={t('notifications.btnMembers')}
+                            onClick={() => handleOpenMembersModal(channel)}
+                        >
+                            <Users size={15} />
+                        </button>
+                        <button
+                            className="context-menu-btn"
+                            title={t('notifications.btnTest')}
+                            onClick={() => handleTestChannel(channel.id)}
+                            disabled={testingId !== null}
+                        >
+                            {testingId === channel.id ? (
+                                <Loader2 className="spinner" size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                            ) : (
+                                <Send size={14} />
+                            )}
+                        </button>
+                        <button
+                            className="context-menu-btn"
+                            title={t('btn.edit')}
+                            onClick={() => handleOpenChannelModal(channel)}
+                        >
+                            <Edit2 size={15} />
+                        </button>
+                        <button
+                            className="context-menu-btn delete-btn"
+                            title={t('btn.delete')}
+                            style={{ color: 'var(--color-danger)' }}
+                            onClick={() => handleDeleteChannel(channel)}
+                        >
+                            <Trash2 size={15} />
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        );
+    };
+
+    if (forbidden) {
+        return (
+            <div className="notifications-container">
+                <span className="notifications-breadcrumbs">{t('notifications.breadcrumbs')}</span>
+                <div className="notifications-forbidden panel">
+                    <Lock size={22} />
+                    <p>{t('notifications.forbidden')}</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="notifications-container">
@@ -595,36 +897,28 @@ export default function NotificationsManager() {
                     <Search className="search-icon" size={16} />
                     <input
                         className="search-input"
-                        placeholder={activeTab === 'channels' ? "Search code or name..." : "Search name or type..."}
+                        placeholder={activeTab === 'channels' ? t('notifications.searchChannels') : "Search name or type..."}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
                 {activeTab === 'channels' && (
-                    <div className="scope-filters">
-                        <button 
-                            className={`filter-pill ${scopeFilter === 'all' ? 'active' : ''}`}
-                            onClick={() => setScopeFilter('all')}
-                        >
-                            All Scopes
-                        </button>
-                        <button 
-                            className={`filter-pill ${scopeFilter === 'system' ? 'active' : ''}`}
-                            onClick={() => setScopeFilter('system')}
-                        >
-                            System-wide
-                        </button>
-                        <button 
-                            className={`filter-pill ${scopeFilter === 'farm' ? 'active' : ''}`}
-                            onClick={() => setScopeFilter('farm')}
-                        >
-                            Farm-scoped
-                        </button>
-                    </div>
+                    <select
+                        className="group-filter-select"
+                        value={groupFilter}
+                        onChange={e => setGroupFilter(e.target.value)}
+                        aria-label={t('notifications.groupFilterLabel')}
+                    >
+                        <option value="all">{t('notifications.groupAll')}</option>
+                        <option value="system">{t('notifications.scopeSystem')}</option>
+                        {farms.map(f => (
+                            <option key={f.id} value={f.id}>{f.name} ({f.code})</option>
+                        ))}
+                    </select>
                 )}
                 <div style={{ marginLeft: 'auto' }}>
                     {activeTab === 'channels' ? (
-                        <button className="primary" onClick={() => handleOpenChannelModal()}>
+                        <button className="primary" onClick={() => handleOpenChannelModal(null, createTarget())}>
                             <Plus size={14} /> {t('notifications.btnCreateChannel')}
                         </button>
                     ) : (
@@ -642,133 +936,100 @@ export default function NotificationsManager() {
                 </div>
             ) : activeTab === 'channels' ? (
                 <div className="notifications-table-panel">
-                    <table className="notifications-table">
+                    <table className="notifications-table channels-table">
                         <thead>
                             <tr>
                                 <th>{t('notifications.colCode')}</th>
                                 <th>{t('notifications.colName')}</th>
-                                <th>{t('notifications.colScope')}</th>
+                                <th>{t('notifications.colEventTypes')}</th>
+                                <th>{t('notifications.colPing')}</th>
+                                <th>{t('notifications.colTemplateLanguage')}</th>
                                 <th>{t('notifications.colWebhook')}</th>
-                                <th>{t('notifications.colFilters')}</th>
                                 <th>{t('notifications.colActive')}</th>
                                 <th style={{ width: '220px', minWidth: '220px', textAlign: 'right' }}>{t('notifications.colActions')}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredChannels.length === 0 ? (
+                            {channelGroups.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
+                                    <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
                                         No notification channels found.
                                     </td>
                                 </tr>
                             ) : (
-                                filteredChannels.map(channel => {
-                                    const isRevealed = revealedWebhooks[channel.id];
+                                channelGroups.map(group => {
+                                    const isEmpty = group.all.length === 0;
+                                    const collapsed = isEmpty || !!collapsedGroups[group.key];
+                                    const activeCount = group.all.filter(c => c.is_active).length;
+                                    // Warnings use the farm catalog, as the backend's own guidance does.
+                                    const issues = group.scope === 'farm' && !isEmpty ? routingIssues(group.all, farmTypeValues) : null;
+                                    const title = group.scope === 'system'
+                                        ? t('notifications.scopeSystem')
+                                        : group.farm?.name || t('notifications.unknownFarm');
                                     return (
-                                        <tr key={channel.id}>
-                                            <td className="code-cell">{channel.code}</td>
-                                            <td className="name-cell">{channel.name}</td>
-                                            <td>
-                                                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                                    <span className={`scope-badge ${channel.scope}`}>
-                                                        {channel.scope === 'system' 
-                                                            ? t('notifications.scopeSystem') 
-                                                            : getFarmName(channel.farm_id)
-                                                        }
-                                                    </span>
-                                                    <span className="locale-badge" style={{ textTransform: 'uppercase', padding: '2px 6px', fontSize: '10px' }}>
-                                                        {channel.language || 'default'}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="webhook-cell">
-                                                    <span className="url">
-                                                        {isRevealed ? channel.webhook_url : getMaskedWebhook(channel.webhook_url)}
-                                                    </span>
-                                                    <div className="webhook-actions">
-                                                        <button 
-                                                            className="icon-only-btn" 
-                                                            title="Toggle Webhook visibility"
-                                                            onClick={() => setRevealedWebhooks(prev => ({ ...prev, [channel.id]: !prev[channel.id] }))}
+                                        <React.Fragment key={group.key}>
+                                            <tr className="channel-group-row">
+                                                <td colSpan={8}>
+                                                    <div className="channel-group-head">
+                                                        <button
+                                                            type="button"
+                                                            className="group-toggle"
+                                                            onClick={() => toggleGroup(group.key)}
+                                                            disabled={isEmpty}
+                                                            aria-expanded={!collapsed}
                                                         >
-                                                            {isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}
+                                                            {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+                                                            <span className={`scope-badge ${group.scope}`}>
+                                                                {group.scope === 'system' ? 'SYSTEM' : group.farm?.code || '—'}
+                                                            </span>
+                                                            <span className="group-title">{title}</span>
                                                         </button>
-                                                        <button 
-                                                            className="icon-only-btn" 
-                                                            title="Copy webhook URL"
-                                                            onClick={() => handleCopyWebhook(channel.webhook_url)}
-                                                        >
-                                                            <Copy size={13} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div className="filters-cell">
-                                                    {channel.event_types === null || channel.event_types === undefined ? (
-                                                        <span className="empty-filter">All event types</span>
-                                                    ) : channel.event_types.length === 0 ? (
-                                                        <span className="filter-tag severity" style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--color-danger)' }}>Muted</span>
-                                                    ) : (
-                                                        channel.event_types.map(evt => (
-                                                            <span key={evt} className="filter-tag event-type">{evt.replace(/_/g, ' ')}</span>
-                                                        ))
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <span className={`status-pill ${channel.is_active ? 'active' : 'suspended'}`}>
-                                                    <span className="dot"></span>
-                                                    {channel.is_active ? t('farms.active') : t('farms.inactive')}
-                                                </span>
-                                            </td>
-                                            <td className="actions-cell" style={{ textAlign: 'right' }}>
-                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                                    <button 
-                                                        className="context-menu-btn" 
-                                                        title={t('notifications.btnLogs')}
-                                                        onClick={() => handleOpenLogsModal(channel)}
-                                                    >
-                                                        <History size={15} />
-                                                    </button>
-                                                    <button 
-                                                        className="context-menu-btn" 
-                                                        title={t('notifications.btnMembers')}
-                                                        onClick={() => handleOpenMembersModal(channel)}
-                                                    >
-                                                        <Users size={15} />
-                                                    </button>
-                                                    <button 
-                                                        className="context-menu-btn" 
-                                                        title={t('notifications.btnTest')}
-                                                        onClick={() => handleTestChannel(channel.id)}
-                                                        disabled={testingId !== null}
-                                                    >
-                                                        {testingId === channel.id ? (
-                                                            <Loader2 className="spinner" size={15} style={{ animation: 'spin 1s linear infinite' }} />
-                                                        ) : (
-                                                            <Send size={14} />
+                                                        <span className="group-count">
+                                                            {isEmpty
+                                                                ? t('notifications.groupEmpty')
+                                                                : t('notifications.groupCount', { count: group.all.length, active: activeCount })}
+                                                        </span>
+                                                        {issues && issues.duplicated.length > 0 && (
+                                                            <span
+                                                                className="routing-chip warn"
+                                                                title={issues.duplicated.map(d => `${typeLabel('farm', d.type)} → ${nameList(d.channels)}`).join('\n')}
+                                                            >
+                                                                <AlertTriangle size={11} /> {t('notifications.chipDuplicated', { count: issues.duplicated.length })}
+                                                            </span>
                                                         )}
-                                                    </button>
-                                                    <button 
-                                                        className="context-menu-btn" 
-                                                        title={t('btn.edit')}
-                                                        onClick={() => handleOpenChannelModal(channel)}
-                                                    >
-                                                        <Edit2 size={15} />
-                                                    </button>
-                                                    <button 
-                                                        className="context-menu-btn delete-btn" 
-                                                        title={t('btn.delete')}
-                                                        style={{ color: 'var(--color-danger)' }}
-                                                        onClick={() => handleDeleteChannel(channel.id)}
-                                                    >
-                                                        <Trash2 size={15} />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                                        {issues && issues.uncovered.length > 0 && (
+                                                            <span
+                                                                className="routing-chip warn"
+                                                                title={issues.uncovered.map(v => typeLabel('farm', v)).join('\n')}
+                                                            >
+                                                                <AlertTriangle size={11} /> {t('notifications.chipUncovered', { count: issues.uncovered.length })}
+                                                            </span>
+                                                        )}
+                                                        <div className="group-actions">
+                                                            {group.farm && !isEmpty && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="group-action-btn"
+                                                                    onClick={() => handleOpenLogsModal({ kind: 'farm', farm: group.farm! })}
+                                                                >
+                                                                    <History size={13} /> {t('notifications.btnFarmLogs')}
+                                                                </button>
+                                                            )}
+                                                            {(group.scope === 'system' || group.farm) && (
+                                                                <button
+                                                                    type="button"
+                                                                    className="group-action-btn add"
+                                                                    onClick={() => handleOpenChannelModal(null, { scope: group.scope, farmId: group.farmId })}
+                                                                >
+                                                                    <Plus size={13} /> {t('notifications.btnAddChannel')}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {!collapsed && group.shown.map(channel => renderChannelRow(channel, group.farm))}
+                                        </React.Fragment>
                                     );
                                 })
                             )}
@@ -842,30 +1103,114 @@ export default function NotificationsManager() {
             )}
 
             {/* Create/Edit Channel Modal */}
-            {isChannelModalOpen && (
+            {isChannelModalOpen && (() => {
+                const scopeTypes = eventTypeCatalog[channelForm.scope];
+                const selectedFarm = farms.find(f => f.id === channelForm.farm_id) || null;
+                const farmPrefix = selectedFarm ? `${selectedFarm.code.toLowerCase().replace(/\s+/g, '-')}-` : '';
+                const specific = formEventTypes !== null;
+                // Beside each type: where else it goes, or that it goes nowhere, once saved.
+                const hintFor = (type: string): { level: 'warn' | 'muted'; text: string } | null => {
+                    if (!isFarmForm) return null;
+                    const others = projectedChannels.filter(c => c.id !== draftId && receivesType(c, type));
+                    const mine = receivesType(draftChannel, type);
+                    if (mine && others.length > 0) return { level: 'warn', text: t('notifications.hintAlsoTo', { list: nameList(others) }) };
+                    if (!mine && others.length === 0) return { level: 'warn', text: t('notifications.hintNowhere') };
+                    if (!mine) return { level: 'muted', text: `→ ${nameList(others)}` };
+                    return null;
+                };
+                return (
                 <div className="modal-overlay">
                     <div className="modal-content notifications-modal panel">
-                        <h3>{editingChannel ? 'Edit Notification Channel' : 'Create Notification Channel'}</h3>
+                        <h3>{editingChannel ? t('notifications.modalEditTitle') : t('notifications.modalCreateTitle')}</h3>
                         <form onSubmit={handleSaveChannel}>
                             <div className="modal-form-body">
+                                {/* Scope and farm decide everything below, so they come first. Locked
+                                    once created: PATCH does not validate them (an unknown farm_id is a 500). */}
                                 <div className="form-group-row">
                                     <div className="form-group">
-                                        <label>Channel Code *</label>
-                                        <input 
+                                        <label>{t('notifications.fieldScope')} {editingChannel && <Lock size={11} />}</label>
+                                        <select
+                                            value={channelForm.scope}
+                                            disabled={!!editingChannel}
+                                            onChange={e => {
+                                                const newScope = e.target.value as Scope;
+                                                setChannelForm({
+                                                    ...channelForm,
+                                                    scope: newScope,
+                                                    farm_id: newScope === 'system' ? null : channelForm.farm_id,
+                                                    event_types: null
+                                                });
+                                            }}
+                                        >
+                                            <option value="system">{t('notifications.scopeOptionSystem')}</option>
+                                            <option value="farm">{t('notifications.scopeOptionFarm')}</option>
+                                        </select>
+                                    </div>
+                                    {channelForm.scope === 'farm' && (
+                                        <div className="form-group">
+                                            <label>{t('notifications.fieldFarm')} {editingChannel && <Lock size={11} />}</label>
+                                            <select
+                                                required
+                                                disabled={!!editingChannel}
+                                                value={channelForm.farm_id || ''}
+                                                onChange={e => setChannelForm({ ...channelForm, farm_id: e.target.value || null })}
+                                            >
+                                                <option value="" disabled>{t('notifications.selectFarm')}</option>
+                                                {farms.map(f => (
+                                                    <option key={f.id} value={f.id}>{f.name} ({f.code})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                                {editingChannel && (
+                                    <span className="help-text locked-note">{t('notifications.lockedAfterCreate')}</span>
+                                )}
+
+                                {!editingChannel && isFarmForm && (
+                                    <div className="form-group">
+                                        <label>{t('notifications.presetsLabel')}</label>
+                                        {/* Same two-column grid as Code / Name below, so the chips line up with them. */}
+                                        <div className="preset-chips">
+                                            {FARM_CHANNEL_PRESETS.map(preset => (
+                                                <button
+                                                    key={preset.purpose}
+                                                    type="button"
+                                                    className="preset-chip"
+                                                    onClick={() => applyFarmPreset(preset)}
+                                                >
+                                                    <strong>{farmPrefix}{preset.purpose}</strong>
+                                                    <span>{t(`notifications.preset_${preset.purpose}`)}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="form-group-row">
+                                    <div className="form-group">
+                                        <label>{t('notifications.fieldCode')}</label>
+                                        <input
                                             type="text"
                                             required
                                             maxLength={NOTIFICATION_CHANNEL_CODE_MAX_LENGTH}
-                                            placeholder="alert-critical"
+                                            placeholder={`${farmPrefix || 'system-'}alerts`}
                                             value={channelForm.code}
+                                            className={codeTaken ? 'input-error' : undefined}
                                             onChange={e => setChannelForm({ ...channelForm, code: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
                                         />
+                                        {codeTaken ? (
+                                            <span className="help-text error-text">{t('notifications.codeTaken', { code: channelForm.code.trim() })}</span>
+                                        ) : (
+                                            <span className="help-text">{t('notifications.codeHelp')}</span>
+                                        )}
                                     </div>
                                     <div className="form-group">
-                                        <label>Display Name *</label>
-                                        <input 
-                                            type="text" 
-                                            required 
-                                            placeholder="#alert-critical"
+                                        <label>{t('notifications.fieldName')}</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            placeholder={`#${farmPrefix || 'system-'}alerts`}
                                             value={channelForm.name}
                                             onChange={e => setChannelForm({ ...channelForm, name: e.target.value })}
                                         />
@@ -873,10 +1218,10 @@ export default function NotificationsManager() {
                                 </div>
 
                                 <div className="form-group">
-                                    <label>Discord Webhook URL *</label>
-                                    <input 
-                                        type="url" 
-                                        required 
+                                    <label>{t('notifications.fieldWebhook')}</label>
+                                    <input
+                                        type="url"
+                                        required
                                         placeholder="https://discord.com/api/webhooks/..."
                                         value={channelForm.webhook_url}
                                         onChange={e => setChannelForm({ ...channelForm, webhook_url: e.target.value })}
@@ -885,147 +1230,175 @@ export default function NotificationsManager() {
 
                                 <div className="form-group-row">
                                     <div className="form-group">
-                                        <label>Discord Mention Role ID (Optional)</label>
-                                        <input 
-                                            type="text" 
+                                        <label>{t('notifications.fieldMentionRole')}</label>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="\d+"
+                                            title={t('notifications.mentionRoleFormat')}
                                             placeholder="123456789012345678"
                                             value={channelForm.mention_role_id || ''}
-                                            onChange={e => setChannelForm({ ...channelForm, mention_role_id: e.target.value })}
+                                            onChange={e => setChannelForm({ ...channelForm, mention_role_id: e.target.value.trim() })}
                                         />
+                                        <span className="help-text">{t('notifications.mentionRoleHelp')}</span>
                                     </div>
                                     <div className="form-group">
-                                        <label>Routing Scope</label>
-                                        <select 
-                                            value={channelForm.scope}
-                                            onChange={async e => {
-                                                const newScope = e.target.value as 'system' | 'farm';
-                                                setChannelForm({ 
-                                                    ...channelForm, 
-                                                    scope: newScope,
-                                                    farm_id: newScope === 'system' ? null : channelForm.farm_id,
-                                                    event_types: null
-                                                });
-                                                await fetchAndSetEventTypes(newScope);
-                                            }}
+                                        <label>{t('notifications.fieldLanguage')}</label>
+                                        <select
+                                            value={channelForm.language || ''}
+                                            onChange={e => setChannelForm({ ...channelForm, language: e.target.value || null })}
                                         >
-                                            <option value="system">System (Super Admin alerts)</option>
-                                            <option value="farm">Farm (Specific farm alerts)</option>
+                                            <option value="">
+                                                {t('notifications.languageInherit', { lang: selectedFarm?.default_language || 'en' })}
+                                            </option>
+                                            <option value="en">English (en)</option>
+                                            <option value="vi">Vietnamese (vi)</option>
+                                            <option value="ko">Korean (ko)</option>
                                         </select>
+                                        <span className="help-text">{t('notifications.languageHelp')}</span>
                                     </div>
                                 </div>
-
-                                <div className="form-group">
-                                    <label>Language Override</label>
-                                    <select 
-                                        value={channelForm.language || ''}
-                                        onChange={e => setChannelForm({ ...channelForm, language: e.target.value || null })}
-                                    >
-                                        <option value="">-- Use Default / Farm Lang --</option>
-                                        <option value="en">English (en)</option>
-                                        <option value="vi">Vietnamese (vi)</option>
-                                        <option value="ko">Korean (ko)</option>
-                                    </select>
-                                </div>
-
-                                {channelForm.scope === 'farm' && (
-                                    <div className="form-group">
-                                        <label>Farm Association *</label>
-                                        <select 
-                                            required
-                                            value={channelForm.farm_id || ''}
-                                            onChange={e => setChannelForm({ ...channelForm, farm_id: e.target.value || null })}
-                                        >
-                                            <option value="" disabled>-- Select a Farm --</option>
-                                            {farms.map(f => (
-                                                <option key={f.id} value={f.id}>{f.name} ({f.code})</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
 
                                 <div className="toggle-switch-wrapper">
                                     <label className="toggle-switch">
-                                        <input 
+                                        <input
                                             id="channel-is-active"
-                                            type="checkbox" 
+                                            type="checkbox"
                                             checked={channelForm.is_active}
                                             onChange={e => setChannelForm({ ...channelForm, is_active: e.target.checked })}
                                         />
                                         <span className="toggle-slider"></span>
                                     </label>
                                     <span className="toggle-switch-label" onClick={() => setChannelForm({ ...channelForm, is_active: !channelForm.is_active })}>
-                                        Channel is Active
+                                        {t('notifications.fieldActive')}
                                     </span>
+                                    <span className="help-text">{t('notifications.activeHelp')}</span>
                                 </div>
 
-                                <div className="routing-filters-section" style={{ borderTop: '1px solid var(--border)', paddingTop: '16px', marginTop: '16px' }}>
-                                    <span className="section-title" style={{ display: 'block', marginBottom: '12px', fontSize: '13px', fontWeight: 600, color: 'var(--text-color)' }}>Event Type Filters</span>
-                                    
+                                <div className="routing-filters-section">
+                                    <span className="section-title">
+                                        {t('notifications.fieldEventTypes')}
+                                        <HelpTip label={t('notifications.fieldEventTypes')}>
+                                            {t('notifications.eventTypesHelp')}
+                                        </HelpTip>
+                                    </span>
+
+                                    {/* null and [] are different settings, so "all" is its own choice rather
+                                        than "every box ticked": null also takes types added later. */}
+                                    <div className="event-mode-options">
+                                        <label className="event-mode-option">
+                                            <input
+                                                type="radio"
+                                                name="event-mode"
+                                                checked={!specific}
+                                                onChange={() => setChannelForm(prev => ({ ...prev, event_types: null }))}
+                                            />
+                                            {t('notifications.eventTypesAll')}
+                                        </label>
+                                        <label className="event-mode-option">
+                                            <input
+                                                type="radio"
+                                                name="event-mode"
+                                                checked={specific}
+                                                // Start from every current type ticked, so switching alone changes no routing.
+                                                onChange={() => setChannelForm(prev => ({ ...prev, event_types: scopeTypes.map(x => x.value) }))}
+                                            />
+                                            {t('notifications.eventTypesSpecific')}
+                                        </label>
+                                    </div>
+
                                     <div className="filter-group">
                                         {loadingEventTypes ? (
                                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', color: 'var(--text-muted)', padding: '10px 0' }}>
                                                 <Loader2 className="spinner" size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                                                <span>Loading options...</span>
+                                                <span>{t('notifications.loadingEventTypes')}</span>
                                             </div>
-                                        ) : availableEventTypes.length === 0 ? (
-                                            <span className="help-text" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No event types available for this scope.</span>
+                                        ) : scopeTypes.length === 0 ? (
+                                            <span className="help-text" style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('notifications.noEventTypes')}</span>
                                         ) : (
-                                            <div className="checkbox-grid scrollable" style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                {availableEventTypes.map(evt => {
-                                                    const isChecked = channelForm.event_types == null || channelForm.event_types.includes(evt.value);
+                                            <div className={`checkbox-grid event-type-list ${specific ? '' : 'all-mode'}`}>
+                                                {scopeTypes.map(evt => {
+                                                    const hint = hintFor(evt.value);
                                                     return (
-                                                        <div key={evt.value} className="checkbox-item" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            <input 
+                                                        <div key={evt.value} className="checkbox-item event-type-item">
+                                                            <input
                                                                 type="checkbox"
                                                                 id={`evt-${evt.value}`}
-                                                                checked={isChecked}
+                                                                disabled={!specific}
+                                                                checked={!specific || formEventTypes!.includes(evt.value)}
                                                                 onChange={e => {
-                                                                    const current = channelForm.event_types;
                                                                     const checked = e.target.checked;
-                                                                    
-                                                                    const next = checked
-                                                                        ? [...(current || []), evt.value]
-                                                                        : (current || availableEventTypes.map(x => x.value)).filter(x => x !== evt.value);
-                                                                    
-                                                                    const allChecked = availableEventTypes.every(x => next.includes(x.value));
-                                                                    setChannelForm(prev => ({ 
-                                                                        ...prev, 
-                                                                        event_types: allChecked ? null : next 
-                                                                    }));
+                                                                    setChannelForm(prev => {
+                                                                        const current = prev.event_types ?? [];
+                                                                        return {
+                                                                            ...prev,
+                                                                            event_types: checked
+                                                                                ? [...current.filter(x => x !== evt.value), evt.value]
+                                                                                : current.filter(x => x !== evt.value)
+                                                                        };
+                                                                    });
                                                                 }}
                                                             />
-                                                            <label htmlFor={`evt-${evt.value}`} style={{ fontSize: '13px', cursor: 'pointer' }}>{evt.label}</label>
+                                                            <label htmlFor={`evt-${evt.value}`}>{evt.label}</label>
+                                                            {hint && (
+                                                                <span className={`routing-hint ${hint.level}`}>
+                                                                    {hint.level === 'warn' && <AlertTriangle size={11} />} {hint.text}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     );
                                                 })}
                                             </div>
                                         )}
+                                        {specific && formEventTypes!.length === 0 && (
+                                            <span className="help-text warn-text">{t('notifications.eventTypesNone')}</span>
+                                        )}
                                     </div>
+
+                                    {canNarrow && (
+                                        <div className="narrow-notice">
+                                            <div className="narrow-notice-head">
+                                                <AlertTriangle size={14} />
+                                                <strong>{t('notifications.narrowTitle', { list: nameList(allTypesSiblings) })}</strong>
+                                            </div>
+                                            <p>{t('notifications.narrowDesc')}</p>
+                                            <label className="narrow-notice-check">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={narrowAllTypesSiblings}
+                                                    onChange={e => setNarrowAllTypesSiblings(e.target.checked)}
+                                                />
+                                                <span>
+                                                    {t('notifications.narrowCheckbox', { list: nameList(allTypesSiblings), count: narrowedTypes.length })}
+                                                    <span className="narrow-types">{narrowedTypes.map(v => typeLabel('farm', v)).join(', ')}</span>
+                                                </span>
+                                            </label>
+                                        </div>
+                                    )}
                                 </div>
-
-
                             </div>
                             <div className="modal-actions">
-                                <button 
-                                    type="button" 
-                                    className="cancel-btn" 
+                                <button
+                                    type="button"
+                                    className="cancel-btn"
                                     onClick={() => setIsChannelModalOpen(false)}
                                     disabled={saving}
                                 >
                                     {t('btn.cancel')}
                                 </button>
-                                <button 
-                                    type="submit" 
-                                    className="submit-btn primary" 
-                                    disabled={saving}
+                                <button
+                                    type="submit"
+                                    className="submit-btn primary"
+                                    disabled={saving || codeTaken}
                                 >
-                                    {saving ? 'Saving...' : 'Save Channel'}
+                                    {saving ? t('notifications.saving') : t('notifications.btnSaveChannel')}
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
-            )}
+                );
+            })()}
 
             {/* Manage Channel Members Modal */}
             {isMemberModalOpen && selectedChannelForMembers && (
@@ -1309,25 +1682,35 @@ export default function NotificationsManager() {
             )}
 
             {/* Notification Logs History Modal */}
-            {selectedChannelForLogs && (
-                <div className="modal-overlay" onClick={() => setSelectedChannelForLogs(null)}>
+            {logsTarget && (
+                <div className="modal-overlay" onClick={() => setLogsTarget(null)}>
                     <div className="history-modal panel logs-history-modal" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <div>
-                                <div className="modal-title-row">
-                                    <h3>{t('notifications.logsTitle', { name: selectedChannelForLogs.name })}</h3>
-                                    <span className={`status-pill ${selectedChannelForLogs.is_active ? 'active' : 'suspended'}`}>
-                                        <span className="dot"></span>
-                                        {selectedChannelForLogs.is_active ? t('farms.active') : t('farms.inactive')}
-                                    </span>
-                                    <span className="locale-badge">{selectedChannelForLogs.language || 'default'}</span>
-                                    <span className="scope-badge system" style={{ textTransform: 'uppercase', fontSize: '10px', padding: '2px 8px' }}>
-                                        {selectedChannelForLogs.scope}
-                                    </span>
+                            {logsTarget.kind === 'channel' ? (
+                                <div>
+                                    <div className="modal-title-row">
+                                        <h3>{t('notifications.logsTitle', { name: logsTarget.channel.name })}</h3>
+                                        <span className={`status-pill ${logsTarget.channel.is_active ? 'active' : 'suspended'}`}>
+                                            <span className="dot"></span>
+                                            {logsTarget.channel.is_active ? t('farms.active') : t('farms.inactive')}
+                                        </span>
+                                        <span className="locale-badge">{logsTarget.channel.language || 'default'}</span>
+                                        <span className="scope-badge system" style={{ textTransform: 'uppercase', fontSize: '10px', padding: '2px 8px' }}>
+                                            {logsTarget.channel.scope}
+                                        </span>
+                                    </div>
+                                    <p className="modal-desc">Code: <code>{logsTarget.channel.code}</code></p>
                                 </div>
-                                <p className="modal-desc">Code: <code>{selectedChannelForLogs.code}</code></p>
-                            </div>
-                            <button className="close-btn" onClick={() => setSelectedChannelForLogs(null)}>
+                            ) : (
+                                <div>
+                                    <div className="modal-title-row">
+                                        <h3>{t('notifications.farmLogsTitle', { name: logsTarget.farm.name })}</h3>
+                                        <span className="scope-badge farm">{logsTarget.farm.code}</span>
+                                    </div>
+                                    <p className="modal-desc">{t('notifications.farmLogsDesc')}</p>
+                                </div>
+                            )}
+                            <button className="close-btn" onClick={() => setLogsTarget(null)}>
                                 <X size={20} />
                             </button>
                         </div>
@@ -1346,8 +1729,11 @@ export default function NotificationsManager() {
                                         {(() => {
                                             const totalCount = logs.length;
                                             const successCount = logs.filter(l => l.status === 'sent').length;
-                                            const successPct = totalCount > 0 ? Math.round((successCount / totalCount) * 100) : 100;
                                             const failureCount = logs.filter(l => l.status === 'failed').length;
+                                            // Over delivery attempts only: skipped rows (no channel matched) and
+                                            // pending ones were never tried, so they do not count against the rate.
+                                            const attempts = successCount + failureCount;
+                                            const successPct = attempts > 0 ? Math.round((successCount / attempts) * 100) : 100;
 
                                             return (
                                                 <div className="stats-grid">
@@ -1463,7 +1849,7 @@ export default function NotificationsManager() {
                                                     <select
                                                         style={{ height: '34px', padding: '0 8px', fontSize: '12px' }}
                                                         value={logStatusFilter}
-                                                        onChange={(e) => setLogStatusFilter(e.target.value as any)}
+                                                        onChange={(e) => setLogStatusFilter(e.target.value)}
                                                     >
                                                         <option value="all">All Statuses</option>
                                                         <option value="sent">Sent</option>
@@ -1478,7 +1864,7 @@ export default function NotificationsManager() {
                                                     <select
                                                         style={{ height: '34px', padding: '0 8px', fontSize: '12px' }}
                                                         value={logSeverityFilter}
-                                                        onChange={(e) => setLogSeverityFilter(e.target.value as any)}
+                                                        onChange={(e) => setLogSeverityFilter(e.target.value)}
                                                     >
                                                         <option value="all">All Severities</option>
                                                         <option value="info">Info</option>
@@ -1502,12 +1888,33 @@ export default function NotificationsManager() {
                                                     ))}
                                                 </select>
                                             </div>
+
+                                            {/* No channel_id filter on the API yet, so this one is client-side. */}
+                                            {logsTarget.kind === 'farm' && (
+                                                <div className="form-group">
+                                                    <label style={{ fontSize: '10px' }}>{t('notifications.logChannel')}</label>
+                                                    <select
+                                                        style={{ height: '34px', padding: '0 8px', fontSize: '12px' }}
+                                                        value={logChannelFilter}
+                                                        onChange={(e) => setLogChannelFilter(e.target.value)}
+                                                    >
+                                                        <option value="all">{t('notifications.logChannelAll')}</option>
+                                                        {channelsOfFarm(logsTarget.farm.id).map(c => (
+                                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                                        ))}
+                                                        <option value="none">{t('notifications.logChannelNone')}</option>
+                                                    </select>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
                                     {/* Right Panel: Scrollable timeline */}
                                     <div className="modal-right-panel">
                                         <h4 className="timeline-section-title">{t('notifications.timelineTitle')}</h4>
+                                        {logsTruncated && (
+                                            <p className="logs-truncated-note">{t('notifications.logsTruncated', { count: LOGS_FETCH_LIMIT })}</p>
+                                        )}
                                         {(() => {
                                             const filtered = getFilteredLogs();
                                             if (filtered.length === 0) {
@@ -1525,7 +1932,7 @@ export default function NotificationsManager() {
                                                             const isSuccess = log.status === 'sent';
                                                             const isFailed = log.status === 'failed';
                                                             const isPending = log.status === 'pending';
-                                                            const logDate = new Date(log.created_at || log.sent_at || '');
+                                                            const logDate = new Date(log.created_at);
                                                             const relativeTime = getRelativeTimeString(logDate);
                                                             const absoluteTime = logDate.toLocaleString();
                                                             const isExpanded = expandedLogId === log.id;
@@ -1549,6 +1956,9 @@ export default function NotificationsManager() {
                                                                                 <span className="timestamp" style={{ fontSize: '13px' }}>{log.title || 'Untitled Notification'}</span>
                                                                                 <span className="source-tag" style={{ background: '#ecfdf5', color: '#10b981', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 600 }}>{log.type.replace(/_/g, ' ')}</span>
                                                                                 <span className={`filter-tag severity ${log.severity}`} style={{ fontSize: '9px', fontWeight: 600, padding: '1px 6px', textTransform: 'capitalize' }}>{log.severity}</span>
+                                                                                {logsTarget.kind === 'farm' && (
+                                                                                    <span className="log-channel-tag" title={t('notifications.logChannel')}>{logChannelLabel(log.channel_id)}</span>
+                                                                                )}
                                                                             </div>
                                                                             <span className={`status-tag ${log.status}`} style={{ fontSize: '9px' }}>
                                                                                 {log.status.toUpperCase()}
