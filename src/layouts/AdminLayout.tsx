@@ -10,6 +10,7 @@ import {
     Activity,
     Cpu,
     Bell,
+    Sparkles,
     Menu,
     X
 } from 'lucide-react';
@@ -154,6 +155,10 @@ export default function AdminLayout({ onLogout }: AdminLayoutProps) {
                         <NavLink to="/analytics" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
                             <BarChart3 size={18} />
                             <span>{t('nav.analytics')}</span>
+                        </NavLink>
+                        <NavLink to="/ai-usage" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
+                            <Sparkles size={18} />
+                            <span>{t('nav.aiUsage')}</span>
                         </NavLink>
                         <NavLink to="/health" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
                             <Activity size={18} />
