@@ -1,6 +1,6 @@
 
 
-import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationEventType, NotificationLogPage, NotificationTemplate, PresetFullPayload, PresetPackagePayload, PresetPackageRule, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate, VirtualSensor, VirtualSensorCreate, VirtualSensorUpdate, SlaveSensorReading, PlainWriteResponse, ActuatorCommandHistoryPage } from '../types';
+import { Farm, Zone, Device, Register, UserResponse, FarmUserCreate, FarmUserResponse, FarmCloneRequest, FarmCloneResponse, AutomationScene, AutomationActivityMap, ExecutionHistoryRow, AutomationDetail, AutomationCreatePayload, AutomationFullUpdatePayload, UserCreate, FarmUserDetail, MyFarmResponse, FleetFrequencyResponse, NotificationChannel, NotificationEventType, NotificationLogPage, NotificationTemplate, PresetFullPayload, PresetPackagePayload, PresetPackageRule, PresetAvailable, PresetTuneValue, InfraHealthResponse, EdgeHealthFleetResponse, EdgeHealthHistoryResponse, Camera, CameraCreate, CameraUpdate, VirtualSensor, VirtualSensorCreate, VirtualSensorUpdate, SlaveSensorReading, PlainWriteResponse, ActuatorCommandHistoryPage, UsageQueryParams, UsageResponse, UsageCallsQueryParams, UsageCallPage, AiReportDetail } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 // Auth-action endpoints stay under /auth (login, me, me/farms).
@@ -699,6 +699,35 @@ export const healthApi = {
         const params = new URLSearchParams({ period });
         if (aggregateEvery) params.append('aggregate_every', aggregateEvery);
         return fetchJson(`/farms/${farmId}/edge-health/history?${params.toString()}`);
+    }
+};
+
+// ── LLM / AI Report Usage (super_admin) ─────────────────────────────────────
+export const aiReportsUsageApi = {
+    getUsage: (params: UsageQueryParams = {}): Promise<UsageResponse> => {
+        const qp = new URLSearchParams();
+        (params.group_by ?? []).forEach(g => qp.append('group_by', g));
+        if (params.since) qp.append('since', params.since);
+        if (params.until) qp.append('until', params.until);
+        if (params.farm_id) qp.append('farm_id', params.farm_id);
+        if (params.tz) qp.append('tz', params.tz);
+        const q = qp.toString();
+        return fetchJson(q ? `/ai-reports/usage?${q}` : '/ai-reports/usage');
+    },
+    getCalls: (params: UsageCallsQueryParams = {}): Promise<UsageCallPage> => {
+        const qp = new URLSearchParams();
+        if (params.since) qp.append('since', params.since);
+        if (params.until) qp.append('until', params.until);
+        if (params.farm_id) qp.append('farm_id', params.farm_id);
+        if (params.tz) qp.append('tz', params.tz);
+        if (params.status) qp.append('status', params.status);
+        if (params.limit != null) qp.append('limit', String(params.limit));
+        if (params.offset != null) qp.append('offset', String(params.offset));
+        const q = qp.toString();
+        return fetchJson(q ? `/ai-reports/usage/calls?${q}` : '/ai-reports/usage/calls');
+    },
+    getReportById: (reportId: string): Promise<AiReportDetail> => {
+        return fetchJson(`/ai-reports/${reportId}`);
     }
 };
 

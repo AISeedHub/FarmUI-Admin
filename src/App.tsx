@@ -10,6 +10,7 @@ import RolesList from './pages/Roles/RolesList';
 import FleetAnalytics from './pages/Analytics/FleetAnalytics';
 import SystemHealth from './pages/Health/SystemHealth';
 import NotificationsManager from './pages/Notifications/NotificationsManager';
+import AiUsage from './pages/AiUsage/AiUsage';
 import { isTokenValid, getTokenRemainingTime } from './utils/auth';
 
 
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="notifications" element={<NotificationsManager />} />
           <Route path="roles" element={<RolesList />} />
           <Route path="analytics" element={<FleetAnalytics />} />
+          <Route path="ai-usage" element={<AiUsage />} />
           <Route path="health" element={<SystemHealth />} />
         </Route>
 

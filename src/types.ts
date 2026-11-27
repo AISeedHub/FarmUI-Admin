@@ -688,6 +688,88 @@ export interface CameraUpdate {
     display_order?: number;
 }
 
+// ── LLM / AI Report Usage (super_admin) ─────────────────────────────────────
+export type UsageTimeBucket = 'day' | 'week' | 'month';
+export type UsageDimension = 'farm' | 'user' | 'report_type' | 'language' | 'is_scheduled' | 'status';
+export type UsageGroupBy = UsageTimeBucket | UsageDimension;
+
+export interface UsageQueryParams {
+    group_by?: UsageGroupBy[];
+    since?: string;
+    until?: string;
+    farm_id?: string;
+    tz?: string;
+}
+
+export interface UsageItem {
+    bucket: string | null;
+    farm_id: string | null;
+    farm_name: string | null;
+    user_id: string | null;
+    user_email: string | null;
+    report_type: string | null;
+    language: string | null;
+    is_scheduled: boolean | null;
+    status: string | null;
+    provider: string;
+    model: string;
+    requests: number;
+    prompt_tokens: number;
+    cached_tokens: number;
+    output_tokens: number;
+    thinking_tokens: number;
+    avg_llm_seconds: number | null;
+}
+
+export interface UsageResponse {
+    since: string | null;
+    until: string | null;
+    tz: string;
+    group_by: string[];
+    items: UsageItem[];
+}
+
+export interface UsageCallsQueryParams {
+    since?: string;
+    until?: string;
+    farm_id?: string;
+    tz?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+}
+
+export interface UsageCallItem {
+    id: string;
+    created_at: string;
+    farm_id: string | null;
+    farm_name: string | null;
+    user_id: string | null;
+    user_email: string | null;
+    report_type: string | null;
+    language: string | null;
+    is_scheduled: boolean;
+    status: string;
+    provider: string;
+    model: string;
+    error_message: string | null;
+    prompt_tokens: number | null;
+    cached_tokens: number | null;
+    output_tokens: number | null;
+    thinking_tokens: number | null;
+    llm_seconds: number | null;
+}
+
+export interface UsageCallPage {
+    items: UsageCallItem[];
+    total?: number;
+    limit: number;
+    offset: number;
+}
+
+export type AiReportDetail = Record<string, unknown>;
+
+
 
 
 
